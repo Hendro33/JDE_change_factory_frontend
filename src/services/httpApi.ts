@@ -163,8 +163,21 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return change;
   }
 
-  async enhanceStory(_id: string): Promise<Change> {
-    notImplemented("enhanceStory");
+  /**
+   * Starts Receive -> Improve -> Check as a background run on the
+   * backend and returns immediately (the run can take minutes -- a
+   * real model call per stage). The returned Change reflects
+   * whatever state the run is in at that instant; callers that want
+   * to show live progress should keep calling getChange(id) (e.g.
+   * StoryEnhancement.tsx polls while processingStage is neither
+   * undefined nor a terminal value).
+   */
+  async enhanceStory(id: string): Promise<Change> {
+    const customerId = await this.activeCustomerId();
+    return request<Change>(`/changes/${encodeURIComponent(id)}/enhance`, {
+      method: "POST",
+      customerId,
+    });
   }
 
   async sendStoryBack(_id: string, _input: DecisionInput): Promise<Change> {

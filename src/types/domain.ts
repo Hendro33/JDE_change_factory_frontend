@@ -244,6 +244,15 @@ export interface Change {
   updatedAt: string;
   updatedBy: string;
 
+  /**
+   * Live status of an in-flight Receive -> Improve -> Check run
+   * (design doc Section 12.1). Presentational only: undefined once
+   * there is no run associated with this change, or once it has
+   * finished and been folded into userStory/state below.
+   */
+  processingStage?: "receiving" | "improving" | "checking" | "done" | "failed";
+  processingError?: string;
+
   userStory?: UserStory;
   storyApproval?: ApprovalRecord;
   architectDecision?: ArchitectDecision;

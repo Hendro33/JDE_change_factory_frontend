@@ -14,6 +14,13 @@ import {
 const SOURCES: ChangeSource[] = ["Business", "Support / Topdesk", "Optimisation", "DevOps"];
 const STEPS = ["Received", "Refining", "Backlog ready"];
 
+const RUNNING_STAGES = ["receiving", "improving", "checking"] as const;
+const STAGE_LABEL: Record<string, string> = {
+  receiving: "Receive Agent running…",
+  improving: "Improve Agent running…",
+  checking: "Check Agent running…",
+};
+
 export function StoryEnhancement({ onOpenChange }: { onOpenChange: (id: string) => void }) {
   const [changes, setChanges] = useState<Change[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -39,6 +46,22 @@ export function StoryEnhancement({ onOpenChange }: { onOpenChange: (id: string) 
   const stepIndex = selected
     ? selected.state === "RECEIVED" ? 0 : selected.state === "REFINING" ? 1 : 2
     : 0;
+
+  // Real Receive/Improve/Check runs happen on the backend and can take
+  // minutes (they're real model calls) -- enhanceStory() below only
+  // starts the run. While it's active, poll for progress rather than
+  // block the UI on one long request.
+  const runningStage = selected?.processingStage;
+  useEffect(() => {
+    if (!selected || !runningStage || !(RUNNING_STAGES as readonly string[]).includes(runningStage)) return;
+    const id = selected.id;
+    const timer = setInterval(async () => {
+      const updated = await api.getChange(id);
+      if (!updated) return;
+      setChanges((cur) => cur?.map((c) => (c.id === id ? updated : c)) ?? cur);
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [selected?.id, runningStage]);
 
   async function createStory() {
     if (!title.trim() || !request.trim()) return;
@@ -131,13 +154,30 @@ export function StoryEnhancement({ onOpenChange }: { onOpenChange: (id: string) 
                   </div>
 
                   {!selected.userStory && (
-                    <div className="btnrow" style={{ marginTop: 16 }}>
-                      <button className="btn primary" onClick={enhance} disabled={busy}>
-                        {busy ? "Enhancing…" : "Enhance story"}
-                      </button>
-                      <span style={{ fontSize: 13, color: "var(--muted)" }}>
-                        Runs Receive → Improve → Check on the request above.
-                      </span>
+                    <div className="btnrow" style={{ marginTop: 16, alignItems: "center" }}>
+                      {runningStage && (RUNNING_STAGES as readonly string[]).includes(runningStage) ? (
+                        <>
+                          <span className="badge warn">{STAGE_LABEL[runningStage]}</span>
+                          <span style={{ fontSize: 13, color: "var(--muted)" }}>
+                            Real agents are running — this can take a few minutes.
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <button className="btn primary" onClick={enhance} disabled={busy}>
+                            {busy ? "Starting…" : "Enhance story"}
+                          </button>
+                          <span style={{ fontSize: 13, color: "var(--muted)" }}>
+                            Runs Receive → Improve → Check on the request above.
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {selected.processingStage === "failed" && (
+                    <div className="callout" style={{ marginTop: 14 }}>
+                      <strong>Enhancement failed</strong>
+                      {selected.processingError || "Something went wrong running the agents."}
                     </div>
                   )}
                   <ApiNote endpoint="POST /changes/{id}/enhance" />
