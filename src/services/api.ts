@@ -124,9 +124,18 @@ export interface ChangeFactoryApi {
 // ---------------------------------------------------------------------
 // Which implementation the app uses.
 //
-// Today: mock, in-memory, no network.
-// Later: `new HttpChangeFactoryApi(import.meta.env.VITE_API_BASE_URL)`
+// Phase 1 default is still the mock, so nothing breaks without a .env
+// file. Set VITE_USE_MOCK_API=false to point the app at the real
+// FastAPI backend (api_service/) instead -- see .env.example. Only
+// getSession/setActiveCustomer/listChanges/getChange/createChange/
+// getBacklog/getMetrics/getActivity are backed by real endpoints so
+// far; the rest throw a clear "not implemented yet" error against the
+// real backend (HttpChangeFactoryApi's own comment explains why).
 // ---------------------------------------------------------------------
 import { MockChangeFactoryApi } from "./mockApi";
+import { HttpChangeFactoryApi } from "./httpApi";
 
-export const api: ChangeFactoryApi = new MockChangeFactoryApi();
+export const api: ChangeFactoryApi =
+  import.meta.env.VITE_USE_MOCK_API === "false"
+    ? new HttpChangeFactoryApi()
+    : new MockChangeFactoryApi();
