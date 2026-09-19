@@ -1,0 +1,402 @@
+import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
+import type { LifecycleState } from "../types/domain";
+
+/* ------------------------------------------------------------------ */
+/* Status vocabulary                                                    */
+/* ------------------------------------------------------------------ */
+
+const STATE_LABELS: Record<LifecycleState, string> = {
+  RECEIVED: "Received",
+  REFINING: "Story enhancement",
+  BACKLOG_READY: "Awaiting approval",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+  RESOLVED_WITHOUT_CHANGE: "Resolved, no change",
+  ARCHITECTING: "Architecting",
+  SPEC_READY: "Specification ready",
+  CHANGE_APPROVED: "Change approved",
+  EXECUTING: "In build",
+  TESTING: "Testing",
+  VALIDATED: "Validated",
+  CNC_HANDOFF: "With CNC",
+  CLOSED: "Closed",
+  FAILED: "Failed",
+};
+
+const STATE_TONE: Record<LifecycleState, string> = {
+  RECEIVED: "grey",
+  REFINING: "info",
+  BACKLOG_READY: "warn",
+  APPROVED: "info",
+  REJECTED: "stop",
+  RESOLVED_WITHOUT_CHANGE: "ok",
+  ARCHITECTING: "info",
+  SPEC_READY: "info",
+  CHANGE_APPROVED: "warn",
+  EXECUTING: "info",
+  TESTING: "info",
+  VALIDATED: "ok",
+  CNC_HANDOFF: "warn",
+  CLOSED: "ok",
+  FAILED: "stop",
+};
+
+export function StateBadge({ state }: { state: LifecycleState }) {
+  return <span className={`badge ${STATE_TONE[state]}`}>{STATE_LABELS[state]}</span>;
+}
+
+export function stateLabel(state: LifecycleState) {
+  return STATE_LABELS[state];
+}
+
+export function PriorityBadge({ priority }: { priority: "High" | "Medium" | "Low" }) {
+  const tone = priority === "High" ? "stop" : priority === "Medium" ? "warn" : "ok";
+  return <span className={`badge ${tone}`}>{priority}</span>;
+}
+
+/* ------------------------------------------------------------------ */
+/* Provenance — who produced this content                              */
+/* ------------------------------------------------------------------ */
+
+type Provenance = "ai" | "human" | "proposed" | "executed" | "plain";
+
+const PROV_LABEL: Record<Provenance, string> = {
+  ai: "AI recommendation — not yet approved or applied",
+  human: "Human decision",
+  proposed: "Proposed change — not yet applied to JD Edwards",
+  executed: "Applied to JD Edwards",
+  plain: "As submitted",
+};
+
+/**
+ * Wraps content with an unmistakable marker of where it came from.
+ * This is the rule that stops a reader mistaking an AI suggestion for
+ * something that actually happened in JDE.
+ */
+export function Provenance({
+  kind,
+  label,
+  children,
+}: {
+  kind: Provenance;
+  label?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`prov ${kind}`}>
+      <div className="who">{label ?? PROV_LABEL[kind]}</div>
+      {children}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* KPI                                                                  */
+/* ------------------------------------------------------------------ */
+
+export function Kpi({
+  value,
+  label,
+  delta,
+  mark,
+}: {
+  value: number;
+  label: string;
+  delta: number;
+  mark?: string;
+}) {
+  const dir = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+  const arrow = delta > 0 ? "▲" : delta < 0 ? "▼" : "—";
+  return (
+    <div className="kpi">
+      <div className="top">
+        <div className="value">{value}</div>
+        {mark && <span className="mark" aria-hidden="true">{mark}</span>}
+      </div>
+      <div className="label">{label}</div>
+      <div className="delta">
+        <span className={dir}>
+          {arrow} {delta === 0 ? "0" : `${delta > 0 ? "+" : ""}${delta}`}
+        </span>
+        <span className="since">vs previous 30 days</span>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Charts — hand-drawn SVG, no chart library                            */
+/* ------------------------------------------------------------------ */
+
+export function ColumnChart({ data }: { data: { stage: string; count: number }[] }) {
+  const max = Math.max(1, ...data.map((d) => d.count));
+  const w = 460;
+  const h = 200;
+  const padL = 26;
+  const padB = 44;
+  const bandW = (w - padL) / data.length;
+  const barW = Math.min(46, bandW * 0.55);
+  const ticks = [0, Math.ceil(max / 2), max];
+
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width="100%" role="img" aria-label="Change pipeline by stage">
+      {ticks.map((t) => {
+        const y = h - padB - (t / max) * (h - padB - 14);
+        return (
+          <g key={t}>
+            <line x1={padL} y1={y} x2={w} y2={y} stroke="#eee" />
+            <text x={padL - 8} y={y + 4} fontSize="10" fill="#6b6b6b" textAnchor="end">{t}</text>
+          </g>
+        );
+      })}
+      {data.map((d, i) => {
+        const bh = (d.count / max) * (h - padB - 14);
+        const x = padL + i * bandW + (bandW - barW) / 2;
+        const y = h - padB - bh;
+        return (
+          <g key={d.stage}>
+            <rect x={x} y={y} width={barW} height={Math.max(bh, 1)} fill="#FFCC00" />
+            <text x={x + barW / 2} y={y - 6} fontSize="11" fontWeight="700" fill="#000" textAnchor="middle">
+              {d.count}
+            </text>
+            {d.stage.split(" ").map((word, wi, arr) => (
+              <text
+                key={wi}
+                x={x + barW / 2}
+                y={h - padB + 16 + wi * 11 - (arr.length > 1 ? 4 : 0)}
+                fontSize="10"
+                fill="#3d3d3d"
+                textAnchor="middle"
+              >
+                {word}
+              </text>
+            ))}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+const DONUT_COLOURS = ["#FFCC00", "#000000", "#9e9e9e", "#d4d4d4", "#efefef"];
+
+export function DonutChart({
+  data,
+  centreLabel,
+}: {
+  data: { type: string; count: number }[];
+  centreLabel: string;
+}) {
+  const total = data.reduce((s, d) => s + d.count, 0) || 1;
+  const r = 62;
+  const stroke = 26;
+  const c = 2 * Math.PI * r;
+  let offset = 0;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+      <svg width="164" height="164" viewBox="0 0 164 164" role="img" aria-label="Breakdown by change type">
+        <g transform="rotate(-90 82 82)">
+          {data.map((d, i) => {
+            const frac = d.count / total;
+            const dash = frac * c;
+            const el = (
+              <circle
+                key={d.type}
+                cx="82" cy="82" r={r}
+                fill="none"
+                stroke={DONUT_COLOURS[i % DONUT_COLOURS.length]}
+                strokeWidth={stroke}
+                strokeDasharray={`${dash} ${c - dash}`}
+                strokeDashoffset={-offset}
+              />
+            );
+            offset += dash;
+            return el;
+          })}
+        </g>
+        <text x="82" y="78" fontSize="21" fontWeight="700" textAnchor="middle">{total}</text>
+        <text x="82" y="95" fontSize="11" fill="#6b6b6b" textAnchor="middle">{centreLabel}</text>
+      </svg>
+      <ul className="legend" style={{ flex: 1, minWidth: 180 }}>
+        {data.map((d, i) => (
+          <li key={d.type}>
+            <span className="swatch" style={{ background: DONUT_COLOURS[i % DONUT_COLOURS.length] }} />
+            <span className="name">{d.type}</span>
+            <span className="num">
+              {d.count} ({Math.round((d.count / total) * 100)}%)
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function BarList({ data }: { data: { category: string; count: number }[] }) {
+  const max = Math.max(1, ...data.map((d) => d.count));
+  return (
+    <div>
+      {data.map((d) => (
+        <div className="hbar" key={d.category}>
+          <span>{d.category}</span>
+          <span className="track">
+            <span className="fill" style={{ width: `${(d.count / max) * 100}%` }} />
+          </span>
+          <span>{d.count}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Workflow + timeline                                                  */
+/* ------------------------------------------------------------------ */
+
+export function FlowSteps({ steps, currentIndex }: { steps: string[]; currentIndex: number }) {
+  return (
+    <div className="flowsteps">
+      {steps.map((s, i) => (
+        <span key={s} style={{ display: "contents" }}>
+          <span className={`step ${i < currentIndex ? "done" : i === currentIndex ? "on" : ""}`}>{s}</span>
+          {i < steps.length - 1 && <span className="arrow" aria-hidden="true">→</span>}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+export interface TimelineItem {
+  title: string;
+  when?: string;
+  detail?: string;
+  status: "done" | "current" | "pending";
+}
+
+export function Timeline({ items }: { items: TimelineItem[] }) {
+  return (
+    <ul className="timeline">
+      {items.map((it, i) => (
+        <li key={i} className={it.status}>
+          <div className="rail">
+            <span className="dot" />
+            <span className="line" />
+          </div>
+          <div className="body">
+            <h4>{it.title}</h4>
+            {it.when && <div className="when">{it.when}</div>}
+            {it.detail && <p>{it.detail}</p>}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Confirmation modal — approvals are never one careless click          */
+/* ------------------------------------------------------------------ */
+
+export function ConfirmDialog({
+  title,
+  intro,
+  whatHappensNext,
+  confirmLabel,
+  tone = "primary",
+  requireNote,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  intro: ReactNode;
+  whatHappensNext: string;
+  confirmLabel: string;
+  tone?: "primary" | "danger";
+  requireNote: boolean;
+  onConfirm: (decidedBy: string, note: string) => void;
+  onCancel: () => void;
+}) {
+  const [who, setWho] = useState(() => localStorage.getItem("ciq_approver") ?? "");
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  const ready = who.trim().length > 0 && (!requireNote || note.trim().length > 0);
+
+  return (
+    <div className="modalwrap" role="dialog" aria-modal="true" aria-label={title} onClick={onCancel}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <header><h3>{title}</h3></header>
+        <div className="body">
+          {intro}
+          <div className="callout" style={{ margin: "16px 0" }}>
+            <strong>What happens next</strong>
+            {whatHappensNext}
+          </div>
+          <div className="field">
+            <label htmlFor="who">Your name</label>
+            <input
+              id="who"
+              type="text"
+              value={who}
+              placeholder="Every decision is recorded against a person"
+              onChange={(e) => {
+                setWho(e.target.value);
+                localStorage.setItem("ciq_approver", e.target.value.trim());
+              }}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="note">
+              Reason {requireNote ? "" : <span className="hint">(optional)</span>}
+            </label>
+            <textarea
+              id="note"
+              value={note}
+              style={{ minHeight: 80 }}
+              placeholder={requireNote ? "Required — this is what tells the team what to fix" : "Anything worth recording alongside the decision"}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
+        </div>
+        <footer>
+          <button className="btn" onClick={onCancel}>Cancel</button>
+          <button
+            className={`btn ${tone}`}
+            disabled={!ready}
+            onClick={() => onConfirm(who.trim(), note.trim())}
+          >
+            {confirmLabel}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Misc                                                                 */
+/* ------------------------------------------------------------------ */
+
+export function NotStated() {
+  return <span className="notstated">not stated</span>;
+}
+
+export function Loading({ what }: { what: string }) {
+  return <div className="loading">Loading {what}…</div>;
+}
+
+export function ApiNote({ endpoint }: { endpoint: string }) {
+  return (
+    <div className="apinote">
+      Reads from <code>{endpoint}</code> — served by mock data today, by the ConsultIQ
+      Change Factory backend once connected.
+    </div>
+  );
+}

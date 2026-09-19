@@ -1,0 +1,347 @@
+import { useEffect, useState } from "react";
+import { api } from "../services/api";
+import type { Change, LifecycleState } from "../types/domain";
+import {
+  ApiNote,
+  ConfirmDialog,
+  Loading,
+  NotStated,
+  PriorityBadge,
+  Provenance,
+  StateBadge,
+  Timeline,
+  type TimelineItem,
+} from "../components/ui";
+
+/** The lifecycle, in order, as the business reads it. */
+const LIFECYCLE: { key: string; title: string; reached: (c: Change) => boolean; detail: (c: Change) => string | undefined }[] = [
+  {
+    key: "request", title: "Request received",
+    reached: () => true,
+    detail: (c) => `${c.source} · ${c.sourceReference || "no reference"}`,
+  },
+  {
+    key: "story", title: "User story written",
+    reached: (c) => !!c.userStory,
+    detail: (c) => c.userStory ? `Quality gate: ${c.userStory.qualityStatus.replace(/_/g, " ")}, ${c.userStory.revisionCount} revision(s)` : undefined,
+  },
+  {
+    key: "backlog", title: "Business approval",
+    reached: (c) => !!c.storyApproval,
+    detail: (c) => c.storyApproval
+      ? `${c.storyApproval.status === "approved" ? "Approved" : "Rejected"} by ${c.storyApproval.approvedBy}`
+      : undefined,
+  },
+  {
+    key: "architect", title: "Architect decision",
+    reached: (c) => !!c.architectDecision,
+    detail: (c) => c.architectDecision
+      ? `${c.architectDecision.recommendedRoute} · confidence ${Math.round(c.architectDecision.confidence * 100)}%`
+      : undefined,
+  },
+  {
+    key: "spec", title: "Implementation specification",
+    reached: (c) => !!c.implementationSpec,
+    detail: (c) => c.implementationSpec ? `${c.implementationSpec.sequence.length} steps` : undefined,
+  },
+  {
+    key: "changeapproval", title: "Exact change approved",
+    reached: (c) => c.changeApproval?.status === "approved",
+    detail: (c) => c.changeApproval?.approvedBy ? `By ${c.changeApproval.approvedBy}` : undefined,
+  },
+  {
+    key: "execute", title: "Applied in JDE DEV",
+    reached: (c) => ["EXECUTING", "TESTING", "VALIDATED", "CNC_HANDOFF", "CLOSED"].includes(c.state),
+    detail: () => undefined,
+  },
+  {
+    key: "test", title: "Tested",
+    reached: (c) => c.testResult?.outcome === "pass" || c.testResult?.outcome === "fail",
+    detail: (c) => c.testResult?.outcome === "pass" ? "Passed" : c.testResult?.outcome === "fail" ? "Failed" : undefined,
+  },
+  {
+    key: "validate", title: "Human validation",
+    reached: (c) => !!c.humanValidation,
+    detail: (c) => c.humanValidation ? `By ${c.humanValidation.validatedBy}` : undefined,
+  },
+  {
+    key: "cnc", title: "CNC hand-off",
+    reached: (c) => ["CNC_HANDOFF", "CLOSED"].includes(c.state),
+    detail: () => "Package build and promotion stays with CNC",
+  },
+  {
+    key: "closure", title: "Closed with the requester",
+    reached: (c) => !!c.closure,
+    detail: (c) => c.closure ? `Requester: ${c.closure.requesterConfirmation}` : undefined,
+  },
+];
+
+export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: () => void }) {
+  const [change, setChange] = useState<Change | null>(null);
+  const [dialog, setDialog] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const reload = () => api.getChange(changeId).then((c) => setChange(c ?? null));
+  useEffect(() => { reload(); }, [changeId]);
+
+  if (!change) return <Loading what="this change" />;
+
+  const reachedFlags = LIFECYCLE.map((s) => s.reached(change));
+  const lastReached = reachedFlags.lastIndexOf(true);
+  const items: TimelineItem[] = LIFECYCLE.map((s, i) => ({
+    title: s.title,
+    detail: s.detail(change),
+    status: i < lastReached ? "done" : i === lastReached ? "current" : "pending",
+  }));
+
+  const ec = change.exactChange;
+  const applied = ["EXECUTING", "TESTING", "VALIDATED", "CNC_HANDOFF", "CLOSED"].includes(change.state);
+
+  return (
+    <>
+      <div className="pagehead">
+        <div>
+          <button className="linkish" onClick={onBack} style={{ marginBottom: 6 }}>← Back</button>
+          <h1>{change.title}</h1>
+          <div className="mono sub">
+            {change.id} · {change.source} · {change.sourceReference || "no reference"}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <PriorityBadge priority={change.priority} />
+          <StateBadge state={change.state} />
+        </div>
+      </div>
+
+      <div className="detailgrid">
+        <div className="stack">
+          <section className="panel">
+            <h2>Original request</h2>
+            <Provenance kind="plain" label="As submitted by the requester">
+              <div style={{ fontSize: 13.5 }}>{change.originalRequest}</div>
+            </Provenance>
+          </section>
+
+          {change.userStory && (
+            <section className="panel">
+              <h2>User story</h2>
+              <Provenance kind="ai" label="Written by the factory — reviewed and approved by a person below">
+                <p style={{ margin: "0 0 10px", fontSize: 14.5, fontWeight: 700 }}>{change.userStory.statement}</p>
+                <p style={{ margin: 0, fontSize: 13.5 }}>{change.userStory.businessContext}</p>
+              </Provenance>
+              {change.userStory.acceptanceCriteria.length > 0 && (
+                <table className="data" style={{ marginTop: 14 }}>
+                  <thead><tr><th>#</th><th>Acceptance criterion</th><th>Verified by</th></tr></thead>
+                  <tbody>
+                    {change.userStory.acceptanceCriteria.map((ac) => (
+                      <tr key={ac.id}><td className="mono">{ac.id}</td><td>{ac.text}</td><td className="mono">{ac.verifiedBy ?? "—"}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </section>
+          )}
+
+          {change.storyApproval && (
+            <section className="panel">
+              <h2>Business approval</h2>
+              <Provenance
+                kind={change.storyApproval.status === "approved" ? "human" : "plain"}
+                label={`${change.storyApproval.status === "approved" ? "Approved" : "Rejected"} by ${change.storyApproval.approvedBy} · ${new Date(change.storyApproval.approvedAt!).toLocaleString("en-GB")}`}
+              >
+                <div style={{ fontSize: 13.5 }}>
+                  {change.storyApproval.note || <span className="notstated">no reason recorded</span>}
+                </div>
+              </Provenance>
+            </section>
+          )}
+
+          {change.architectDecision && (
+            <section className="panel">
+              <h2>Architect decision</h2>
+              <Provenance kind="ai" label={`Recommended route: ${change.architectDecision.recommendedRoute} · confidence ${Math.round(change.architectDecision.confidence * 100)}%`}>
+                <p style={{ margin: "0 0 10px", fontSize: 13.5 }}>
+                  {change.architectDecision.existingFunctionalityFound}
+                </p>
+                {change.architectDecision.alternativesConsidered.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>Why not the simpler options</div>
+                    <table className="data">
+                      <thead><tr><th>Considered</th><th>Why it was not selected</th></tr></thead>
+                      <tbody>
+                        {change.architectDecision.alternativesConsidered.map((a, i) => (
+                          <tr key={i}><td>{a.approach}</td><td>{a.whyNot}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+              </Provenance>
+              <dl className="facts" style={{ marginTop: 14 }}>
+                <dt>Objects affected</dt>
+                <dd>{change.architectDecision.objectsAffected.length
+                  ? <span className="mono">{change.architectDecision.objectsAffected.join(", ")}</span>
+                  : <NotStated />}</dd>
+                <dt>Could break</dt>
+                <dd>{change.architectDecision.dependenciesAndConflicts.length
+                  ? change.architectDecision.dependenciesAndConflicts.join("; ")
+                  : "Nothing identified"}</dd>
+                <dt>Rollback</dt><dd>{change.architectDecision.rollbackStrategy}</dd>
+              </dl>
+              <ApiNote endpoint="GET /changes/{id}/architecture" />
+            </section>
+          )}
+
+          {ec && (
+            <section className="panel">
+              <h2>The exact change</h2>
+              <Provenance
+                kind={applied ? "executed" : "proposed"}
+                label={applied
+                  ? "Applied to JD Edwards DEV"
+                  : "Proposed only — nothing has been written to JD Edwards"}
+              >
+                <dl className="facts">
+                  <dt>Operation</dt><dd className="mono">{ec.tool}</dd>
+                  <dt>Application</dt><dd className="mono">{ec.application}</dd>
+                  <dt>Version</dt><dd className="mono">{ec.version}</dd>
+                  <dt>Processing option</dt><dd className="mono">{ec.option}</dd>
+                  <dt>Current value</dt><dd className="mono">{ec.currentValue}</dd>
+                  <dt>Proposed value</dt><dd className="mono"><strong>{ec.proposedValue}</strong></dd>
+                  <dt>Environment</dt><dd className="mono">{ec.environment}</dd>
+                  <dt>Verified by</dt><dd className="mono">{ec.testOrchestration}</dd>
+                </dl>
+              </Provenance>
+
+              {change.changeApproval ? (
+                <div style={{ marginTop: 12 }}>
+                  <Provenance
+                    kind="human"
+                    label={`Exact change approved by ${change.changeApproval.approvedBy} · ${new Date(change.changeApproval.approvedAt!).toLocaleString("en-GB")}`}
+                  >
+                    <div style={{ fontSize: 13.5 }}>
+                      {change.changeApproval.note || <span className="notstated">no note recorded</span>}
+                    </div>
+                    <div className="mono" style={{ fontSize: 12, marginTop: 8, color: "var(--muted)" }}>
+                      Bound to hash {change.changeApproval.changeHash} — if the operation differs at
+                      execution by even one character, it is refused.
+                    </div>
+                  </Provenance>
+                </div>
+              ) : (
+                <div style={{ marginTop: 14 }}>
+                  <div className="callout" style={{ marginBottom: 14 }}>
+                    <strong>This still needs your approval</strong>
+                    Approving the story was a decision about whether the work is worth doing.
+                    This is a separate decision about whether this exact operation is the right one.
+                  </div>
+                  <button className="btn primary" onClick={() => setDialog(true)} disabled={busy}>
+                    Approve this exact change
+                  </button>
+                </div>
+              )}
+              <ApiNote endpoint="POST /changes/{id}/approve-change" />
+            </section>
+          )}
+
+          {change.testSpecification && (
+            <section className="panel">
+              <h2>Test</h2>
+              <dl className="facts">
+                <dt>Mode</dt><dd>{change.testSpecification.mode}</dd>
+                {change.testSpecification.orchestrationName && (
+                  <><dt>Orchestration</dt><dd className="mono">{change.testSpecification.orchestrationName}</dd></>
+                )}
+              </dl>
+              {change.testResult && change.testResult.outcome !== "not run" ? (
+                <div style={{ marginTop: 12 }}>
+                  <Provenance
+                    kind="executed"
+                    label={`Test ${change.testResult.outcome === "pass" ? "passed" : "failed"} · ${change.testResult.ranAt ? new Date(change.testResult.ranAt).toLocaleString("en-GB") : ""}`}
+                  >
+                    <div style={{ fontSize: 13.5 }}>{change.testResult.detail ?? "No further detail recorded."}</div>
+                  </Provenance>
+                </div>
+              ) : (
+                <div className="empty" style={{ padding: 20, marginTop: 12 }}>Not run yet.</div>
+              )}
+            </section>
+          )}
+
+          {change.humanValidation && (
+            <section className="panel">
+              <h2>Human validation</h2>
+              <Provenance kind="human" label={`Validated by ${change.humanValidation.validatedBy} · ${new Date(change.humanValidation.validatedAt).toLocaleString("en-GB")}`}>
+                <div style={{ fontSize: 13.5 }}>{change.humanValidation.note}</div>
+              </Provenance>
+            </section>
+          )}
+
+          {change.closure && (
+            <section className="panel">
+              <h2>Closure</h2>
+              <dl className="facts">
+                <dt>What changed</dt><dd>{change.closure.whatChanged}</dd>
+                <dt>Told the requester</dt><dd>{change.closure.businessFacingResult}</dd>
+                <dt>Limitations</dt><dd>{change.closure.limitations || <NotStated />}</dd>
+                <dt>Source system</dt><dd>{change.closure.sourceUpdateStatus}</dd>
+                <dt>Requester says</dt><dd><strong>{change.closure.requesterConfirmation}</strong></dd>
+              </dl>
+            </section>
+          )}
+
+          <section className="panel">
+            <h2>Evidence <span className="qualifier">— append-only, hash-chained</span></h2>
+            <table className="data">
+              <thead><tr><th>#</th><th>Stage</th><th>What happened</th><th>By</th><th>When</th></tr></thead>
+              <tbody>
+                {change.evidence.map((e) => (
+                  <tr key={e.entryId}>
+                    <td className="mono">{e.entryId}</td>
+                    <td>{e.stage}</td>
+                    <td>{e.detail}</td>
+                    <td>{e.actor}</td>
+                    <td className="mono">{new Date(e.capturedAt).toLocaleString("en-GB")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <ApiNote endpoint="GET /changes/{id}/evidence" />
+          </section>
+        </div>
+
+        <aside className="panel">
+          <h2>Lifecycle</h2>
+          <Timeline items={items} />
+        </aside>
+      </div>
+
+      {dialog && ec && (
+        <ConfirmDialog
+          title="Approve this exact change?"
+          intro={
+            <>
+              <p style={{ marginTop: 0 }}>You are approving one specific operation, not the change in general.</p>
+              <dl className="facts">
+                <dt>Application</dt><dd className="mono">{ec.application}</dd>
+                <dt>Version</dt><dd className="mono">{ec.version}</dd>
+                <dt>Option</dt><dd className="mono">{ec.option}</dd>
+                <dt>Change</dt><dd className="mono">{ec.currentValue} → <strong>{ec.proposedValue}</strong></dd>
+                <dt>Environment</dt><dd className="mono">{ec.environment}</dd>
+              </dl>
+            </>
+          }
+          whatHappensNext="The Functional Agent may apply exactly this operation in DEV, then run the named test. If anything about the operation differs from what you see here, it will be refused."
+          confirmLabel="Approve this exact change"
+          requireNote={false}
+          onCancel={() => setDialog(false)}
+          onConfirm={async (decidedBy, note) => {
+            setDialog(false); setBusy(true);
+            await api.approveExactChange(change.id, { decidedBy, note });
+            await reload(); setBusy(false);
+          }}
+        />
+      )}
+    </>
+  );
+}
