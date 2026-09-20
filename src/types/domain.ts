@@ -184,6 +184,16 @@ export interface ApprovalRecord {
   approvedAt?: string;
   expiresAt?: string;
   note?: string;
+  /**
+   * The resolved Identity id behind approvedBy, where the endpoint that
+   * recorded this had one. Additive attribution, not a replacement for
+   * approvedBy — never itself an access-control decision (full RBAC is
+   * still a target-architecture NFR). Absent on change_service.py's
+   * exact-change ApprovalRecord, which is assembled from mcp_server's
+   * own, unmodified approval.py record — that identity attribution
+   * lives in DecisionFeedback instead (Admin > Agents' health view).
+   */
+  identityId?: string;
 }
 
 /** Design doc Section 6.6. */
@@ -394,4 +404,153 @@ export interface ActivityEntry {
   description: string;
   state: LifecycleState;
   updatedBy: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Administration                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A structured reason code, additive alongside the free-text `note`
+ * every decision already carries — lets future agent-improvement
+ * analysis (design doc Section 14.2) aggregate rejections/send-backs
+ * without parsing natural language.
+ */
+export type FeedbackReasonCode =
+  | "missing_information"
+  | "wrong_business_domain"
+  | "incorrect_analysis_or_route"
+  | "risk_or_compliance_concern"
+  | "duplicate_or_superseded"
+  | "other";
+
+export interface IdentitySummary {
+  id: string;
+  displayName: string;
+  role: UserRole;
+}
+
+export interface CustomerProfile {
+  customer: Customer;
+  identities: IdentitySummary[];
+}
+
+/** Status only — NEVER a credential. One AIS connection today, shared by every customer. */
+export interface AisConnectionStatus {
+  mockMode: boolean;
+  baseUrlConfigured: boolean;
+  environment?: string;
+  role?: string;
+}
+
+export interface ErpLandscape {
+  customerId: string;
+  toolsRelease: string;
+  environment: string;
+  ais: AisConnectionStatus;
+  engagementScopeConfigured: boolean;
+  scopeGloballySharedNote: string;
+}
+
+/**
+ * The per-customer, human-authored configuration answering "what is
+ * this engagement actually authorised to touch in JDE" — the intended
+ * per-customer source for the single global scope.json design doc
+ * Appendix D.2/E.2 describes (mcp_server/jde_mcp_server/scope.py).
+ */
+export interface ApprovedVersion {
+  application: string;
+  version: string;
+  options: string[];
+  allowedValues: string[];
+  notes: string;
+}
+
+export interface FunctionalAgentScope {
+  approvedVersions: ApprovedVersion[];
+  neverTouchCategories: string[];
+  approvers: string[];
+}
+
+export interface TechnicalAgentScope {
+  authorizedObjectTypes: string[];
+  reservedProductCode: string;
+  namingPrefix: string;
+  approvers: string[];
+}
+
+export interface EngagementScope {
+  customerId: string;
+  toolsRelease: string;
+  functionalAgent: FunctionalAgentScope;
+  technicalAgent: TechnicalAgentScope;
+  /** Absent means "never configured" — distinct from an explicitly empty, saved scope. */
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface EngagementScopeUpdateInput {
+  toolsRelease: string;
+  functionalAgent: FunctionalAgentScope;
+  technicalAgent: TechnicalAgentScope;
+  updatedBy: string;
+}
+
+/** One .claude/agents/*.md subagent's declared definition + the driver that invokes it, if any. */
+export interface AgentRuntimeConfig {
+  driver: string;
+  /** Absent means "not set by the driver — falls through to the Claude Agent SDK's own default." */
+  model?: string;
+  permissionMode: string;
+  maxTurns: number;
+  allowedTools: string[];
+}
+
+export interface AgentDefinition {
+  name: string;
+  description: string;
+  declaredTools: string[];
+  /** Content hash of the .md file, computed at read time. */
+  version: string;
+  fileUpdatedAt: string;
+  /** Absent means no api_service driver currently invokes this agent. */
+  runtime?: AgentRuntimeConfig;
+}
+
+export interface AgentRunSummary {
+  runId: string;
+  storyId: string;
+  stage: "started" | "done" | "failed";
+  startedAt: string;
+  updatedAt: string;
+  error?: string;
+}
+
+export interface FeedbackSummary {
+  kind: string;
+  count: number;
+  reasons: Record<string, number>;
+}
+
+export interface AgentHealth {
+  agentName: string;
+  /** Cross-customer — which agent ran and how often is a fact about the agent, not customer data. */
+  recentRuns: AgentRunSummary[];
+  runCounts: Record<string, number>;
+  /** Customer-scoped (the active customer's own decision feedback only). */
+  feedback: FeedbackSummary[];
+}
+
+export interface IntegrationStatus {
+  name: string;
+  connected: boolean;
+  detail: string;
+}
+
+export interface BusinessDomainCreateInput {
+  apqcCode: string;
+  name: string;
+  level: string;
+  description?: string;
+  domainOwner?: string;
 }

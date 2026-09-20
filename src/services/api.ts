@@ -10,12 +10,21 @@
 
 import type {
   ActivityEntry,
+  AgentDefinition,
+  AgentHealth,
   BusinessDomain,
+  BusinessDomainCreateInput,
   Change,
   ChangeSource,
+  CustomerProfile,
   DeliveryQueueEntry,
   DomainReview,
+  EngagementScope,
+  EngagementScopeUpdateInput,
+  ErpLandscape,
   FactoryMetrics,
+  FeedbackReasonCode,
+  IntegrationStatus,
   Session,
   UserStory,
 } from "../types/domain";
@@ -67,6 +76,17 @@ export const API_ENDPOINTS = {
   approveForDelivery: "POST /changes/{id}/domain-review/application-manager-approve",
 
   listDeliveryQueue: "GET /delivery-queue",
+
+  getCustomerProfile: "GET /admin/customer-profile",
+  getErpLandscape: "GET /admin/erp-landscape",
+  getEngagementScope: "GET /admin/engagement-scope",
+  updateEngagementScope: "PUT /admin/engagement-scope",
+  listAgents: "GET /admin/agents",
+  getAgent: "GET /admin/agents/{name}",
+  getAgentHealth: "GET /admin/agents/{name}/health",
+  createBusinessDomain: "POST /admin/business-domains",
+  updateBusinessDomainStatus: "PUT /admin/business-domains/{id}/status",
+  listIntegrations: "GET /admin/integrations",
 } as const;
 
 /**
@@ -94,6 +114,8 @@ export interface DecisionInput {
   /** Every decision is recorded against a named person. */
   decidedBy: string;
   note: string;
+  /** Only meaningful on a rejection — ignored on an approval. */
+  rejectionReason?: FeedbackReasonCode;
 }
 
 /**
@@ -163,6 +185,28 @@ export interface ChangeFactoryApi {
 
   /** The set of approved changes Jade is authorised to work on, in queue order. */
   listDeliveryQueue(): Promise<DeliveryQueueEntry[]>;
+
+  /* -------------------------------------------------------------- */
+  /* Administration — Customer Setup, ERP / JDE Landscape, Agents,    */
+  /* Business Domains (write path) and Integrations. All scoped to    */
+  /* the active customer, same as everything else in this interface. */
+  /* -------------------------------------------------------------- */
+
+  /** The active customer's profile plus who is entitled to it. */
+  getCustomerProfile(): Promise<CustomerProfile>;
+  /** JDE connection + engagement-scope status. Never a credential value. */
+  getErpLandscape(): Promise<ErpLandscape>;
+  getEngagementScope(): Promise<EngagementScope>;
+  updateEngagementScope(input: EngagementScopeUpdateInput): Promise<EngagementScope>;
+
+  /** The five subagent definitions, parsed live from .claude/agents/*.md. */
+  listAgents(): Promise<AgentDefinition[]>;
+  getAgentHealth(agentName: string): Promise<AgentHealth>;
+
+  createBusinessDomain(input: BusinessDomainCreateInput): Promise<BusinessDomain>;
+  updateBusinessDomainStatus(domainId: string, status: BusinessDomain["status"]): Promise<BusinessDomain>;
+
+  listIntegrations(): Promise<IntegrationStatus[]>;
 }
 
 // ---------------------------------------------------------------------
@@ -170,11 +214,10 @@ export interface ChangeFactoryApi {
 //
 // Phase 1 default is still the mock, so nothing breaks without a .env
 // file. Set VITE_USE_MOCK_API=false to point the app at the real
-// FastAPI backend (api_service/) instead -- see .env.example. Only
-// getSession/setActiveCustomer/listChanges/getChange/createChange/
-// getBacklog/getMetrics/getActivity are backed by real endpoints so
-// far; the rest throw a clear "not implemented yet" error against the
-// real backend (HttpChangeFactoryApi's own comment explains why).
+// FastAPI backend (api_service/) instead -- see .env.example. Almost
+// everything is backed by real endpoints now (see HttpChangeFactoryApi's
+// own comment for the small, named set of older methods that still
+// aren't).
 // ---------------------------------------------------------------------
 import { MockChangeFactoryApi } from "./mockApi";
 import { HttpChangeFactoryApi } from "./httpApi";

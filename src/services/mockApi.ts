@@ -1,20 +1,30 @@
 import type {
   ActivityEntry,
+  AgentDefinition,
+  AgentHealth,
+  AgentRunSummary,
   BusinessDomain,
+  BusinessDomainCreateInput,
   Change,
   ChangeType,
+  CustomerProfile,
   DeliveryQueueEntry,
   DomainReview,
   DomainReviewStage,
+  EngagementScope,
+  EngagementScopeUpdateInput,
+  ErpLandscape,
   FactoryMetrics,
+  FeedbackSummary,
+  IntegrationStatus,
   LifecycleState,
   StoryVersion,
   UserStory,
 } from "../types/domain";
 import type { Session } from "../types/domain";
 import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
-import { MOCK_BUSINESS_DOMAINS, MOCK_CHANGES } from "./mockData";
-import { getMockSession, setMockActiveCustomer } from "./session";
+import { CUSTOMERS, getMockSession, identitiesForCustomer, setMockActiveCustomer } from "./session";
+import { MOCK_AGENTS, MOCK_BUSINESS_DOMAINS, MOCK_CHANGES } from "./mockData";
 
 /** Simulates network latency so loading states are real, not decorative. */
 const delay = <T,>(value: T, ms = 220): Promise<T> =>
@@ -39,6 +49,25 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
   private changes: Change[] = JSON.parse(JSON.stringify(MOCK_CHANGES));
   private domainReviews = new Map<string, DomainReview>();
   private deliveryQueue: DeliveryQueueEntry[] = [];
+  private businessDomains: BusinessDomain[] = JSON.parse(JSON.stringify(MOCK_BUSINESS_DOMAINS));
+  private engagementScopes = new Map<string, EngagementScope>();
+  /** Keyed by agent name -- grows as the mock's own flows run, so Admin
+   * > Agents' health view reflects what this session actually did,
+   * same "derived, not hard-coded" rule as everything else here. */
+  private agentRuns = new Map<string, AgentRunSummary[]>();
+  private feedbackLog: { customerId: string; kind: string; reasonCode?: string }[] = [];
+
+  private recordAgentRun(agentName: string, storyId: string, stage: AgentRunSummary["stage"] = "done"): void {
+    const runs = this.agentRuns.get(agentName) ?? [];
+    runs.unshift({
+      runId: `${storyId}-${agentName}-${Math.random().toString(16).slice(2, 8)}`,
+      storyId,
+      stage,
+      startedAt: now(),
+      updatedAt: now(),
+    });
+    this.agentRuns.set(agentName, runs.slice(0, 20));
+  }
 
   async getSession(): Promise<Session> {
     return delay(getMockSession(), 80);
@@ -150,6 +179,9 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       prevHash: `hash-${change.evidence.length}`,
       entryHash: `hash-${change.evidence.length + 1}`,
     });
+    this.recordAgentRun("receive-agent", id);
+    this.recordAgentRun("improve-agent", id);
+    this.recordAgentRun("check-agent", id);
     return delay(change, 900);
   }
 
@@ -216,6 +248,8 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       prevHash: `hash-${change.evidence.length}`,
       entryHash: `hash-${change.evidence.length + 1}`,
     });
+    this.recordAgentRun("architect", id);
+    this.feedbackLog.push({ customerId: this.scope, kind: "exact_change_approval" });
     return delay(change);
   }
 
@@ -337,7 +371,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
   }
 
   async listBusinessDomains(): Promise<BusinessDomain[]> {
-    return delay(MOCK_BUSINESS_DOMAINS.filter((d) => d.customerId === this.scope));
+    return delay(this.businessDomains.filter((d) => d.customerId === this.scope));
   }
 
   /** Same rule as every other metric: derived from real records, never hard-coded. */
@@ -347,7 +381,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     );
     if (governed.length === 0) return [];
 
-    const domainsById = new Map(MOCK_BUSINESS_DOMAINS.map((d) => [d.id, d]));
+    const domainsById = new Map(this.businessDomains.map((d) => [d.id, d]));
     const counts = new Map<string | null, number>();
     for (const c of governed) {
       const key = c.businessDomainId ?? null;
@@ -443,11 +477,16 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     review.history.push(editVersion);
     review.stage = "reviewer_agent_refining";
 
+    // Deterministic, not trusted from input.userStory: the count before
+    // this edit cycle is the honest reference point, matching the real
+    // backend's own rule (a Domain Owner's edited draft doesn't reliably
+    // carry the prior count either).
+    const priorCount = review.history[review.history.length - 2]?.userStory.revisionCount ?? 0;
     const revised: UserStory = {
       ...input.userStory,
       businessContext: `${input.userStory.businessContext} (Reviewer Agent pass: wording tightened and criteria re-checked for testability.)`,
       qualityStatus: "passed",
-      revisionCount: input.userStory.revisionCount + 1,
+      revisionCount: priorCount + 1,
     };
     review.history.push({
       label: "reviewer_agent_revision",
@@ -457,6 +496,8 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       capturedAt: now(),
     });
     review.stage = "domain_owner_reviewing";
+    this.recordAgentRun("improve-agent", changeId);
+    this.feedbackLog.push({ customerId: this.scope, kind: "domain_owner_edit" });
     return delay(this.saveDomainReview(review), 500);
   }
 
@@ -472,6 +513,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvedBy: input.decidedBy,
       approvedAt: now(),
       note: input.note,
+      identityId: getMockSession().userId,
     };
     review.stage = "ready_for_application_manager";
     return delay(this.saveDomainReview(review));
@@ -489,6 +531,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvedBy: input.decidedBy,
       approvedAt: now(),
       note: input.note,
+      identityId: getMockSession().userId,
     };
     review.stage = "application_manager_approved";
     this.saveDomainReview(review);
@@ -517,5 +560,120 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     return delay(
       this.deliveryQueue.filter((e) => e.customerId === customerId).sort((a, b) => a.position - b.position)
     );
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Administration                                                    */
+  /* ---------------------------------------------------------------- */
+
+  async getCustomerProfile(): Promise<CustomerProfile> {
+    const customer = CUSTOMERS.find((c) => c.id === this.scope);
+    if (!customer) throw new Error(`No such customer: ${this.scope}`);
+    return delay({ customer, identities: identitiesForCustomer(this.scope) });
+  }
+
+  async getErpLandscape(): Promise<ErpLandscape> {
+    const customer = CUSTOMERS.find((c) => c.id === this.scope);
+    if (!customer) throw new Error(`No such customer: ${this.scope}`);
+    const scope = this.engagementScopes.get(this.scope);
+    const configured = !!scope && (scope.functionalAgent.approvedVersions.length > 0 || scope.technicalAgent.authorizedObjectTypes.length > 0);
+    return delay({
+      customerId: this.scope,
+      toolsRelease: customer.toolsRelease,
+      environment: customer.environment,
+      // The mock always presents mock mode, unconfigured -- the same
+      // honest "nothing is live yet" state the real backend reports
+      // when JDE_MCP_MOCK_MODE=true and no AIS credentials are set.
+      ais: { mockMode: true, baseUrlConfigured: false },
+      engagementScopeConfigured: configured,
+      scopeGloballySharedNote:
+        "mcp_server's JDE (AIS) connection and its scope.json engagement file are still a single, global " +
+        "configuration shared by every customer in this deployment -- they are not yet customer-specific. The " +
+        "Engagement Scope below is this customer's own intended configuration; it is the source an operator " +
+        "would export into scope.json for this engagement, but it is not yet wired into mcp_server's live " +
+        "enforcement. Making the JDE connection and scope genuinely per-customer is a larger change, out of " +
+        "scope here.",
+    });
+  }
+
+  async getEngagementScope(): Promise<EngagementScope> {
+    const existing = this.engagementScopes.get(this.scope);
+    if (existing) return delay(existing);
+    return delay({
+      customerId: this.scope,
+      toolsRelease: "",
+      functionalAgent: { approvedVersions: [], neverTouchCategories: [], approvers: [] },
+      technicalAgent: { authorizedObjectTypes: [], reservedProductCode: "", namingPrefix: "", approvers: [] },
+    });
+  }
+
+  async updateEngagementScope(input: EngagementScopeUpdateInput): Promise<EngagementScope> {
+    const scope: EngagementScope = {
+      customerId: this.scope,
+      toolsRelease: input.toolsRelease,
+      functionalAgent: input.functionalAgent,
+      technicalAgent: input.technicalAgent,
+      updatedAt: now(),
+      updatedBy: input.updatedBy,
+    };
+    this.engagementScopes.set(this.scope, scope);
+    return delay(scope);
+  }
+
+  async listAgents(): Promise<AgentDefinition[]> {
+    return delay(MOCK_AGENTS);
+  }
+
+  async getAgentHealth(agentName: string): Promise<AgentHealth> {
+    const runs = this.agentRuns.get(agentName) ?? [];
+    const runCounts: Record<string, number> = {};
+    for (const r of runs) runCounts[r.stage] = (runCounts[r.stage] ?? 0) + 1;
+
+    const feedbackKinds: Record<string, string[]> = {
+      architect: ["exact_change_approval", "exact_change_rejection"],
+      "improve-agent": ["domain_owner_edit"],
+    };
+    const kinds = feedbackKinds[agentName] ?? [];
+    const customerFeedback = this.feedbackLog.filter((f) => f.customerId === this.scope);
+    const feedback: FeedbackSummary[] = kinds
+      .map((kind) => {
+        const matching = customerFeedback.filter((f) => f.kind === kind);
+        const reasons: Record<string, number> = {};
+        for (const f of matching) if (f.reasonCode) reasons[f.reasonCode] = (reasons[f.reasonCode] ?? 0) + 1;
+        return { kind, count: matching.length, reasons };
+      })
+      .filter((f) => f.count > 0);
+
+    return delay({ agentName, recentRuns: runs, runCounts, feedback });
+  }
+
+  async createBusinessDomain(input: BusinessDomainCreateInput): Promise<BusinessDomain> {
+    const domain: BusinessDomain = {
+      id: `DOM-${Math.random().toString(16).slice(2, 10)}`,
+      customerId: this.scope,
+      apqcCode: input.apqcCode,
+      name: input.name,
+      level: input.level,
+      description: input.description ?? "",
+      domainOwner: input.domainOwner ?? "",
+      status: "active",
+    };
+    this.businessDomains = [...this.businessDomains, domain];
+    return delay(domain);
+  }
+
+  async updateBusinessDomainStatus(domainId: string, status: BusinessDomain["status"]): Promise<BusinessDomain> {
+    const domain = this.businessDomains.find((d) => d.id === domainId && d.customerId === this.scope);
+    if (!domain) throw new Error(`No such business domain: ${domainId}`);
+    domain.status = status;
+    return delay(domain);
+  }
+
+  async listIntegrations(): Promise<IntegrationStatus[]> {
+    return delay([
+      { name: "JD Edwards (AIS)", connected: false, detail: "Running in mock mode -- see ERP / JDE Landscape for connection status" },
+      { name: "Topdesk", connected: false, detail: "Not connected -- source and source reference are free-text fields today, no live connector" },
+      { name: "Slack / Teams approvals", connected: false, detail: "Not connected -- approvals happen in-app today" },
+    ]);
   }
 }
