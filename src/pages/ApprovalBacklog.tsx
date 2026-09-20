@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
-import type { Change } from "../types/domain";
+import type { BusinessDomain, Change, DomainReview } from "../types/domain";
 import {
   ApiNote,
   ConfirmDialog,
+  DOMAIN_STAGE_LABEL,
   Loading,
   NotStated,
   PriorityBadge,
@@ -18,20 +19,45 @@ export function ApprovalBacklog() {
   const [dialog, setDialog] = useState<Decision | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const reload = () => api.getBacklog().then((b) => {
+  const [domains, setDomains] = useState<BusinessDomain[]>([]);
+  const [reviews, setReviews] = useState<Map<string, DomainReview>>(new Map());
+  const [filterDomainId, setFilterDomainId] = useState("");
+  const [filterApqcCode, setFilterApqcCode] = useState("");
+  const [filterStage, setFilterStage] = useState("");
+
+  const reload = () => api.getBacklog().then(async (b) => {
     setBacklog(b);
     setOpenId((cur) => (cur && b.some((c) => c.id === cur) ? cur : b[0]?.id ?? null));
+    api.listBusinessDomains().then(setDomains);
+    const pairs = await Promise.all(b.map(async (c) => [c.id, await api.getDomainReview(c.id)] as const));
+    setReviews(new Map(pairs.filter((p): p is [string, DomainReview] => !!p[1])));
   });
 
   useEffect(() => { reload(); }, []);
 
-  const open = backlog?.find((c) => c.id === openId) ?? null;
+  const domainsById = new Map(domains.map((d) => [d.id, d]));
+  const apqcCodes = Array.from(new Set(domains.map((d) => d.apqcCode))).sort();
+
+  const filtered = (backlog ?? []).filter((c) => {
+    const review = reviews.get(c.id);
+    if (filterDomainId && review?.businessDomainId !== filterDomainId) return false;
+    if (filterApqcCode) {
+      const domain = review?.businessDomainId ? domainsById.get(review.businessDomainId) : undefined;
+      if (domain?.apqcCode !== filterApqcCode) return false;
+    }
+    if (filterStage && review?.stage !== filterStage) return false;
+    return true;
+  });
+
+  const open = filtered.find((c) => c.id === openId) ?? null;
+  const openReview = open ? reviews.get(open.id) : undefined;
+  const readyForSprint = openReview?.stage === "ready_for_application_manager";
 
   const COPY: Record<Decision, { title: string; next: string; label: string; tone: "primary" | "danger"; note: boolean }> = {
     approve: {
-      title: "Approve this change for implementation?",
-      next: "The Architect analyses it and proposes an exact change. You will approve that separately before anything is written to JD Edwards.",
-      label: "Approve", tone: "primary", note: false,
+      title: "Approve this change for the sprint/build (Application Manager)?",
+      next: "The application backlog is approved to proceed toward build. The Architect then analyses it and proposes an exact change, which you approve separately before anything is written to JD Edwards.",
+      label: "Approve for sprint", tone: "primary", note: false,
     },
     reject: {
       title: "Reject this change?",
@@ -54,12 +80,45 @@ export function ApprovalBacklog() {
             You decide what is worth doing. Nothing proceeds without this decision.
           </div>
         </div>
-        <div className="meta">{backlog?.length ?? 0} awaiting your review</div>
+        <div className="meta">{filtered.length} awaiting your review</div>
       </div>
 
-      {!backlog ? <Loading what="the backlog" /> : backlog.length === 0 ? (
+      {backlog && backlog.length > 0 && (
+        <div className="panel" style={{ marginBottom: 16, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div className="field" style={{ margin: 0 }}>
+            <label htmlFor="fdomain">Business domain</label>
+            <select id="fdomain" value={filterDomainId} onChange={(e) => setFilterDomainId(e.target.value)}>
+              <option value="">All domains</option>
+              {domains.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label htmlFor="fapqc">APQC process/domain code</label>
+            <select id="fapqc" value={filterApqcCode} onChange={(e) => setFilterApqcCode(e.target.value)}>
+              <option value="">All codes</option>
+              {apqcCodes.map((code) => <option key={code} value={code}>{code}</option>)}
+            </select>
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label htmlFor="fstage">Governance stage</label>
+            <select id="fstage" value={filterStage} onChange={(e) => setFilterStage(e.target.value)}>
+              <option value="">All stages</option>
+              {Object.entries(DOMAIN_STAGE_LABEL).map(([stage, label]) => <option key={stage} value={stage}>{label}</option>)}
+            </select>
+          </div>
+          {(filterDomainId || filterApqcCode || filterStage) && (
+            <button className="linkish" onClick={() => { setFilterDomainId(""); setFilterApqcCode(""); setFilterStage(""); }}>
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
+
+      {!backlog ? <Loading what="the backlog" /> : filtered.length === 0 ? (
         <div className="empty">
-          Nothing waiting for review. Stories arrive here once they pass the quality gate.
+          {backlog.length === 0
+            ? "Nothing waiting for review. Stories arrive here once they pass the quality gate."
+            : "No changes match the current filters."}
         </div>
       ) : (
         <div className="detailgrid">
@@ -75,11 +134,23 @@ export function ApprovalBacklog() {
                         raised {new Date(open.createdAt).toLocaleDateString("en-GB")}
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
                       <PriorityBadge priority={open.priority} />
                       <span className="badge grey">Complexity: {open.complexitySignal}</span>
+                      {openReview && (
+                        <span className="badge info">
+                          {openReview.domainClassificationUncertain
+                            ? "Domain: uncertain"
+                            : domainsById.get(openReview.businessDomainId ?? "")?.name ?? "Domain: unclassified"}
+                        </span>
+                      )}
                     </div>
                   </div>
+                  {openReview && (
+                    <div style={{ marginTop: 10 }}>
+                      <span className="badge warn">{DOMAIN_STAGE_LABEL[openReview.stage] ?? openReview.stage}</span>
+                    </div>
+                  )}
                 </section>
 
                 <section className="panel">
@@ -134,19 +205,34 @@ export function ApprovalBacklog() {
                 )}
 
                 <section className="panel">
-                  <h2>Your decision</h2>
+                  <h2>Your decision <span className="qualifier">— Application Manager</span></h2>
                   <div className="callout" style={{ marginBottom: 16 }}>
                     <strong>What happens next if you approve</strong>
-                    The Architect analyses the JD Edwards estate and proposes an exact change.
-                    That proposal comes back to you for a separate approval. Approving here does
-                    not authorise any write to JD Edwards.
+                    The application backlog / sprint is approved to proceed toward build. The
+                    Architect then analyses the JD Edwards estate and proposes an exact change,
+                    which comes back to you for a separate approval. Approving here does not
+                    authorise any write to JD Edwards.
                   </div>
+                  {openReview && !readyForSprint && (
+                    <div className="callout" style={{ marginBottom: 16 }}>
+                      <strong>Waiting on the Domain Owner</strong>
+                      This story is not yet ready for Application Manager approval — the Domain
+                      Owner has not approved the business requirement yet ({DOMAIN_STAGE_LABEL[openReview.stage] ?? openReview.stage}).
+                      Complete that review on the User story enhancement page first.
+                    </div>
+                  )}
                   <div className="btnrow">
-                    <button className="btn primary" onClick={() => setDialog("approve")} disabled={busy}>Approve</button>
+                    <button
+                      className="btn primary"
+                      onClick={() => setDialog("approve")}
+                      disabled={busy || (!!openReview && !readyForSprint)}
+                    >
+                      Approve for sprint
+                    </button>
                     <button className="btn" onClick={() => setDialog("sendback")} disabled={busy}>Send back for refinement</button>
                     <button className="btn danger" onClick={() => setDialog("reject")} disabled={busy}>Reject</button>
                   </div>
-                  <ApiNote endpoint="POST /changes/{id}/approve · POST /changes/{id}/reject" />
+                  <ApiNote endpoint="POST /changes/{id}/domain-review/application-manager-approve" />
                 </section>
               </>
             )}
@@ -156,20 +242,26 @@ export function ApprovalBacklog() {
             <h2>Awaiting review</h2>
             <table className="data">
               <tbody>
-                {backlog.map((c) => (
-                  <tr key={c.id} className="clickable"
-                    style={c.id === openId ? { background: "var(--wash)" } : undefined}
-                    onClick={() => setOpenId(c.id)}>
-                    <td>
-                      <div className="mono" style={{ color: "var(--muted)" }}>{c.id}</div>
-                      <div>{c.title}</div>
-                      <div style={{ marginTop: 5, display: "flex", gap: 6 }}>
-                        <PriorityBadge priority={c.priority} />
-                        <span className="badge grey">Complexity: {c.complexitySignal}</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map((c) => {
+                  const review = reviews.get(c.id);
+                  return (
+                    <tr key={c.id} className="clickable"
+                      style={c.id === openId ? { background: "var(--wash)" } : undefined}
+                      onClick={() => setOpenId(c.id)}>
+                      <td>
+                        <div className="mono" style={{ color: "var(--muted)" }}>{c.id}</div>
+                        <div>{c.title}</div>
+                        <div style={{ marginTop: 5, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          <PriorityBadge priority={c.priority} />
+                          <span className="badge grey">Complexity: {c.complexitySignal}</span>
+                          {review && review.stage === "ready_for_application_manager" && (
+                            <span className="badge ok">Ready for you</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             <ApiNote endpoint="GET /backlog" />
@@ -193,7 +285,7 @@ export function ApprovalBacklog() {
           onCancel={() => setDialog(null)}
           onConfirm={async (decidedBy, note) => {
             setDialog(null); setBusy(true);
-            if (dialog === "approve") await api.approveChange(open.id, { decidedBy, note });
+            if (dialog === "approve") await api.approveForSprint(open.id, { decidedBy, note });
             else if (dialog === "reject") await api.rejectChange(open.id, { decidedBy, note });
             else await api.sendStoryBack(open.id, { decidedBy, note });
             await reload(); setBusy(false);

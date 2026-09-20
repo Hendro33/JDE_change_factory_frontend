@@ -1,8 +1,11 @@
 import type {
   ActivityEntry,
+  BusinessDomain,
   Change,
+  DomainReview,
   FactoryMetrics,
   Session,
+  UserStory,
 } from "../types/domain";
 import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
 import { getMockPersona, type PersonaKey } from "./session";
@@ -213,5 +216,71 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
   async getActivity(): Promise<ActivityEntry[]> {
     const customerId = await this.activeCustomerId();
     return request<ActivityEntry[]>("/activity", { customerId });
+  }
+
+  async listBusinessDomains(): Promise<BusinessDomain[]> {
+    const customerId = await this.activeCustomerId();
+    return request<BusinessDomain[]>("/business-domains", { customerId });
+  }
+
+  async getDomainReview(changeId: string): Promise<DomainReview | undefined> {
+    const customerId = await this.activeCustomerId();
+    try {
+      return await request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review`, { customerId });
+    } catch (e) {
+      if (e instanceof HttpError && e.status === 404) return undefined;
+      throw e;
+    }
+  }
+
+  async assignBusinessDomain(
+    changeId: string,
+    input: { businessDomainId?: string; uncertain?: boolean; note?: string }
+  ): Promise<DomainReview> {
+    const customerId = await this.activeCustomerId();
+    return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/assign-domain`, {
+      method: "POST",
+      customerId,
+      body: { businessDomainId: input.businessDomainId, uncertain: input.uncertain ?? false, note: input.note ?? "" },
+    });
+  }
+
+  async startDomainOwnerReview(changeId: string, input: DecisionInput): Promise<DomainReview> {
+    const customerId = await this.activeCustomerId();
+    return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/start`, {
+      method: "POST",
+      customerId,
+      body: { decidedBy: input.decidedBy, note: input.note },
+    });
+  }
+
+  async submitDomainOwnerEdit(
+    changeId: string,
+    input: { editedBy: string; note?: string; userStory: UserStory }
+  ): Promise<DomainReview> {
+    const customerId = await this.activeCustomerId();
+    return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/edit`, {
+      method: "POST",
+      customerId,
+      body: { editedBy: input.editedBy, note: input.note ?? "", userStory: input.userStory },
+    });
+  }
+
+  async approveDomainOwnerStory(changeId: string, input: DecisionInput): Promise<DomainReview> {
+    const customerId = await this.activeCustomerId();
+    return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/approve`, {
+      method: "POST",
+      customerId,
+      body: { decidedBy: input.decidedBy, note: input.note },
+    });
+  }
+
+  async approveForSprint(changeId: string, input: DecisionInput): Promise<DomainReview> {
+    const customerId = await this.activeCustomerId();
+    return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/application-manager-approve`, {
+      method: "POST",
+      customerId,
+      body: { decidedBy: input.decidedBy, note: input.note },
+    });
   }
 }

@@ -176,7 +176,7 @@ export interface ExactChange {
  */
 export interface ApprovalRecord {
   approvalId: string;
-  kind: "story" | "change";
+  kind: "story" | "change" | "domain_owner" | "application_manager";
   status: "pending" | "approved" | "rejected";
   /** Hash of the exact operation approved. Fails closed on mismatch. */
   changeHash?: string;
@@ -226,6 +226,68 @@ export interface ClosureRecord {
   closedAt?: string;
 }
 
+/* ------------------------------------------------------------------ */
+/* Business domain ownership and domain-aware governance               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The customer's own business taxonomy — distinct from three things it
+ * must never be conflated with: the APQC classification itself (apqcCode
+ * / level place a domain within APQC, this is not an APQC catalogue
+ * entry), customer-specific domain knowledge (that lives on the
+ * UserStory, never here), and authorisation (domainOwner is a name for
+ * display and record-keeping, like `approvedBy` on an ApprovalRecord —
+ * not an access-control list).
+ */
+export interface BusinessDomain {
+  id: string;
+  customerId: string;
+  apqcCode: string;
+  name: string;
+  /** APQC Level 2 ("4.4") or Level 3 ("4.4.3") — dotted depth. */
+  level: string;
+  description: string;
+  domainOwner: string;
+  status: "active" | "proposed" | "retired";
+}
+
+export type DomainReviewStage =
+  | "ready_for_domain_owner"
+  | "domain_owner_reviewing"
+  | "domain_owner_requested_revision"
+  | "reviewer_agent_refining"
+  | "domain_owner_approved"
+  | "ready_for_application_manager"
+  | "application_manager_approved";
+
+/** One version in the story's evidence trail — never overwritten. */
+export interface StoryVersion {
+  label: "ai_generated" | "domain_owner_edit" | "reviewer_agent_revision";
+  userStory: UserStory;
+  note: string;
+  actor: string;
+  capturedAt: string;
+}
+
+/**
+ * The Domain Owner / Application Manager governance record for one
+ * Change. Workflow rule this enforces: a Domain Owner edit is never
+ * silently the approved story —
+ *   Domain Owner edit → Reviewer Agent → revised story → Domain Owner approval
+ */
+export interface DomainReview {
+  changeId: string;
+  businessDomainId?: string;
+  /** Set when a human genuinely cannot place the request confidently — exposed, not guessed away. */
+  domainClassificationUncertain: boolean;
+  domainClassificationNote: string;
+  stage: DomainReviewStage;
+  history: StoryVersion[];
+  domainOwnerApproval?: ApprovalRecord;
+  applicationManagerApproval?: ApprovalRecord;
+  updatedAt: string;
+}
+
 /** The central object of the application. */
 export interface Change {
   id: string;
@@ -253,6 +315,14 @@ export interface Change {
   processingStage?: "receiving" | "improving" | "checking" | "done" | "failed";
   processingError?: string;
 
+  /**
+   * Business domain governance (Section 2/3). A read-only projection
+   * of the DomainReview sidecar for list/filter display — the full
+   * record (history, notes, approvals) comes from getDomainReview.
+   */
+  businessDomainId?: string;
+  domainReviewStage?: DomainReviewStage;
+
   userStory?: UserStory;
   storyApproval?: ApprovalRecord;
   architectDecision?: ArchitectDecision;
@@ -272,6 +342,8 @@ export interface FactoryMetrics {
   pipeline: { stage: string; count: number }[];
   changeTypes: { type: ChangeType; count: number }[];
   businessImpactBreakdown: { category: string; count: number }[];
+  /** Distribution of current changes by business domain — empty where no domain governance data exists for this customer. */
+  businessDomainBreakdown: { domainId: string | null; domainName: string; apqcCode: string; count: number }[];
   performance: {
     averageCycleTimeDays: number;
     averageCycleTimeDelta: number;

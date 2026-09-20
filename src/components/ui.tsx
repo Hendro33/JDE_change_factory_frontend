@@ -50,6 +50,17 @@ export function stateLabel(state: LifecycleState) {
   return STATE_LABELS[state];
 }
 
+/** Domain Owner / Application Manager governance stages (Section 7). */
+export const DOMAIN_STAGE_LABEL: Record<string, string> = {
+  ready_for_domain_owner: "User story ready for Domain Owner",
+  domain_owner_reviewing: "Domain Owner reviewing",
+  domain_owner_requested_revision: "Domain Owner requested revision",
+  reviewer_agent_refining: "Reviewer Agent refining",
+  domain_owner_approved: "Domain Owner approved",
+  ready_for_application_manager: "Ready for Application Manager",
+  application_manager_approved: "Application Manager approved for sprint/build",
+};
+
 export function PriorityBadge({ priority }: { priority: "High" | "Medium" | "Low" }) {
   const tone = priority === "High" ? "stop" : priority === "Medium" ? "warn" : "ok";
   return <span className={`badge ${tone}`}>{priority}</span>;

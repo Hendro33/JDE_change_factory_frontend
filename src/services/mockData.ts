@@ -1,4 +1,4 @@
-import type { Change, EvidenceRecord } from "../types/domain";
+import type { BusinessDomain, Change, EvidenceRecord } from "../types/domain";
 
 /**
  * Mock records standing in for the backend.
@@ -26,6 +26,18 @@ const ev = (
   prevHash: n === 1 ? "GENESIS" : `hash-${n - 1}`,
   entryHash: `hash-${n}`,
 });
+
+/**
+ * A small, representative set of business domains per mock customer —
+ * not the APQC catalogue, same principle as the real BicycleWorks pilot
+ * seed (see the backend's pilot_business_domains_bicycleworks.py).
+ */
+export const MOCK_BUSINESS_DOMAINS: BusinessDomain[] = [
+  { id: "DOM-VDB-1", customerId: "vdb", apqcCode: "4.4", name: "Manage Logistics & Warehousing", level: "4.4", description: "Warehouse stock visibility and inventory accuracy.", domainOwner: "", status: "active" },
+  { id: "DOM-VDB-2", customerId: "vdb", apqcCode: "4.4.3", name: "Order Fulfilment & Shipment Management", level: "4.4.3", description: "Sales order entry and shipment status.", domainOwner: "", status: "active" },
+  { id: "DOM-NHD-1", customerId: "nhd", apqcCode: "4.3", name: "Manufacture / Produce Product", level: "4.3", description: "Production scheduling and shop floor execution.", domainOwner: "", status: "active" },
+  { id: "DOM-MRV-1", customerId: "mrv", apqcCode: "9.3", name: "Manage Order-to-Cash / Credit & Collections", level: "9.3", description: "Customer credit limits and accounts receivable.", domainOwner: "", status: "active" },
+];
 
 export const MOCK_CHANGES: Change[] = [
   {

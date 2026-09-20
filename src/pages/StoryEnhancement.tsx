@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
-import type { Change, ChangeSource } from "../types/domain";
+import type { BusinessDomain, Change, ChangeSource, DomainReview, UserStory } from "../types/domain";
 import {
   ApiNote,
   ConfirmDialog,
+  DOMAIN_STAGE_LABEL,
   FlowSteps,
   Loading,
   NotStated,
@@ -32,6 +33,15 @@ export function StoryEnhancement({ onOpenChange }: { onOpenChange: (id: string) 
   const [source, setSource] = useState<ChangeSource>("Support / Topdesk");
   const [ref, setRef] = useState("");
   const [request, setRequest] = useState("");
+
+  // Business domain governance (Section 3/4).
+  const [domains, setDomains] = useState<BusinessDomain[]>([]);
+  const [domainReview, setDomainReview] = useState<DomainReview | null>(null);
+  const [domainBusy, setDomainBusy] = useState(false);
+  const [reviewerName, setReviewerName] = useState(() => localStorage.getItem("ciq_approver") ?? "");
+  const [editForm, setEditForm] = useState<UserStory | null>(null);
+  const [editNote, setEditNote] = useState("");
+  const [domainDialog, setDomainDialog] = useState(false);
 
   const reload = () =>
     api.listChanges().then((all) => {
@@ -81,6 +91,58 @@ export function StoryEnhancement({ onOpenChange }: { onOpenChange: (id: string) 
     await api.enhanceStory(selected.id);
     await reload();
     setBusy(false);
+  }
+
+  // Domain governance starts once a story has reached the backlog —
+  // reviewing something still mid-Receive/Improve/Check would be
+  // reviewing a moving target.
+  const governable = selected && selected.userStory && selected.state !== "RECEIVED" && selected.state !== "REFINING";
+  useEffect(() => {
+    if (!governable) { setDomainReview(null); setEditForm(null); return; }
+    api.listBusinessDomains().then(setDomains);
+    api.getDomainReview(selected!.id).then((r) => setDomainReview(r ?? null));
+    setEditForm(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id, selected?.state]);
+
+  const latestStory = domainReview?.history[domainReview.history.length - 1]?.userStory;
+
+  async function assignDomain(value: string) {
+    if (!selected) return;
+    setDomainBusy(true);
+    const updated =
+      value === "uncertain"
+        ? await api.assignBusinessDomain(selected.id, { uncertain: true, note: "Marked uncertain by reviewer." })
+        : await api.assignBusinessDomain(selected.id, { businessDomainId: value || undefined });
+    setDomainReview(updated);
+    setDomainBusy(false);
+  }
+
+  async function startDomainReview() {
+    if (!selected) return;
+    setDomainBusy(true);
+    const updated = await api.startDomainOwnerReview(selected.id, { decidedBy: reviewerName, note: "" });
+    setDomainReview(updated);
+    setDomainBusy(false);
+  }
+
+  function beginEdit() {
+    if (latestStory) setEditForm(JSON.parse(JSON.stringify(latestStory)));
+  }
+
+  async function submitEdit() {
+    if (!selected || !editForm) return;
+    setDomainBusy(true);
+    try {
+      const updated = await api.submitDomainOwnerEdit(selected.id, {
+        editedBy: reviewerName, note: editNote, userStory: editForm,
+      });
+      setDomainReview(updated);
+      setEditForm(null);
+      setEditNote("");
+    } finally {
+      setDomainBusy(false);
+    }
   }
 
   return (
@@ -258,6 +320,165 @@ export function StoryEnhancement({ onOpenChange }: { onOpenChange: (id: string) 
                   </section>
                 )}
 
+                {governable && domainReview && (
+                  <section className="panel">
+                    <h2>Business domain &amp; Domain Owner review</h2>
+
+                    <div className="grid halves">
+                      <div className="field">
+                        <label htmlFor="domainpick">Business domain</label>
+                        <select
+                          id="domainpick"
+                          value={domainReview.domainClassificationUncertain ? "uncertain" : domainReview.businessDomainId ?? ""}
+                          onChange={(e) => assignDomain(e.target.value)}
+                          disabled={domainBusy}
+                        >
+                          <option value="">— not yet classified —</option>
+                          {domains.map((d) => (
+                            <option key={d.id} value={d.id}>{d.apqcCode} · {d.name}</option>
+                          ))}
+                          <option value="uncertain">Classification uncertain</option>
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13.5, color: "var(--ink-soft)" }}>Governance stage</div>
+                        <div style={{ marginTop: 6 }}>
+                          <span className="badge info">{DOMAIN_STAGE_LABEL[domainReview.stage] ?? domainReview.stage}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {domainReview.domainClassificationUncertain && (
+                      <div className="callout" style={{ marginTop: 12 }}>
+                        <strong>Classification uncertain</strong>
+                        {domainReview.domainClassificationNote || "Exposed honestly rather than forced into a domain that doesn't fit."}
+                      </div>
+                    )}
+
+                    <h3 style={{ fontSize: 14, margin: "18px 0 8px" }}>Story history</h3>
+                    <div style={{ display: "grid", gap: 12 }}>
+                      {domainReview.history.map((v, i) => (
+                        <Provenance
+                          key={i}
+                          kind={v.label === "domain_owner_edit" ? "human" : "ai"}
+                          label={
+                            v.label === "ai_generated" ? "AI-generated — original enhanced story"
+                              : v.label === "domain_owner_edit" ? `Domain Owner edit by ${v.actor}`
+                              : "Reviewer Agent — revised version"
+                          }
+                        >
+                          <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: 13.5 }}>{v.userStory.statement}</p>
+                          {v.note && <p style={{ margin: 0, fontSize: 13 }}>{v.note}</p>}
+                        </Provenance>
+                      ))}
+                    </div>
+
+                    <div className="btnrow" style={{ marginTop: 16, flexWrap: "wrap", alignItems: "center" }}>
+                      {domainReview.stage === "ready_for_domain_owner" && (
+                        <>
+                          <input
+                            type="text"
+                            value={reviewerName}
+                            onChange={(e) => {
+                              setReviewerName(e.target.value);
+                              localStorage.setItem("ciq_approver", e.target.value.trim());
+                            }}
+                            placeholder="Your name (Domain Owner)"
+                            style={{ maxWidth: 220 }}
+                          />
+                          <button className="btn primary" disabled={!reviewerName.trim() || domainBusy} onClick={startDomainReview}>
+                            Start Domain Owner review
+                          </button>
+                        </>
+                      )}
+
+                      {domainReview.stage === "domain_owner_reviewing" && !editForm && (
+                        <>
+                          <button className="btn" onClick={beginEdit} disabled={domainBusy}>Edit story</button>
+                          <button className="btn primary" disabled={domainBusy || !reviewerName.trim()} onClick={() => setDomainDialog(true)}>
+                            Approve as Domain Owner
+                          </button>
+                        </>
+                      )}
+
+                      {domainReview.stage === "reviewer_agent_refining" && (
+                        <span className="badge warn">Reviewer Agent refining…</span>
+                      )}
+                    </div>
+
+                    {editForm && (
+                      <div className="panel" style={{ marginTop: 16, background: "var(--wash)" }}>
+                        <h3 style={{ fontSize: 14, marginTop: 0 }}>Edit user story</h3>
+                        <div className="field">
+                          <label htmlFor="editstatement">Statement</label>
+                          <textarea
+                            id="editstatement"
+                            value={editForm.statement}
+                            onChange={(e) => setEditForm({ ...editForm, statement: e.target.value })}
+                          />
+                        </div>
+                        <div className="field">
+                          <label htmlFor="editcontext">Business context</label>
+                          <textarea
+                            id="editcontext"
+                            value={editForm.businessContext}
+                            onChange={(e) => setEditForm({ ...editForm, businessContext: e.target.value })}
+                          />
+                        </div>
+                        <div className="field">
+                          <label>Acceptance criteria</label>
+                          {editForm.acceptanceCriteria.map((ac, i) => (
+                            <div key={ac.id} style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center" }}>
+                              <span className="mono" style={{ minWidth: 32 }}>{ac.id}</span>
+                              <input
+                                type="text"
+                                value={ac.text}
+                                style={{ flex: 1 }}
+                                onChange={(e) => {
+                                  const next = [...editForm.acceptanceCriteria];
+                                  next[i] = { ...ac, text: e.target.value };
+                                  setEditForm({ ...editForm, acceptanceCriteria: next });
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="field">
+                          <label htmlFor="editnote">Note to the Reviewer Agent</label>
+                          <textarea
+                            id="editnote"
+                            value={editNote}
+                            onChange={(e) => setEditNote(e.target.value)}
+                            placeholder="What should the Reviewer Agent check or tighten?"
+                          />
+                        </div>
+                        <div className="btnrow">
+                          <button className="btn primary" disabled={domainBusy} onClick={submitEdit}>
+                            {domainBusy ? "Reviewer Agent refining…" : "Submit to Reviewer Agent"}
+                          </button>
+                          <button className="btn" onClick={() => setEditForm(null)} disabled={domainBusy}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {(domainReview.stage === "domain_owner_approved" || domainReview.stage === "ready_for_application_manager") && (
+                      <div className="callout" style={{ marginTop: 16 }}>
+                        <strong>Approved by the Domain Owner</strong>
+                        The business requirement is approved. Ready for the Application Manager to
+                        approve for the sprint, on the Approval &amp; backlog page.
+                      </div>
+                    )}
+                    {domainReview.stage === "application_manager_approved" && (
+                      <div className="callout" style={{ marginTop: 16 }}>
+                        <strong>Approved for sprint/build</strong>
+                        The Application Manager has approved this for the sprint.
+                      </div>
+                    )}
+
+                    <ApiNote endpoint="GET /changes/{id}/domain-review" />
+                  </section>
+                )}
+
                 <section className="panel">
                   <h2>Business impact <span className="qualifier">— used at backlog review</span></h2>
                   <dl className="facts">
@@ -329,6 +550,29 @@ export function StoryEnhancement({ onOpenChange }: { onOpenChange: (id: string) 
             if (dialog === "approve") await api.approveStoryForBacklog(selected.id, { decidedBy, note });
             else await api.sendStoryBack(selected.id, { decidedBy, note });
             await reload(); setBusy(false);
+          }}
+        />
+      )}
+
+      {domainDialog && selected && domainReview && (
+        <ConfirmDialog
+          title="Approve this story as Domain Owner?"
+          intro={
+            <>
+              <p style={{ marginTop: 0 }}><strong>{selected.title}</strong> ({selected.id})</p>
+              <p style={{ fontSize: 13.5, color: "var(--ink-soft)" }}>{latestStory?.statement}</p>
+            </>
+          }
+          whatHappensNext="The business requirement is approved. This does not approve the change for development — it becomes ready for the Application Manager to approve for the sprint, a separate decision."
+          confirmLabel="Approve as Domain Owner"
+          tone="primary"
+          requireNote={false}
+          onCancel={() => setDomainDialog(false)}
+          onConfirm={async (decidedBy, note) => {
+            setDomainDialog(false); setDomainBusy(true);
+            const updated = await api.approveDomainOwnerStory(selected.id, { decidedBy, note });
+            setDomainReview(updated);
+            setDomainBusy(false);
           }}
         />
       )}

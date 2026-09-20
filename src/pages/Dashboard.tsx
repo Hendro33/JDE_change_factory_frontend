@@ -83,6 +83,24 @@ export function Dashboard({ onOpenChange, onGoTo }: {
             </section>
           </div>
 
+          {metrics.businessDomainBreakdown.length > 0 && (
+            <section className="panel">
+              <h2>
+                Change demand by business domain <span className="qualifier">— current backlog and build</span>
+              </h2>
+              <BarList
+                data={metrics.businessDomainBreakdown.map((d) => ({
+                  category: d.apqcCode ? `${d.domainName} (${d.apqcCode})` : d.domainName,
+                  count: d.count,
+                }))}
+              />
+              <div className="apinote">
+                Where change demand is concentrated, by business domain. "Unclassified /
+                needs review" means a Domain Owner has not yet placed that request.
+              </div>
+            </section>
+          )}
+
           <div className="grid halves">
             <section className="panel">
               <h2>Recent activity</h2>

@@ -10,10 +10,13 @@
 
 import type {
   ActivityEntry,
+  BusinessDomain,
   Change,
   ChangeSource,
+  DomainReview,
   FactoryMetrics,
   Session,
+  UserStory,
 } from "../types/domain";
 
 /**
@@ -53,6 +56,14 @@ export const API_ENDPOINTS = {
 
   getMetrics: "GET /metrics",
   getActivity: "GET /activity",
+
+  listBusinessDomains: "GET /business-domains",
+  getDomainReview: "GET /changes/{id}/domain-review",
+  assignBusinessDomain: "POST /changes/{id}/domain-review/assign-domain",
+  startDomainOwnerReview: "POST /changes/{id}/domain-review/start",
+  submitDomainOwnerEdit: "POST /changes/{id}/domain-review/edit",
+  approveDomainOwnerStory: "POST /changes/{id}/domain-review/approve",
+  approveForSprint: "POST /changes/{id}/domain-review/application-manager-approve",
 } as const;
 
 /**
@@ -119,6 +130,28 @@ export interface ChangeFactoryApi {
 
   getMetrics(): Promise<FactoryMetrics>;
   getActivity(): Promise<ActivityEntry[]>;
+
+  /** Business domain ownership and domain-aware governance (all scoped to the active customer). */
+  listBusinessDomains(): Promise<BusinessDomain[]>;
+  /** undefined until the story has reached the backlog and has a user story to review. */
+  getDomainReview(changeId: string): Promise<DomainReview | undefined>;
+  assignBusinessDomain(
+    changeId: string,
+    input: { businessDomainId?: string; uncertain?: boolean; note?: string }
+  ): Promise<DomainReview>;
+  startDomainOwnerReview(changeId: string, input: DecisionInput): Promise<DomainReview>;
+  /**
+   * Records the Domain Owner's edit AND routes it through the Reviewer
+   * Agent before returning — the workflow rule that an edit must never
+   * silently become the approved story (Section 4).
+   */
+  submitDomainOwnerEdit(
+    changeId: string,
+    input: { editedBy: string; note?: string; userStory: UserStory }
+  ): Promise<DomainReview>;
+  approveDomainOwnerStory(changeId: string, input: DecisionInput): Promise<DomainReview>;
+  /** Application Manager approval — separate from Domain Owner approval, and the only one that clears Gate 2. */
+  approveForSprint(changeId: string, input: DecisionInput): Promise<DomainReview>;
 }
 
 // ---------------------------------------------------------------------

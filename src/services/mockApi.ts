@@ -1,13 +1,17 @@
 import type {
   ActivityEntry,
+  BusinessDomain,
   Change,
   ChangeType,
+  DomainReview,
   FactoryMetrics,
   LifecycleState,
+  StoryVersion,
+  UserStory,
 } from "../types/domain";
 import type { Session } from "../types/domain";
 import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
-import { MOCK_CHANGES } from "./mockData";
+import { MOCK_BUSINESS_DOMAINS, MOCK_CHANGES } from "./mockData";
 import { getMockSession, setMockActiveCustomer } from "./session";
 
 /** Simulates network latency so loading states are real, not decorative. */
@@ -26,6 +30,7 @@ const now = () => new Date().toISOString();
  */
 export class MockChangeFactoryApi implements ChangeFactoryApi {
   private changes: Change[] = JSON.parse(JSON.stringify(MOCK_CHANGES));
+  private domainReviews = new Map<string, DomainReview>();
 
   async getSession(): Promise<Session> {
     return delay(getMockSession(), 80);
@@ -279,6 +284,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
         .map(([type, count]) => ({ type, count }))
         .sort((a, b) => b.count - a.count),
       businessImpactBreakdown: impact.sort((a, b) => b.count - a.count),
+      businessDomainBreakdown: this.domainBreakdown(all),
       performance: {
         averageCycleTimeDays: 4.2,
         averageCycleTimeDelta: -1.3,
@@ -307,5 +313,168 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
           updatedBy: c.updatedBy,
         }))
     );
+  }
+
+  async listBusinessDomains(): Promise<BusinessDomain[]> {
+    return delay(MOCK_BUSINESS_DOMAINS.filter((d) => d.customerId === this.scope));
+  }
+
+  /** Same rule as every other metric: derived from real records, never hard-coded. */
+  private domainBreakdown(all: Change[]) {
+    const governed = all.filter(
+      (c) => !["RECEIVED", "REFINING", "REJECTED", "FAILED"].includes(c.state)
+    );
+    if (governed.length === 0) return [];
+
+    const domainsById = new Map(MOCK_BUSINESS_DOMAINS.map((d) => [d.id, d]));
+    const counts = new Map<string | null, number>();
+    for (const c of governed) {
+      const key = c.businessDomainId ?? null;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .map(([domainId, count]) => {
+        const domain = domainId ? domainsById.get(domainId) : undefined;
+        return {
+          domainId,
+          domainName: domain?.name ?? "Unclassified / needs review",
+          apqcCode: domain?.apqcCode ?? "",
+          count,
+        };
+      })
+      .sort((a, b) => b.count - a.count);
+  }
+
+  private ensureDomainReview(changeId: string): DomainReview {
+    const existing = this.domainReviews.get(changeId);
+    if (existing) return existing;
+    const change = this.scoped().find((c) => c.id === changeId);
+    if (!change?.userStory) throw new Error(`No user story yet for ${changeId}`);
+    const review: DomainReview = {
+      changeId,
+      domainClassificationUncertain: false,
+      domainClassificationNote: "",
+      stage: "ready_for_domain_owner",
+      history: [
+        { label: "ai_generated", userStory: change.userStory, actor: "Check Agent", note: "", capturedAt: now() },
+      ],
+      updatedAt: now(),
+    };
+    this.domainReviews.set(changeId, review);
+    return review;
+  }
+
+  private saveDomainReview(review: DomainReview): DomainReview {
+    review.updatedAt = now();
+    this.domainReviews.set(review.changeId, review);
+    const change = this.scoped().find((c) => c.id === review.changeId);
+    if (change) {
+      change.businessDomainId = review.businessDomainId;
+      change.domainReviewStage = review.stage;
+    }
+    return review;
+  }
+
+  async getDomainReview(changeId: string): Promise<DomainReview | undefined> {
+    const change = this.scoped().find((c) => c.id === changeId);
+    if (!change?.userStory) return delay(undefined);
+    return delay({ ...this.ensureDomainReview(changeId) });
+  }
+
+  async assignBusinessDomain(
+    changeId: string,
+    input: { businessDomainId?: string; uncertain?: boolean; note?: string }
+  ): Promise<DomainReview> {
+    const review = this.ensureDomainReview(changeId);
+    review.businessDomainId = input.uncertain ? undefined : input.businessDomainId;
+    review.domainClassificationUncertain = input.uncertain ?? false;
+    review.domainClassificationNote = input.note ?? "";
+    return delay(this.saveDomainReview(review));
+  }
+
+  async startDomainOwnerReview(changeId: string, _input: DecisionInput): Promise<DomainReview> {
+    const review = this.ensureDomainReview(changeId);
+    if (review.stage === "ready_for_domain_owner") review.stage = "domain_owner_reviewing";
+    return delay(this.saveDomainReview(review));
+  }
+
+  /**
+   * Simulates the Reviewer Agent the same way enhanceStory() simulates
+   * Receive/Improve/Check: a representative, deterministic pass rather
+   * than a real model call — the workflow shape (edit is never the
+   * final version) is what this mock exists to exercise.
+   */
+  async submitDomainOwnerEdit(
+    changeId: string,
+    input: { editedBy: string; note?: string; userStory: UserStory }
+  ): Promise<DomainReview> {
+    const review = this.ensureDomainReview(changeId);
+    if (review.stage !== "domain_owner_reviewing") {
+      throw new Error(`Cannot submit an edit from stage ${review.stage}`);
+    }
+    const editVersion: StoryVersion = {
+      label: "domain_owner_edit",
+      userStory: input.userStory,
+      actor: input.editedBy,
+      note: input.note ?? "",
+      capturedAt: now(),
+    };
+    review.history.push(editVersion);
+    review.stage = "reviewer_agent_refining";
+
+    const revised: UserStory = {
+      ...input.userStory,
+      businessContext: `${input.userStory.businessContext} (Reviewer Agent pass: wording tightened and criteria re-checked for testability.)`,
+      qualityStatus: "passed",
+      revisionCount: input.userStory.revisionCount + 1,
+    };
+    review.history.push({
+      label: "reviewer_agent_revision",
+      userStory: revised,
+      actor: "Reviewer Agent",
+      note: "",
+      capturedAt: now(),
+    });
+    review.stage = "domain_owner_reviewing";
+    return delay(this.saveDomainReview(review), 500);
+  }
+
+  async approveDomainOwnerStory(changeId: string, input: DecisionInput): Promise<DomainReview> {
+    const review = this.ensureDomainReview(changeId);
+    if (review.stage !== "domain_owner_reviewing") {
+      throw new Error(`Cannot approve from stage ${review.stage}`);
+    }
+    review.domainOwnerApproval = {
+      approvalId: `AP-${changeId}-DO`,
+      kind: "domain_owner",
+      status: "approved",
+      approvedBy: input.decidedBy,
+      approvedAt: now(),
+      note: input.note,
+    };
+    review.stage = "ready_for_application_manager";
+    return delay(this.saveDomainReview(review));
+  }
+
+  async approveForSprint(changeId: string, input: DecisionInput): Promise<DomainReview> {
+    const review = this.ensureDomainReview(changeId);
+    if (review.stage !== "ready_for_application_manager") {
+      throw new Error(`Cannot approve for sprint from stage ${review.stage}`);
+    }
+    review.applicationManagerApproval = {
+      approvalId: `AP-${changeId}-AM`,
+      kind: "application_manager",
+      status: "approved",
+      approvedBy: input.decidedBy,
+      approvedAt: now(),
+      note: input.note,
+    };
+    review.stage = "application_manager_approved";
+    this.saveDomainReview(review);
+
+    // Mirrors the real backend: only Application Manager approval
+    // actually clears the story for build.
+    await this.approveChange(changeId, input);
+    return review;
   }
 }

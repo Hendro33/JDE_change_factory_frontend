@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
-import type { Change, LifecycleState } from "../types/domain";
+import type { BusinessDomain, Change, DomainReview, LifecycleState } from "../types/domain";
 import {
   ApiNote,
   ConfirmDialog,
+  DOMAIN_STAGE_LABEL,
   Loading,
   NotStated,
   PriorityBadge,
@@ -80,11 +81,19 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
   const [change, setChange] = useState<Change | null>(null);
   const [dialog, setDialog] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [domainReview, setDomainReview] = useState<DomainReview | null>(null);
+  const [domains, setDomains] = useState<BusinessDomain[]>([]);
 
   const reload = () => api.getChange(changeId).then((c) => setChange(c ?? null));
   useEffect(() => { reload(); }, [changeId]);
+  useEffect(() => {
+    api.getDomainReview(changeId).then((r) => setDomainReview(r ?? null));
+    api.listBusinessDomains().then(setDomains);
+  }, [changeId]);
 
   if (!change) return <Loading what="this change" />;
+
+  const assignedDomain = domains.find((d) => d.id === domainReview?.businessDomainId);
 
   const reachedFlags = LIFECYCLE.map((s) => s.reached(change));
   const lastReached = reachedFlags.lastIndexOf(true);
@@ -121,6 +130,47 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
               <div style={{ fontSize: 13.5 }}>{change.originalRequest}</div>
             </Provenance>
           </section>
+
+          {domainReview && (
+            <section className="panel">
+              <h2>Business domain</h2>
+              <dl className="facts">
+                <dt>Domain</dt>
+                <dd>
+                  {domainReview.domainClassificationUncertain ? (
+                    <span className="badge warn">Classification uncertain — {domainReview.domainClassificationNote || "not yet placed"}</span>
+                  ) : assignedDomain ? (
+                    <>{assignedDomain.name} <span className="mono" style={{ color: "var(--muted)" }}>({assignedDomain.apqcCode})</span></>
+                  ) : (
+                    <NotStated />
+                  )}
+                </dd>
+                <dt>Domain Owner</dt>
+                <dd>{assignedDomain?.domainOwner || <NotStated />}</dd>
+                <dt>Governance stage</dt>
+                <dd>{DOMAIN_STAGE_LABEL[domainReview.stage] ?? domainReview.stage}</dd>
+              </dl>
+              {(domainReview.domainOwnerApproval || domainReview.applicationManagerApproval) && (
+                <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                  {domainReview.domainOwnerApproval && (
+                    <Provenance kind="human" label={`Domain Owner approved by ${domainReview.domainOwnerApproval.approvedBy}`}>
+                      <div style={{ fontSize: 13.5 }}>{domainReview.domainOwnerApproval.note || <span className="notstated">no reason recorded</span>}</div>
+                    </Provenance>
+                  )}
+                  {domainReview.applicationManagerApproval && (
+                    <Provenance kind="human" label={`Application Manager approved for sprint by ${domainReview.applicationManagerApproval.approvedBy}`}>
+                      <div style={{ fontSize: 13.5 }}>{domainReview.applicationManagerApproval.note || <span className="notstated">no reason recorded</span>}</div>
+                    </Provenance>
+                  )}
+                </div>
+              )}
+              <div className="apinote">
+                Domain Owner approval means the business requirement / User Story is
+                approved. Application Manager approval means the application backlog /
+                sprint is approved to proceed toward build — the two are always separate.
+              </div>
+            </section>
+          )}
 
           {change.userStory && (
             <section className="panel">
