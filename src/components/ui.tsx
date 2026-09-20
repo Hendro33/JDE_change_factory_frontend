@@ -395,8 +395,8 @@ export function Loading({ what }: { what: string }) {
 export function ApiNote({ endpoint }: { endpoint: string }) {
   return (
     <div className="apinote">
-      Reads from <code>{endpoint}</code> — served by mock data today, by the ConsultIQ
-      Change Factory backend once connected.
+      Reads from <code>{endpoint}</code> — served by mock data today, by the Jade
+      backend once connected.
     </div>
   );
 }

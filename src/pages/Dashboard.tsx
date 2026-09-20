@@ -39,7 +39,10 @@ export function Dashboard({ onOpenChange, onGoTo }: {
       <div className="pagehead">
         <div>
           <h1>Factory Production Dashboard</h1>
-          <div className="sub">Real JDE change. Real business impact.</div>
+          <div className="sub">
+            Jade helps enterprise application teams resolve changes, support requests, testing,
+            documentation, and releases faster—creating space for optimization work.
+          </div>
         </div>
         <div className="meta">{today} · last 30 days</div>
       </div>

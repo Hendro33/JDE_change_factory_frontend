@@ -51,8 +51,8 @@ export default function App() {
         <div className="brandmark">
           <span className="logo">consult<b>IQ</b></span>
           <span className="product">
-            <strong>JDE Change Factory</strong>
-            <span>Smarter change. Greater value.</span>
+            <strong>Jade</strong>
+            <span>AI-enabled change delivery. Less firefighting. More progress.</span>
           </span>
         </div>
         <div className="who">
@@ -91,10 +91,10 @@ export default function App() {
 
       <footer className="sitefoot">
         <span className="logo">consult<b>IQ</b></span>
-        <span>Smarter change. Greater value.</span>
+        <span>AI-enabled change delivery. Less firefighting. More progress.</span>
         <span style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <PersonaSwitch onChange={reloadSession} />
-          <span>JDE Change Factory · v0.1 prototype · front-end only, mock data</span>
+          <span>Jade · v0.1 prototype · front-end only, mock data</span>
         </span>
       </footer>
     </div>

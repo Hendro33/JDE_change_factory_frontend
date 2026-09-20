@@ -1,4 +1,4 @@
-# JDE Change Factory — front-end prototype
+# Jade by ConsultIQ — front-end prototype
 
 React + TypeScript + Vite. **Front end only**: no Claude, no MCP, no JDE,
 no backend. All data comes from an in-memory mock behind a service
