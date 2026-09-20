@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
+import { getDashboardThresholds, toneForValue } from "../services/dashboardThresholds";
 import type { ActivityEntry, Change, FactoryMetrics } from "../types/domain";
 import type { Navigate, NavFilter, Page } from "../types/nav";
 import {
@@ -38,6 +39,7 @@ export function Dashboard({ onOpenChange, onNavigate }: {
   const [metrics, setMetrics] = useState<FactoryMetrics | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [attention, setAttention] = useState<Change[]>([]);
+  const thresholds = getDashboardThresholds();
 
   useEffect(() => {
     api.getMetrics().then(setMetrics);
@@ -77,6 +79,7 @@ export function Dashboard({ onOpenChange, onNavigate }: {
                   value={t.value}
                   label={t.label}
                   mark={KPI_MARKS[i]}
+                  tone={toneForValue(t.value, thresholds)}
                   onClick={route ? () => onNavigate(route.page, route.filter) : undefined}
                 />
               );

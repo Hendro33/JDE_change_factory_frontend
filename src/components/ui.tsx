@@ -50,6 +50,17 @@ export function stateLabel(state: LifecycleState) {
   return STATE_LABELS[state];
 }
 
+/**
+ * The post-approval lifecycle in pipeline order — the canonical set the
+ * "Where everything sits" view (Pipeline, Delivery Queue) counts across,
+ * so both pages show the same nine stages rather than two independently
+ * maintained lists.
+ */
+export const PIPELINE_STATES: LifecycleState[] = [
+  "APPROVED", "ARCHITECTING", "SPEC_READY", "CHANGE_APPROVED", "EXECUTING",
+  "TESTING", "VALIDATED", "CNC_HANDOFF", "CLOSED",
+];
+
 /** Domain Owner / Application Manager governance stages (Section 7). */
 export const DOMAIN_STAGE_LABEL: Record<string, string> = {
   ready_for_domain_owner: "User story ready for Domain Owner",
@@ -112,6 +123,7 @@ export function Kpi({
   delta,
   mark,
   onClick,
+  tone,
 }: {
   value: number;
   label: string;
@@ -120,6 +132,8 @@ export function Kpi({
   mark?: string;
   /** Makes the whole card a button, e.g. navigating to the filtered work queue this count represents. */
   onClick?: () => void;
+  /** Attention colour for the number itself, e.g. from the customer's own alert thresholds (Admin > Customer Setup). Omit for the normal ink colour. */
+  tone?: "warn" | "stop";
 }) {
   const dir = delta === undefined ? undefined : delta > 0 ? "up" : delta < 0 ? "down" : "flat";
   const arrow = delta === undefined ? "" : delta > 0 ? "▲" : delta < 0 ? "▼" : "—";
@@ -127,7 +141,7 @@ export function Kpi({
   return (
     <Tag className={`kpi${onClick ? " clickable" : ""}`} onClick={onClick} type={onClick ? "button" : undefined}>
       <div className="top">
-        <div className="value">{value}</div>
+        <div className={`value${tone ? ` ${tone}` : ""}`}>{value}</div>
         {mark && <span className="mark" aria-hidden="true">{mark}</span>}
       </div>
       <div className="label">{label}</div>
@@ -297,6 +311,37 @@ export function FlowSteps({ steps, currentIndex }: { steps: string[]; currentInd
           {i < steps.length - 1 && <span className="arrow" aria-hidden="true">→</span>}
         </span>
       ))}
+    </div>
+  );
+}
+
+/**
+ * The aggregate "where everything sits" view — every stage in `states`
+ * with how many changes currently sit in it, and (optionally) which
+ * stages the caller's own current selection maps onto, shaded so a
+ * dropdown-driven filter is visible on the pipeline itself rather than
+ * left for the reader to work out by name alone.
+ */
+export function PipelineFlow({ states, counts, highlightStates }: {
+  states: LifecycleState[];
+  counts: Partial<Record<LifecycleState, number>>;
+  highlightStates?: LifecycleState[];
+}) {
+  const highlighted = new Set(highlightStates ?? []);
+  return (
+    <div className="pipeflow">
+      {states.map((s, i) => {
+        const n = counts[s] ?? 0;
+        return (
+          <span key={s} style={{ display: "contents" }}>
+            <div className={`pipestep${n > 0 ? " has" : ""}${highlighted.has(s) ? " selected" : ""}`}>
+              <div className="count">{n}</div>
+              <div className="label">{stateLabel(s)}</div>
+            </div>
+            {i < states.length - 1 && <span className="pipearrow" aria-hidden="true">→</span>}
+          </span>
+        );
+      })}
     </div>
   );
 }

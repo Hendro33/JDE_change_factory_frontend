@@ -1,14 +1,28 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
+import {
+  DEFAULT_DASHBOARD_THRESHOLDS,
+  getDashboardThresholds,
+  setDashboardThresholds,
+  type DashboardThresholds,
+} from "../../services/dashboardThresholds";
 import type { CustomerProfile } from "../../types/domain";
 import { ApiNote, Loading } from "../../components/ui";
 
 export function CustomerSetup() {
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
+  const [thresholds, setThresholds] = useState<DashboardThresholds>(getDashboardThresholds);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     api.getCustomerProfile().then(setProfile);
   }, []);
+
+  function saveThresholds() {
+    setDashboardThresholds(thresholds);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
 
   return (
     <>
@@ -55,6 +69,44 @@ export function CustomerSetup() {
                 ))}
               </tbody>
             </table>
+          </section>
+
+          <section className="panel">
+            <h2>Dashboard alert thresholds</h2>
+            <div className="sub" style={{ marginBottom: 12 }}>
+              When a KPI count on the Jade Dashboard should draw attention — a count above the
+              first value turns orange, above the second turns red. Stored in this browser only for
+              now, not yet a shared per-customer backend setting.
+            </div>
+            <div className="grid halves">
+              <div className="field">
+                <label htmlFor="warnAt">Orange from</label>
+                <input
+                  id="warnAt" type="number" min={0}
+                  value={thresholds.warnAt}
+                  onChange={(e) => setThresholds((t) => ({ ...t, warnAt: Number(e.target.value) }))}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="criticalAt">Red from</label>
+                <input
+                  id="criticalAt" type="number" min={0}
+                  value={thresholds.criticalAt}
+                  onChange={(e) => setThresholds((t) => ({ ...t, criticalAt: Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+            <div className="btnrow">
+              <button className="btn primary" onClick={saveThresholds}>
+                {saved ? "Saved" : "Save thresholds"}
+              </button>
+              <button
+                className="btn"
+                onClick={() => { setThresholds(DEFAULT_DASHBOARD_THRESHOLDS); setDashboardThresholds(DEFAULT_DASHBOARD_THRESHOLDS); }}
+              >
+                Reset to defaults
+              </button>
+            </div>
           </section>
         </div>
       )}

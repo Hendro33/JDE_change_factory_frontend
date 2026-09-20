@@ -321,7 +321,7 @@ export function UserStories({ onOpenChange, navFilter, navToken }: { onOpenChang
         <div className="stack">
           <section className="panel">
             <FlowSteps steps={STEPS} currentIndex={stepIndex} />
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
               <div>
                 <h2 style={{ marginBottom: 4 }}>{selected.title}</h2>
                 <div className="mono" style={{ color: "var(--muted)" }}>

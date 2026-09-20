@@ -151,7 +151,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .navgroup-menu button:hover { background: var(--wash); color: var(--ink); }
 .navgroup-menu button.on { color: var(--ink); font-weight: 700; }
 
-.page { flex: 1; padding: 26px 28px 40px; max-width: 1280px; width: 100%; margin: 0 auto; }
+.page { flex: 1; padding: 26px 28px 40px; max-width: 1520px; width: 100%; margin: 0 auto; }
 
 .pagehead { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
 .pagehead h1 { margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.02em; }
@@ -189,10 +189,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .panel > h2 .qualifier { font-weight: 400; color: var(--muted); font-size: 14.5px; }
 
 .grid { display: grid; gap: 16px; }
-.grid.kpis { grid-template-columns: repeat(6, 1fr); }
+.grid.kpis { grid-template-columns: repeat(7, 1fr); }
 .grid.thirds { grid-template-columns: 1.35fr 1fr 1fr; }
 .grid.halves { grid-template-columns: 1fr 1fr; }
 
+@media (max-width: 1300px) {
+  .grid.kpis { grid-template-columns: repeat(4, 1fr); }
+}
 @media (max-width: 1100px) {
   .grid.kpis { grid-template-columns: repeat(3, 1fr); }
   .grid.thirds, .grid.halves { grid-template-columns: 1fr; }
@@ -212,12 +215,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .kpi .top { display: flex; align-items: flex-start; justify-content: space-between; }
 .kpi .value { font-size: 32px; font-weight: 700; line-height: 1; }
+.kpi .value.warn { color: var(--warn); }
+.kpi .value.stop { color: var(--stop); }
 .kpi .label { margin-top: 8px; font-size: 14.5px; color: var(--ink-soft); text-align: left; }
 .kpi .delta { margin-top: 10px; font-size: 13.5px; display: flex; align-items: center; gap: 5px; }
 .kpi .delta .up { color: var(--ok); } .kpi .delta .down { color: var(--stop); }
 .kpi .delta .flat { color: var(--muted); }
 .kpi .delta .since { color: var(--muted); }
-.kpi .mark { color: var(--muted); }
+.kpi .mark { color: var(--muted); font-size: 32px; line-height: 1; }
 
 /* One highlighted metric per dashboard, not six — the strongest yellow
    fill is reserved for the headline count, echoing the stat cards on
@@ -348,6 +353,22 @@ table.data tbody tr.clickable:hover { background: var(--wash); }
 .flowsteps .step.done { background: var(--wash); color: var(--ink-soft); }
 .flowsteps .step.on { background: var(--brand); border-color: var(--brand); color: var(--ink); }
 .flowsteps .arrow { color: var(--line-strong); padding: 0 8px; }
+
+/* Aggregate "where everything sits" pipeline view (Pipeline + Delivery
+   Queue) — distinct from .flowsteps above, which tracks one story's own
+   progress rather than the whole population across every stage. */
+.pipeflow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; }
+.pipestep {
+  border: 1px solid var(--line-strong); background: var(--panel);
+  padding: 12px 16px; min-width: 112px; text-align: center; border-radius: 8px;
+  transition: box-shadow .15s, border-color .15s;
+}
+.pipestep .count { font-size: 22px; font-weight: 700; line-height: 1.1; }
+.pipestep .label { margin-top: 3px; font-size: 11.5px; color: var(--muted); }
+.pipestep.has { background: var(--brand); border-color: var(--brand); }
+.pipestep.has .label { color: var(--ink); }
+.pipestep.selected { border-color: var(--ok); box-shadow: 0 0 0 3px rgba(30,122,52,.28); }
+.pipearrow { align-self: center; padding: 0 10px; color: var(--ink-soft); font-size: 22px; font-weight: 700; }
 
 .timeline { list-style: none; margin: 0; padding: 0; }
 .timeline li { display: grid; grid-template-columns: 22px 1fr; gap: 14px; }

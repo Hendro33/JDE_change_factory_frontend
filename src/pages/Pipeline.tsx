@@ -3,7 +3,7 @@ import { api } from "../services/api";
 import type { Change, LifecycleState } from "../types/domain";
 import type { NavTarget } from "../types/nav";
 import { ChangeGrid, useChangeListControls, type GridColumn } from "../components/WorkQueue";
-import { ApiNote, Loading, PriorityBadge, StateBadge, stateLabel } from "../components/ui";
+import { ApiNote, Loading, PIPELINE_STATES, PipelineFlow, PriorityBadge, StateBadge } from "../components/ui";
 
 /**
  * One reusable page for the post-Delivery-Queue stages of the
@@ -18,7 +18,7 @@ const STAGE_STATES: Record<StagePreset, LifecycleState[]> = {
   validation: ["TESTING", "VALIDATED"],
   release: ["CNC_HANDOFF"],
   completed: ["CLOSED", "VALIDATED", "CNC_HANDOFF", "RESOLVED_WITHOUT_CHANGE"],
-  all: ["APPROVED", "ARCHITECTING", "SPEC_READY", "CHANGE_APPROVED", "EXECUTING", "TESTING", "VALIDATED", "CNC_HANDOFF", "CLOSED"],
+  all: PIPELINE_STATES,
 };
 
 const STAGE_COPY: Record<StagePreset, { title: string; sub: string }> = {
@@ -86,28 +86,16 @@ export function Pipeline({ onOpenChange, navFilter, navToken }: { onOpenChange: 
         <div className="stack">
           <section className="panel">
             <h2>Where everything sits</h2>
-            <div style={{ display: "flex", gap: 0, flexWrap: "wrap", alignItems: "stretch" }}>
-              {STAGE_STATES.all.map((s, i) => {
-                const n = countIn(s);
-                return (
-                  <div key={s} style={{ display: "contents" }}>
-                    <div style={{
-                      border: "1px solid var(--line-strong)",
-                      background: n > 0 ? "var(--brand)" : "var(--panel)",
-                      padding: "10px 14px", minWidth: 104, textAlign: "center",
-                    }}>
-                      <div style={{ fontSize: 21, fontWeight: 700, lineHeight: 1.1 }}>{n}</div>
-                      <div style={{ fontSize: 11.5, color: n > 0 ? "var(--ink)" : "var(--muted)" }}>
-                        {stateLabel(s)}
-                      </div>
-                    </div>
-                    {i < STAGE_STATES.all.length - 1 && (
-                      <div style={{ alignSelf: "center", padding: "0 6px", color: "var(--line-strong)" }}>→</div>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="sub" style={{ marginBottom: 12 }}>
+              {preset === "all"
+                ? "Every stage after approval, and how many changes are in it right now."
+                : "Shaded green: the stage(s) the Stage filter below is currently showing."}
             </div>
+            <PipelineFlow
+              states={PIPELINE_STATES}
+              counts={Object.fromEntries(PIPELINE_STATES.map((s) => [s, countIn(s)]))}
+              highlightStates={preset === "all" ? undefined : STAGE_STATES[preset]}
+            />
           </section>
 
           <div className="panel filterbar">
