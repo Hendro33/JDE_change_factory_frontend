@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
-import type { IntegrationStatus, JiraConnectionStatus, JiraIntegrationConfig, JiraSyncResult } from "../../types/domain";
+import type { IntegrationStatus, JiraConnectionStatus, JiraIntegrationConfig, JiraSyncResult, JiraTestConnectionResult } from "../../types/domain";
 import { ApiNote, Loading } from "../../components/ui";
 
 export function Integrations() {
@@ -9,6 +9,8 @@ export function Integrations() {
   const [jiraStatus, setJiraStatus] = useState<JiraConnectionStatus | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<JiraTestConnectionResult | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<JiraSyncResult | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -16,6 +18,8 @@ export function Integrations() {
   // Form state, only meaningful while editing.
   const [baseUrl, setBaseUrl] = useState("");
   const [projectKey, setProjectKey] = useState("");
+  const [email, setEmail] = useState("");
+  const [apiToken, setApiToken] = useState("");
   const [pickupStatus, setPickupStatus] = useState("");
   const [postPickupStatus, setPostPickupStatus] = useState("");
   const [jadeIdField, setJadeIdField] = useState("");
@@ -34,6 +38,10 @@ export function Integrations() {
       setRequestTypeField(c.requestTypeField);
     });
     api.getJiraIntegrationStatus().then(setJiraStatus);
+    // The credential is write-only -- there is nothing to prefill here,
+    // on purpose. A blank field on save means "leave it as it is".
+    setEmail("");
+    setApiToken("");
   };
 
   useEffect(load, []);
@@ -50,11 +58,29 @@ export function Integrations() {
       requestTypeField: requestTypeField.trim(),
       updatedBy: updatedBy.trim(),
     });
+    if (email.trim() && apiToken.trim()) {
+      await api.updateJiraCredentials({ email: email.trim(), apiToken: apiToken.trim(), updatedBy: updatedBy.trim() });
+    }
     setSaving(false);
     setEditing(false);
     setSyncResult(null);
     setSyncError(null);
     load();
+  }
+
+  async function testConnection() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await api.testJiraConnection({
+        baseUrl: baseUrl.trim(), projectKey: projectKey.trim(), email: email.trim(), apiToken: apiToken.trim(),
+      });
+      setTestResult(result);
+    } catch (e) {
+      setTestResult({ ok: false, message: e instanceof Error ? e.message : "Could not run the connection test." });
+    } finally {
+      setTesting(false);
+    }
   }
 
   async function sync() {
@@ -73,6 +99,7 @@ export function Integrations() {
   }
 
   const configured = !!jiraConfig && !!(jiraConfig.baseUrl && jiraConfig.projectKey && jiraConfig.pickupStatus && jiraConfig.postPickupStatus && jiraConfig.jadeIdField);
+  const canTest = !testing && !!baseUrl.trim() && !!email.trim() && !!apiToken.trim();
 
   return (
     <>
@@ -111,24 +138,25 @@ export function Integrations() {
         <div className="sub" style={{ marginBottom: 12 }}>
           Jira/ITSM remains responsible for intake and triage — Jade only ever picks up a ticket a human has
           already moved to the configured pickup status below, and never decides that on Jira's behalf. This
-          configuration belongs to this customer's own engagement; a different customer can point at a
-          different Jira site, project or workflow without any change here.
+          configuration, and the credential below, belong to this customer's own engagement; a different
+          customer can point at a different Jira site, project or workflow without any change here.
         </div>
 
         {jiraStatus && (
           <dl className="facts" style={{ marginBottom: 16 }}>
             <dt>Mode</dt>
             <dd><span className={`badge ${jiraStatus.mockMode ? "grey" : "ok"}`}>{jiraStatus.mockMode ? "Mock" : "Live"}</span></dd>
-            <dt>Deployment credential</dt>
+            <dt>Credential</dt>
             <dd><span className={`badge ${jiraStatus.credentialsConfigured ? "ok" : "warn"}`}>{jiraStatus.credentialsConfigured ? "Configured" : "Not configured"}</span></dd>
           </dl>
         )}
         <div className="callout" style={{ marginBottom: 16 }}>
-          <strong>The API token is not stored here</strong>
-          It is set once for the whole deployment (an environment variable on the server), not per customer or
-          in this form — the same honest limitation the JD Edwards (AIS) connection has today. It is never
-          returned by any endpoint. What you configure below (site, project, status names, field id) is this
-          customer's own, and is stored as ordinary configuration.
+          <strong>Pilot-scoped credential storage</strong>
+          Entering an email and API token below stores them for this customer, on this server, as ordinary
+          configuration — deliberately simple for a short-lived pilot, not a secrets manager or encrypted
+          storage. The token is never shown again once saved (only whether one is configured), never logged,
+          and never appears anywhere in this UI after you leave this form. Production use would move this
+          behind a real secrets provider — not built in this pilot.
         </div>
 
         {!jiraConfig ? null : !editing ? (
@@ -154,19 +182,47 @@ export function Integrations() {
               <input id="jiraProjectKey" type="text" value={projectKey} onChange={(e) => setProjectKey(e.target.value)} placeholder="CON" />
             </div>
             <div className="field">
+              <label htmlFor="jiraEmail">Jira email</label>
+              <input id="jiraEmail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jade-bot@yourcompany.com" />
+              <span className="hint">The account the API token below belongs to.</span>
+            </div>
+            <div className="field">
+              <label htmlFor="jiraApiToken">Jira API token</label>
+              <input id="jiraApiToken" type="password" autoComplete="off" value={apiToken} onChange={(e) => setApiToken(e.target.value)} placeholder={jiraStatus?.credentialsConfigured ? "Leave blank to keep the current token" : "Paste your Jira API token"} />
+              <span className="hint">
+                Never shown again once saved. Use "Test Connection" below to verify it before saving, or after —
+                both check the value currently in this field.
+              </span>
+            </div>
+            <div className="btnrow" style={{ marginTop: -4, marginBottom: 4 }}>
+              <button className="btn" disabled={!canTest} onClick={testConnection}>
+                {testing ? "Testing…" : "Test Connection"}
+              </button>
+            </div>
+            {testResult && (
+              <div className="callout" style={{ borderColor: testResult.ok ? undefined : "var(--stop)" }}>
+                <strong>{testResult.ok ? "Connection verified" : "Connection failed"}</strong>
+                {testResult.message}
+              </div>
+            )}
+            <div className="field">
               <label htmlFor="jiraPickupStatus">Inbound / pickup status</label>
               <input id="jiraPickupStatus" type="text" value={pickupStatus} onChange={(e) => setPickupStatus(e.target.value)} placeholder="Ready for Jade" />
-              <span className="hint">Must already exist in this project's workflow — Jade only reads tickets sitting in this exact status.</span>
+              <span className="hint">Must already exist in this project's workflow — Jade only reads tickets sitting in this exact status. No new Jira status is created for this.</span>
             </div>
             <div className="field">
               <label htmlFor="jiraPostPickupStatus">Status after successful Jade pickup</label>
               <input id="jiraPostPickupStatus" type="text" value={postPickupStatus} onChange={(e) => setPostPickupStatus(e.target.value)} placeholder="Jade - In Progress" />
-              <span className="hint">Must be reachable from the pickup status. Jade transitions to this only after intake has durably succeeded.</span>
+              <span className="hint">Must be reachable from the pickup status. Jade transitions to this only after intake has durably succeeded. Also an existing status, not a new one.</span>
             </div>
             <div className="field">
               <label htmlFor="jiraJadeIdField">Jade Change ID custom field</label>
               <input id="jiraJadeIdField" type="text" value={jadeIdField} onChange={(e) => setJadeIdField(e.target.value)} placeholder="customfield_10057" />
-              <span className="hint">A short text field, added to the relevant screen in Jira — Jade writes its Change Request id here.</span>
+              <span className="hint">
+                A short text field, added to the relevant screen in Jira — Jade writes its Change Request id here,
+                which is also what makes a retried sync safe (it never re-posts the acceptance comment). Still
+                required for "Sync now" to be available below — this pilot does not weaken that safety check.
+              </span>
             </div>
             <div className="field">
               <label htmlFor="jiraRequestTypeField">Request Type custom field <span className="hint">(optional)</span></label>
@@ -181,7 +237,7 @@ export function Integrations() {
               <button className="btn primary" disabled={saving || !updatedBy.trim()} onClick={save}>
                 {saving ? "Saving…" : "Save Jira configuration"}
               </button>
-              <button className="btn" onClick={() => { setEditing(false); load(); }}>Cancel</button>
+              <button className="btn" onClick={() => { setEditing(false); setTestResult(null); load(); }}>Cancel</button>
             </div>
           </div>
         )}
@@ -217,7 +273,7 @@ export function Integrations() {
           </div>
         )}
 
-        <ApiNote endpoint="GET/PUT /admin/jira-integration, POST /admin/jira-integration/sync" />
+        <ApiNote endpoint="GET/PUT /admin/jira-integration, PUT /admin/jira-credentials, POST /admin/jira-integration/test-connection, POST /admin/jira-integration/sync" />
       </section>
     </>
   );
