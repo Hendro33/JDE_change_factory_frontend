@@ -23,6 +23,15 @@ Both are static. To host on consultiq.nl, upload `dist/` to any static
 host (Netlify, Vercel, S3+CloudFront, or plain nginx) and point a
 subdomain such as `changefactory.consultiq.nl` at it.
 
+## GitHub Pages
+
+`.github/workflows/deploy-pages.yml` builds and deploys `dist/` on every
+push to `main`. It needs the repo's Pages source set to "GitHub Actions"
+once (Settings → Pages → Build and deployment → Source), after which the
+workflow deploys automatically — no manual `gh-pages` branch to manage.
+`vite.config.ts` already uses `base: "./"`, so the build works unchanged
+under a project-page subpath such as `https://<org>.github.io/<repo>/`.
+
 ## How it is wired for the backend
 
 Everything the UI needs is declared in one interface:
