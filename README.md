@@ -21,7 +21,7 @@ npm run build:singlefile   # dist/index.html — one self-contained file
 
 Both are static. To host on consultiq.nl, upload `dist/` to any static
 host (Netlify, Vercel, S3+CloudFront, or plain nginx) and point a
-subdomain such as `changefactory.consultiq.nl` at it.
+subdomain such as `jade.consultiq.nl` at it.
 
 ## GitHub Pages
 
@@ -31,6 +31,11 @@ once (Settings → Pages → Build and deployment → Source), after which the
 workflow deploys automatically — no manual `gh-pages` branch to manage.
 `vite.config.ts` already uses `base: "./"`, so the build works unchanged
 under a project-page subpath such as `https://<org>.github.io/<repo>/`.
+
+Served at `jade.consultiq.nl` — `public/CNAME` carries the domain into
+every build, and it's set as the custom domain under Settings → Pages.
+The DNS side (a `CNAME` record at the registrar pointing the subdomain
+at `<org>.github.io`) is not part of this repo.
 
 ## How it is wired for the backend
 
