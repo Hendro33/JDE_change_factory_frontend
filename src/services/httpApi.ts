@@ -2,6 +2,7 @@ import type {
   ActivityEntry,
   AgentDefinition,
   AgentHealth,
+  ArchitectureReviewRun,
   BusinessDomain,
   BusinessDomainCreateInput,
   Change,
@@ -328,6 +329,59 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
       method: "POST",
       customerId,
       body: { decidedBy: input.decidedBy, note: input.note, rejectionReason: input.rejectionReason },
+    });
+  }
+
+  async askAboutRequirement(changeId: string, input: { askedBy: string; question: string }): Promise<DomainReview> {
+    const customerId = await this.activeCustomerId();
+    return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/ask`, {
+      method: "POST",
+      customerId,
+      body: { askedBy: input.askedBy, question: input.question },
+    });
+  }
+
+  async requestRequirementReconsideration(changeId: string, input: DecisionInput): Promise<DomainReview> {
+    const customerId = await this.activeCustomerId();
+    return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/request-reconsideration`, {
+      method: "POST",
+      customerId,
+      body: { decidedBy: input.decidedBy, note: input.note },
+    });
+  }
+
+  async getArchitectureReview(changeId: string): Promise<ArchitectureReviewRun | undefined> {
+    const customerId = await this.activeCustomerId();
+    try {
+      return await request<ArchitectureReviewRun>(
+        `/changes/${encodeURIComponent(changeId)}/architecture-review`,
+        { customerId }
+      );
+    } catch (e) {
+      // 404 -- not in the Delivery Queue, or in it but no run yet either
+      // way; 409 -- same "not in the Delivery Queue yet" precondition
+      // the backend's _require_queued_change also uses for the other
+      // architecture-review routes. Both mean "nothing to show yet",
+      // not a real error, from this read-only call's point of view.
+      if (e instanceof HttpError && (e.status === 404 || e.status === 409)) return undefined;
+      throw e;
+    }
+  }
+
+  async askAboutSolution(changeId: string, input: { askedBy: string; question: string }): Promise<ArchitectureReviewRun> {
+    const customerId = await this.activeCustomerId();
+    return request<ArchitectureReviewRun>(`/changes/${encodeURIComponent(changeId)}/architecture-review/ask`, {
+      method: "POST",
+      customerId,
+      body: { askedBy: input.askedBy, question: input.question },
+    });
+  }
+
+  async retriggerArchitectureReview(changeId: string): Promise<void> {
+    const customerId = await this.activeCustomerId();
+    await request<{ status: string }>(`/changes/${encodeURIComponent(changeId)}/architecture-review`, {
+      method: "POST",
+      customerId,
     });
   }
 

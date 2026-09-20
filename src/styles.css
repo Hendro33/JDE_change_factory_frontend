@@ -395,6 +395,11 @@ table.data tbody tr.clickable:hover { background: var(--wash); }
 
 /* ---------- Agent team roster (Admin > Agents) ---------- */
 
+.agentteam { display: grid; gap: 22px; }
+.agentgroup-label {
+  font-size: 12.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 10px;
+}
 .agentgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
 .agentcard {
   text-align: left; background: var(--panel); border: 1px solid var(--line-strong);
@@ -404,7 +409,13 @@ table.data tbody tr.clickable:hover { background: var(--wash); }
 }
 .agentcard:hover { border-color: var(--brand); }
 .agentcard.selected { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand); background: var(--wash); }
-.agentcard-name { font-size: 15.5px; font-weight: 800; }
+.agentcard.planned { opacity: .82; }
+.agentcard-head { display: flex; align-items: center; gap: 10px; }
+.agenticon {
+  display: flex; align-items: center; justify-content: center; flex: none;
+  width: 38px; height: 38px; border-radius: 10px;
+}
+.agentcard-name { font-size: 15px; font-weight: 800; }
 .agentcard-role { font-size: 13px; color: var(--ink-soft); min-height: 32px; }
 .agentcard-stats { display: flex; gap: 6px; flex-wrap: wrap; }
 .agentcard-meta { font-size: 12px; color: var(--muted); margin-top: auto; }

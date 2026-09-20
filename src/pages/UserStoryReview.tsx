@@ -3,6 +3,7 @@ import { api } from "../services/api";
 import type { BusinessDomain, Change, DomainReview, DomainReviewStage, UserStory } from "../types/domain";
 import { ChangeGrid, FilterBar, useChangeListControls, type GridColumn } from "../components/WorkQueue";
 import { ConfirmDialog, Loading, NotStated, PriorityBadge } from "../components/ui";
+import { AskJadePanel } from "../components/AskJade";
 
 const PRE_DOMAIN_OWNER_APPROVAL = new Set<DomainReviewStage>([
   "ready_for_domain_owner", "domain_owner_reviewing", "domain_owner_requested_revision", "reviewer_agent_refining",
@@ -198,9 +199,27 @@ export function UserStoryReview() {
             )}
           </section>
 
+          {latestStory.businessRules.length > 0 && (
+            <section className="panel">
+              <h2>Business rules &amp; constraints</h2>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14 }}>
+                {latestStory.businessRules.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+            </section>
+          )}
+
+          {latestStory.assumptions.length > 0 && (
+            <section className="panel">
+              <h2>Assumptions <span className="qualifier">— confirm or correct these</span></h2>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14 }}>
+                {latestStory.assumptions.map((a, i) => <li key={i}>{a}</li>)}
+              </ul>
+            </section>
+          )}
+
           {latestStory.openQuestions.length > 0 && (
             <section className="panel">
-              <h2>Questions &amp; assumptions</h2>
+              <h2>Open questions</h2>
               <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14 }}>
                 {latestStory.openQuestions.map((q, i) => <li key={i}>{q}</li>)}
               </ul>
@@ -217,6 +236,30 @@ export function UserStoryReview() {
               <dt>Urgency</dt><dd>{selected.businessImpact.urgency || <NotStated />}</dd>
             </dl>
           </section>
+
+          {canDecide && domainReview && (
+            <AskJadePanel
+              title="Ask Jade about this requirement"
+              turns={domainReview.conversation}
+              askedByDefault={reviewerName}
+              onAsk={async (question, askedBy) => {
+                const updated = await api.askAboutRequirement(selected.id, { askedBy, question });
+                setDomainReview(updated);
+              }}
+              renderAmendmentActions={(turn) => (
+                <button
+                  className="btn primary"
+                  onClick={() => {
+                    setEditForm(JSON.parse(JSON.stringify(turn.proposedUserStory)));
+                    setEditNote(`Accepted from Ask Jade about this requirement: "${turn.question}"`);
+                    setEditing(true);
+                  }}
+                >
+                  Review as edit
+                </button>
+              )}
+            />
+          )}
 
           <section className="panel">
             <h2>Your decision</h2>
