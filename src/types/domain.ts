@@ -633,10 +633,10 @@ export interface BusinessDomainCreateInput {
 
 /**
  * Per-customer, human-authored connector configuration — mirrors
- * EngagementScope's own customer-scoping. The API token itself is
- * NEVER part of this shape; see JiraConnectionStatus for its presence
- * only, and Integrations.tsx's own note on why that credential is
- * still deployment-level, not truly per-customer, in this increment.
+ * EngagementScope's own customer-scoping. The credential (email + API
+ * token) is NEVER part of this shape; see JiraCredentialsUpdateInput
+ * for how it's entered, and JiraConnectionStatus for its presence
+ * only, never its value.
  */
 export interface JiraIntegrationConfig {
   customerId: string;
@@ -664,7 +664,38 @@ export interface JiraIntegrationConfigUpdateInput {
   updatedBy: string;
 }
 
-/** Status only — NEVER a credential. The credential itself is deployment-level, not per-customer, in this increment. */
+/**
+ * Entering/replacing this customer's Jira email + API token — Admin >
+ * Integrations > Jira. PILOT-SCOPED, deliberately simple: persisted
+ * server-side as plain configuration (not a secrets manager), never
+ * returned by any endpoint. See JiraConnectionStatus for the only
+ * thing any GET ever reports back about it.
+ */
+export interface JiraCredentialsUpdateInput {
+  email: string;
+  apiToken: string;
+  updatedBy: string;
+}
+
+/**
+ * Deliberately stateless: checks whatever is currently typed in the
+ * form (site URL, project key, email, API token), whether or not it
+ * has been saved yet, and never persists it.
+ */
+export interface JiraTestConnectionInput {
+  baseUrl: string;
+  projectKey?: string;
+  email: string;
+  apiToken: string;
+}
+
+/** Always safe to render as-is — the backend never includes the token in this message. */
+export interface JiraTestConnectionResult {
+  ok: boolean;
+  message: string;
+}
+
+/** Status only — NEVER a credential. credentialsConfigured reflects THIS customer's own saved Jira credential, never its value. */
 export interface JiraConnectionStatus {
   mockMode: boolean;
   credentialsConfigured: boolean;

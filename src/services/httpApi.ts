@@ -15,9 +15,12 @@ import type {
   FactoryMetrics,
   IntegrationStatus,
   JiraConnectionStatus,
+  JiraCredentialsUpdateInput,
   JiraIntegrationConfig,
   JiraIntegrationConfigUpdateInput,
   JiraSyncResult,
+  JiraTestConnectionInput,
+  JiraTestConnectionResult,
   Session,
   UserStory,
 } from "../types/domain";
@@ -452,6 +455,18 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
   async getJiraIntegrationStatus(): Promise<JiraConnectionStatus> {
     const customerId = await this.activeCustomerId();
     return request<JiraConnectionStatus>("/admin/jira-integration/status", { customerId });
+  }
+
+  async updateJiraCredentials(input: JiraCredentialsUpdateInput): Promise<JiraConnectionStatus> {
+    const customerId = await this.activeCustomerId();
+    return request<JiraConnectionStatus>("/admin/jira-credentials", { method: "PUT", customerId, body: input });
+  }
+
+  async testJiraConnection(input: JiraTestConnectionInput): Promise<JiraTestConnectionResult> {
+    const customerId = await this.activeCustomerId();
+    return request<JiraTestConnectionResult>("/admin/jira-integration/test-connection", {
+      method: "POST", customerId, body: input,
+    });
   }
 
   async syncJiraIntegration(): Promise<JiraSyncResult> {

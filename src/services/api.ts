@@ -27,9 +27,12 @@ import type {
   FeedbackReasonCode,
   IntegrationStatus,
   JiraConnectionStatus,
+  JiraCredentialsUpdateInput,
   JiraIntegrationConfig,
   JiraIntegrationConfigUpdateInput,
   JiraSyncResult,
+  JiraTestConnectionInput,
+  JiraTestConnectionResult,
   Session,
   UserStory,
 } from "../types/domain";
@@ -103,6 +106,8 @@ export const API_ENDPOINTS = {
   getJiraIntegration: "GET /admin/jira-integration",
   updateJiraIntegration: "PUT /admin/jira-integration",
   getJiraIntegrationStatus: "GET /admin/jira-integration/status",
+  updateJiraCredentials: "PUT /admin/jira-credentials",
+  testJiraConnection: "POST /admin/jira-integration/test-connection",
   syncJiraIntegration: "POST /admin/jira-integration/sync",
 } as const;
 
@@ -291,15 +296,28 @@ export interface ChangeFactoryApi {
 
   /**
    * Jira Service Management hand-off (Admin > Integrations > Jira).
-   * Customer-scoped configuration only — the API token itself is never
-   * part of this surface; getJiraIntegrationStatus reports only whether
-   * one is present. See JiraIntegrationConfig's own docstring for why
-   * the credential is still deployment-level, not per-customer, in
-   * this increment.
+   * Site/project/status/field configuration is ordinary, customer-scoped
+   * settings. The credential (email + API token) is entered separately
+   * via updateJiraCredentials, below — never part of this surface;
+   * getJiraIntegrationStatus reports only whether one is present.
    */
   getJiraIntegration(): Promise<JiraIntegrationConfig>;
   updateJiraIntegration(input: JiraIntegrationConfigUpdateInput): Promise<JiraIntegrationConfig>;
   getJiraIntegrationStatus(): Promise<JiraConnectionStatus>;
+  /**
+   * Enters/replaces this customer's Jira email + API token. PILOT-SCOPED
+   * (deliberately simple, see docs Section 19.7): the value is accepted
+   * here and NEVER echoed back by this or any other call — the return
+   * is status only, same as getJiraIntegrationStatus.
+   */
+  updateJiraCredentials(input: JiraCredentialsUpdateInput): Promise<JiraConnectionStatus>;
+  /**
+   * "Test Connection" — checks whatever is currently typed in the form
+   * (site URL, project key, email, API token), whether or not it has
+   * been saved yet. Always a real call to Jira, regardless of mock
+   * mode; never persists anything.
+   */
+  testJiraConnection(input: JiraTestConnectionInput): Promise<JiraTestConnectionResult>;
   /**
    * Runs the sync handshake once, on demand: finds tickets in the
    * configured pickup status, creates a durable Jade Change Request for

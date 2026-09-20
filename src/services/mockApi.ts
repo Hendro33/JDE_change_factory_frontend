@@ -20,10 +20,13 @@ import type {
   FeedbackSummary,
   IntegrationStatus,
   JiraConnectionStatus,
+  JiraCredentialsUpdateInput,
   JiraIntegrationConfig,
   JiraIntegrationConfigUpdateInput,
   JiraSyncError,
   JiraSyncResult,
+  JiraTestConnectionInput,
+  JiraTestConnectionResult,
   LifecycleState,
   StoryVersion,
   UserStory,
@@ -118,6 +121,11 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
   private agentRuns = new Map<string, AgentRunSummary[]>();
   private feedbackLog: { customerId: string; kind: string; reasonCode?: string }[] = [];
   private jiraConfigs = new Map<string, JiraIntegrationConfig>();
+  /** Per-customer Jira credentials -- mirrors jira_credentials_service.py's
+   * own per-customer plaintext storage (pilot-scoped simplicity, see
+   * that module's docstring); never read back by any method below,
+   * same "write-only from the API's own point of view" rule. */
+  private jiraCredentials = new Map<string, { email: string; apiToken: string }>();
   /** Per-customer fixture tickets for the Jira mock -- stateful across
    * "Sync now" clicks within a session (unlike the real backend's
    * per-call mock gateway), so a second click legitimately shows
@@ -1042,13 +1050,35 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
 
   async getJiraIntegrationStatus(): Promise<JiraConnectionStatus> {
     const config = this.jiraConfigs.get(this.scope);
+    const creds = this.jiraCredentials.get(this.scope);
     return delay({
       mockMode: true,
-      // The mock never has a real credential -- same honest "nothing
-      // is live yet" answer getErpLandscape's ais field already gives.
-      credentialsConfigured: false,
+      credentialsConfigured: !!creds && !!creds.email && !!creds.apiToken,
       configConfigured: !!config && jiraIsConfigured(config),
     });
+  }
+
+  async updateJiraCredentials(input: JiraCredentialsUpdateInput): Promise<JiraConnectionStatus> {
+    this.jiraCredentials.set(this.scope, { email: input.email, apiToken: input.apiToken });
+    return this.getJiraIntegrationStatus();
+  }
+
+  /**
+   * Mock stand-in for jira_gateway.test_live_connection -- there is no
+   * real Jira site to call here, so this is a representative check
+   * (are the required fields present?) rather than a real HTTP round
+   * trip, same "representative, not real" convention enhanceStory
+   * already uses elsewhere in this file. Never persists anything.
+   */
+  async testJiraConnection(input: JiraTestConnectionInput): Promise<JiraTestConnectionResult> {
+    await delay(undefined, 500);
+    if (!input.baseUrl.trim()) return { ok: false, message: "Jira site URL is required." };
+    if (!input.email.trim() || !input.apiToken.trim()) return { ok: false, message: "Email and API token are both required." };
+    const site = input.baseUrl.replace(/\/+$/, "");
+    if (input.projectKey?.trim()) {
+      return { ok: true, message: `Connected to ${site} as ${input.email}. Project '${input.projectKey}' is accessible. (mock check -- no real Jira call was made)` };
+    }
+    return { ok: true, message: `Connected to ${site} as ${input.email}. (mock check -- no real Jira call was made)` };
   }
 
   async syncJiraIntegration(): Promise<JiraSyncResult> {
