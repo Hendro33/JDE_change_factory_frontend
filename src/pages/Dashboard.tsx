@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import type { ActivityEntry, Change, FactoryMetrics } from "../types/domain";
+import type { Navigate, NavFilter, Page } from "../types/nav";
 import {
   ApiNote,
   BarList,
@@ -12,11 +13,26 @@ import {
   StateBadge,
 } from "../components/ui";
 
-const KPI_MARKS = ["▤", "◷", "⚙", "⚗", "✓", "⊘"];
+const KPI_MARKS = ["▤", "◷", "⚗", "⚙", "✓", "◆"];
 
-export function Dashboard({ onOpenChange, onGoTo }: {
+/**
+ * Every dashboard total maps deterministically to a work queue + a
+ * pre-applied filter (Increment: Continuous Delivery Flow, item 3/8) —
+ * "1 User Story awaiting Domain Owner approval" always opens User
+ * Story Review filtered the same way, never a guess from the label.
+ */
+const METRIC_ROUTES: Record<string, { page: Page; filter?: NavFilter }> = {
+  incoming_requests: { page: "userstories", filter: { view: "requests" } },
+  awaiting_domain_owner: { page: "userstories", filter: { view: "review" } },
+  backlog_ready: { page: "approval", filter: {} },
+  in_delivery: { page: "deliveryqueue" },
+  awaiting_business_validation: { page: "pipeline", filter: { stage: "validation" } },
+  completed: { page: "pipeline", filter: { stage: "completed" } },
+};
+
+export function Dashboard({ onOpenChange, onNavigate }: {
   onOpenChange: (id: string) => void;
-  onGoTo: (page: "backlog" | "build") => void;
+  onNavigate: Navigate;
 }) {
   const [metrics, setMetrics] = useState<FactoryMetrics | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
@@ -52,9 +68,18 @@ export function Dashboard({ onOpenChange, onGoTo }: {
       ) : (
         <div className="grid" style={{ gap: 16 }}>
           <div className="grid kpis">
-            {metrics.totals.map((t, i) => (
-              <Kpi key={t.label} value={t.value} label={t.label} delta={t.delta} mark={KPI_MARKS[i]} />
-            ))}
+            {metrics.totals.map((t, i) => {
+              const route = METRIC_ROUTES[t.key];
+              return (
+                <Kpi
+                  key={t.key}
+                  value={t.value}
+                  label={t.label}
+                  mark={KPI_MARKS[i]}
+                  onClick={route ? () => onNavigate(route.page, route.filter) : undefined}
+                />
+              );
+            })}
           </div>
 
           <div className="grid thirds">
@@ -86,17 +111,22 @@ export function Dashboard({ onOpenChange, onGoTo }: {
           {metrics.businessDomainBreakdown.length > 0 && (
             <section className="panel">
               <h2>
-                Change demand by business domain <span className="qualifier">— current backlog and build</span>
+                Change demand by business domain <span className="qualifier">— current backlog and delivery</span>
               </h2>
               <BarList
                 data={metrics.businessDomainBreakdown.map((d) => ({
                   category: d.apqcCode ? `${d.domainName} (${d.apqcCode})` : d.domainName,
                   count: d.count,
                 }))}
+                onItemClick={(i) => {
+                  const d = metrics.businessDomainBreakdown[i];
+                  onNavigate("userstories", d.domainId ? { view: "all", domainId: d.domainId } : { view: "all" });
+                }}
               />
               <div className="apinote">
-                Where change demand is concentrated, by business domain. "Unclassified /
-                needs review" means a Domain Owner has not yet placed that request.
+                Where change demand is concentrated, by business domain. Click a domain to see its
+                User Stories. "Unclassified / needs review" means a Domain Owner has not yet placed
+                that request.
               </div>
             </section>
           )}
@@ -121,7 +151,7 @@ export function Dashboard({ onOpenChange, onGoTo }: {
                 </tbody>
               </table>
               <div style={{ marginTop: 12 }}>
-                <button className="linkish" onClick={() => onGoTo("build")}>View all changes</button>
+                <button className="linkish" onClick={() => onNavigate("pipeline")}>View all changes</button>
               </div>
             </section>
 
@@ -151,7 +181,7 @@ export function Dashboard({ onOpenChange, onGoTo }: {
                 </table>
               )}
               <div style={{ marginTop: 12 }}>
-                <button className="linkish" onClick={() => onGoTo("backlog")}>Go to approvals</button>
+                <button className="linkish" onClick={() => onNavigate("approval")}>Go to approvals</button>
               </div>
             </section>
           </div>

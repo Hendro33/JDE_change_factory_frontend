@@ -158,7 +158,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                     </Provenance>
                   )}
                   {domainReview.applicationManagerApproval && (
-                    <Provenance kind="human" label={`Application Manager approved for sprint by ${domainReview.applicationManagerApproval.approvedBy}`}>
+                    <Provenance kind="human" label={`Application Manager approved into the Delivery Queue by ${domainReview.applicationManagerApproval.approvedBy}`}>
                       <div style={{ fontSize: 13.5 }}>{domainReview.applicationManagerApproval.note || <span className="notstated">no reason recorded</span>}</div>
                     </Provenance>
                   )}
@@ -166,8 +166,8 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
               )}
               <div className="apinote">
                 Domain Owner approval means the business requirement / User Story is
-                approved. Application Manager approval means the application backlog /
-                sprint is approved to proceed toward build — the two are always separate.
+                approved. Application Manager approval means the work is authorised for
+                Jade to deliver, admitted to the Delivery Queue — the two are always separate.
               </div>
             </section>
           )}

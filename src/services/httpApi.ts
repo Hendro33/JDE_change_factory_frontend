@@ -2,6 +2,7 @@ import type {
   ActivityEntry,
   BusinessDomain,
   Change,
+  DeliveryQueueEntry,
   DomainReview,
   FactoryMetrics,
   Session,
@@ -172,7 +173,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
    * real model call per stage). The returned Change reflects
    * whatever state the run is in at that instant; callers that want
    * to show live progress should keep calling getChange(id) (e.g.
-   * StoryEnhancement.tsx polls while processingStage is neither
+   * UserStories.tsx polls while processingStage is neither
    * undefined nor a terminal value).
    */
   async enhanceStory(id: string): Promise<Change> {
@@ -275,12 +276,17 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     });
   }
 
-  async approveForSprint(changeId: string, input: DecisionInput): Promise<DomainReview> {
+  async approveForDelivery(changeId: string, input: DecisionInput): Promise<DomainReview> {
     const customerId = await this.activeCustomerId();
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/application-manager-approve`, {
       method: "POST",
       customerId,
       body: { decidedBy: input.decidedBy, note: input.note },
     });
+  }
+
+  async listDeliveryQueue(): Promise<DeliveryQueueEntry[]> {
+    const customerId = await this.activeCustomerId();
+    return request<DeliveryQueueEntry[]>("/delivery-queue", { customerId });
   }
 }

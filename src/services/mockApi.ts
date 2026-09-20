@@ -3,7 +3,9 @@ import type {
   BusinessDomain,
   Change,
   ChangeType,
+  DeliveryQueueEntry,
   DomainReview,
+  DomainReviewStage,
   FactoryMetrics,
   LifecycleState,
   StoryVersion,
@@ -20,6 +22,11 @@ const delay = <T,>(value: T, ms = 220): Promise<T> =>
 
 const now = () => new Date().toISOString();
 
+/** Mirrors the backend's _PRE_DOMAIN_OWNER_APPROVAL_STAGES (metrics_service.py). */
+const PRE_DOMAIN_OWNER_APPROVAL = new Set<DomainReviewStage>([
+  "ready_for_domain_owner", "domain_owner_reviewing", "domain_owner_requested_revision", "reviewer_agent_refining",
+]);
+
 /**
  * In-memory implementation of ChangeFactoryApi.
  *
@@ -31,6 +38,7 @@ const now = () => new Date().toISOString();
 export class MockChangeFactoryApi implements ChangeFactoryApi {
   private changes: Change[] = JSON.parse(JSON.stringify(MOCK_CHANGES));
   private domainReviews = new Map<string, DomainReview>();
+  private deliveryQueue: DeliveryQueueEntry[] = [];
 
   async getSession(): Promise<Session> {
     return delay(getMockSession(), 80);
@@ -238,11 +246,15 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     const all = this.scoped();
     const inState = (...s: LifecycleState[]) => all.filter((c) => s.includes(c.state)).length;
 
+    const incomingRequests = inState("RECEIVED");
     const awaitingApproval = inState("BACKLOG_READY");
+    const awaitingDomainOwner = all.filter(
+      (c) => c.state === "BACKLOG_READY" && (!c.domainReviewStage || PRE_DOMAIN_OWNER_APPROVAL.has(c.domainReviewStage))
+    ).length;
+    const inDelivery = this.deliveryQueue.filter((e) => e.customerId === this.scope).length;
     const inBuild = inState("APPROVED", "ARCHITECTING", "SPEC_READY", "CHANGE_APPROVED", "EXECUTING");
     const inTesting = inState("TESTING");
     const completed = inState("CLOSED", "VALIDATED", "CNC_HANDOFF", "RESOLVED_WITHOUT_CHANGE");
-    const rejected = inState("REJECTED", "FAILED");
 
     const typeCounts = new Map<ChangeType, number>();
     all.forEach((c) => typeCounts.set(c.changeType, (typeCounts.get(c.changeType) ?? 0) + 1));
@@ -265,12 +277,12 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
 
     return delay({
       totals: [
-        { label: "Total requests", value: all.length, delta: 33 },
-        { label: "Awaiting approval", value: awaitingApproval, delta: 2 },
-        { label: "In build", value: inBuild, delta: -1 },
-        { label: "In testing", value: inTesting, delta: -2 },
-        { label: "Completed", value: completed, delta: 4 },
-        { label: "Rejected / on hold", value: rejected, delta: 0 },
+        { key: "incoming_requests", label: "Incoming Requests", value: incomingRequests, delta: 0 },
+        { key: "awaiting_domain_owner", label: "User Stories awaiting Domain Owner approval", value: awaitingDomainOwner, delta: 0 },
+        { key: "backlog_ready", label: "Backlog-ready User Stories", value: awaitingApproval, delta: 0 },
+        { key: "in_delivery", label: "Changes in Delivery", value: inDelivery, delta: 0 },
+        { key: "awaiting_business_validation", label: "Awaiting Business Validation", value: inTesting, delta: 0 },
+        { key: "completed", label: "Completed", value: completed, delta: 0 },
       ],
       pipeline: [
         { stage: "New", count: inState("RECEIVED") },
@@ -456,10 +468,10 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     return delay(this.saveDomainReview(review));
   }
 
-  async approveForSprint(changeId: string, input: DecisionInput): Promise<DomainReview> {
+  async approveForDelivery(changeId: string, input: DecisionInput): Promise<DomainReview> {
     const review = this.ensureDomainReview(changeId);
     if (review.stage !== "ready_for_application_manager") {
-      throw new Error(`Cannot approve for sprint from stage ${review.stage}`);
+      throw new Error(`Cannot approve for delivery from stage ${review.stage}`);
     }
     review.applicationManagerApproval = {
       approvalId: `AP-${changeId}-AM`,
@@ -473,8 +485,28 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     this.saveDomainReview(review);
 
     // Mirrors the real backend: only Application Manager approval
-    // actually clears the story for build.
+    // actually clears the story for build, and adds it to the
+    // Delivery Queue -- not a Sprint, just an ordered queue entry.
     await this.approveChange(changeId, input);
+    if (!this.deliveryQueue.some((e) => e.changeId === changeId)) {
+      const customerId = this.scope;
+      this.deliveryQueue.push({
+        changeId,
+        customerId,
+        position: this.deliveryQueue.filter((e) => e.customerId === customerId).length + 1,
+        status: "queued",
+        addedBy: input.decidedBy,
+        addedAt: now(),
+        note: input.note,
+      });
+    }
     return review;
+  }
+
+  async listDeliveryQueue(): Promise<DeliveryQueueEntry[]> {
+    const customerId = this.scope;
+    return delay(
+      this.deliveryQueue.filter((e) => e.customerId === customerId).sort((a, b) => a.position - b.position)
+    );
   }
 }

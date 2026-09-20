@@ -58,7 +58,7 @@ export const DOMAIN_STAGE_LABEL: Record<string, string> = {
   reviewer_agent_refining: "Reviewer Agent refining",
   domain_owner_approved: "Domain Owner approved",
   ready_for_application_manager: "Ready for Application Manager",
-  application_manager_approved: "Application Manager approved for sprint/build",
+  application_manager_approved: "Application Manager approved — queued for delivery",
 };
 
 export function PriorityBadge({ priority }: { priority: "High" | "Medium" | "Low" }) {
@@ -111,28 +111,35 @@ export function Kpi({
   label,
   delta,
   mark,
+  onClick,
 }: {
   value: number;
   label: string;
-  delta: number;
+  /** Omit when there is no tracked trend to show — a fabricated "0" implies history that doesn't exist. */
+  delta?: number;
   mark?: string;
+  /** Makes the whole card a button, e.g. navigating to the filtered work queue this count represents. */
+  onClick?: () => void;
 }) {
-  const dir = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
-  const arrow = delta > 0 ? "▲" : delta < 0 ? "▼" : "—";
+  const dir = delta === undefined ? undefined : delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+  const arrow = delta === undefined ? "" : delta > 0 ? "▲" : delta < 0 ? "▼" : "—";
+  const Tag = onClick ? "button" : "div";
   return (
-    <div className="kpi">
+    <Tag className={`kpi${onClick ? " clickable" : ""}`} onClick={onClick} type={onClick ? "button" : undefined}>
       <div className="top">
         <div className="value">{value}</div>
         {mark && <span className="mark" aria-hidden="true">{mark}</span>}
       </div>
       <div className="label">{label}</div>
-      <div className="delta">
-        <span className={dir}>
-          {arrow} {delta === 0 ? "0" : `${delta > 0 ? "+" : ""}${delta}`}
-        </span>
-        <span className="since">vs previous 30 days</span>
-      </div>
-    </div>
+      {delta !== undefined && (
+        <div className="delta">
+          <span className={dir}>
+            {arrow} {delta === 0 ? "0" : `${delta > 0 ? "+" : ""}${delta}`}
+          </span>
+          <span className="since">vs previous 30 days</span>
+        </div>
+      )}
+    </Tag>
   );
 }
 
@@ -245,19 +252,34 @@ export function DonutChart({
   );
 }
 
-export function BarList({ data }: { data: { category: string; count: number }[] }) {
+export function BarList({
+  data,
+  onItemClick,
+}: {
+  data: { category: string; count: number }[];
+  /** Makes each row a button, e.g. navigating to that row's filtered work queue. */
+  onItemClick?: (index: number) => void;
+}) {
   const max = Math.max(1, ...data.map((d) => d.count));
   return (
     <div>
-      {data.map((d) => (
-        <div className="hbar" key={d.category}>
-          <span>{d.category}</span>
-          <span className="track">
-            <span className="fill" style={{ width: `${(d.count / max) * 100}%` }} />
-          </span>
-          <span>{d.count}</span>
-        </div>
-      ))}
+      {data.map((d, i) => {
+        const Tag = onItemClick ? "button" : "div";
+        return (
+          <Tag
+            className={`hbar${onItemClick ? " clickable" : ""}`}
+            key={d.category}
+            onClick={onItemClick ? () => onItemClick(i) : undefined}
+            type={onItemClick ? "button" : undefined}
+          >
+            <span>{d.category}</span>
+            <span className="track">
+              <span className="fill" style={{ width: `${(d.count / max) * 100}%` }} />
+            </span>
+            <span>{d.count}</span>
+          </Tag>
+        );
+      })}
     </div>
   );
 }

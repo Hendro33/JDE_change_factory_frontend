@@ -288,6 +288,26 @@ export interface DomainReview {
   updatedAt: string;
 }
 
+/**
+ * The Delivery Queue (Increment: Continuous Delivery Flow) — the set
+ * of approved changes Jade is authorised to work on. Deliberately NOT
+ * a Sprint: no start/end date, no capacity, no planning ceremony. One
+ * entry per change, added by exactly one human decision (Application
+ * Manager approval).
+ */
+export interface DeliveryQueueEntry {
+  changeId: string;
+  customerId: string;
+  position: number;
+  status: "queued" | "in_progress" | "blocked";
+  deliveryType?: string;
+  currentOwner?: string;
+  blockedReason?: string;
+  addedBy: string;
+  addedAt: string;
+  note: string;
+}
+
 /** The central object of the application. */
 export interface Change {
   id: string;
@@ -336,9 +356,21 @@ export interface Change {
   closure?: ClosureRecord;
 }
 
+/**
+ * One dashboard total. `key` is a stable identifier the UI maps to a
+ * work queue + filter (see DASHBOARD_METRIC_ROUTES) — labels can be
+ * reworded without breaking that navigation.
+ */
+export interface Total {
+  key: string;
+  label: string;
+  value: number;
+  delta: number;
+}
+
 /** Dashboard metrics — computed from change records, never hard-coded. */
 export interface FactoryMetrics {
-  totals: { label: string; value: number; delta: number }[];
+  totals: Total[];
   pipeline: { stage: string; count: number }[];
   changeTypes: { type: ChangeType; count: number }[];
   businessImpactBreakdown: { category: string; count: number }[];

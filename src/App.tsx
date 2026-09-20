@@ -1,32 +1,128 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./services/api";
 import type { Session } from "./types/domain";
+import type { NavFilter, NavTarget, Page } from "./types/nav";
 import { CustomerScope, PersonaSwitch } from "./components/CustomerScope";
 import { Dashboard } from "./pages/Dashboard";
-import { StoryEnhancement } from "./pages/StoryEnhancement";
+import { UserStories } from "./pages/UserStories";
 import { ApprovalBacklog } from "./pages/ApprovalBacklog";
-import { BuildStatus } from "./pages/BuildStatus";
+import { DeliveryQueuePage } from "./pages/DeliveryQueue";
+import { Pipeline } from "./pages/Pipeline";
+import { BusinessDomains } from "./pages/BusinessDomains";
 import { ChangeDetail } from "./pages/ChangeDetail";
 
-type Page = "home" | "story" | "backlog" | "build";
+interface NavItem { key: Page; label: string; filter?: NavFilter }
+interface NavGroup { label: string; items: NavItem[] }
 
-const NAV: { key: Page; label: string }[] = [
-  { key: "home", label: "Home" },
-  { key: "story", label: "User story enhancement" },
-  { key: "backlog", label: "Approval & backlog" },
-  { key: "build", label: "Build status" },
+const NAV_GROUPS: NavGroup[] = [
+  { label: "Home", items: [{ key: "dashboard", label: "Dashboard" }] },
+  { label: "Demand", items: [
+    { key: "userstories", label: "Requests", filter: { view: "requests" } },
+    { key: "userstories", label: "User Stories", filter: { view: "all" } },
+  ] },
+  { label: "Governance", items: [
+    { key: "userstories", label: "User Story Review", filter: { view: "review" } },
+    { key: "approval", label: "Approval & Backlog" },
+  ] },
+  { label: "Delivery", items: [
+    { key: "deliveryqueue", label: "Delivery Queue" },
+    { key: "pipeline", label: "Active Changes", filter: { stage: "active" } },
+    { key: "pipeline", label: "Validation", filter: { stage: "validation" } },
+  ] },
+  { label: "Release", items: [
+    { key: "pipeline", label: "Ready for Release / CNC", filter: { stage: "release" } },
+  ] },
+  { label: "Knowledge", items: [
+    { key: "domains", label: "Business Domains" },
+  ] },
 ];
 
+function NavGroupMenu({
+  group, page, navFilter, onNavigate,
+}: {
+  group: NavGroup;
+  page: Page;
+  navFilter: NavFilter | undefined;
+  onNavigate: (p: Page, filter?: NavFilter) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+
+  if (group.items.length === 1 && !group.items[0].filter) {
+    const only = group.items[0];
+    return (
+      <button className={page === only.key ? "on" : ""} onClick={() => onNavigate(only.key)}>
+        {group.label}
+      </button>
+    );
+  }
+
+  const activeItem = group.items.find((it) => it.key === page && sameFilter(it.filter, navFilter));
+  const groupActive = activeItem ?? group.items.find((it) => it.key === page);
+
+  return (
+    <div className="navgroup" ref={ref}>
+      <button
+        className={groupActive ? "on" : ""}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {group.label}
+        <span aria-hidden="true" className="navgroup-caret">▾</span>
+      </button>
+      {open && (
+        <ul className="navgroup-menu" role="menu">
+          {group.items.map((it, i) => (
+            <li key={`${it.key}-${i}`}>
+              <button
+                className={activeItem === it ? "on" : ""}
+                onClick={() => { setOpen(false); onNavigate(it.key, it.filter); }}
+              >
+                {it.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function sameFilter(a: NavFilter | undefined, b: NavFilter | undefined): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  const ak = Object.keys(a), bk = Object.keys(b);
+  return ak.length === bk.length && ak.every((k) => a[k] === b[k]);
+}
+
 export default function App() {
-  const [page, setPage] = useState<Page>("home");
+  const [page, setPage] = useState<Page>("dashboard");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [navFilter, setNavFilter] = useState<NavFilter | undefined>(undefined);
+  /** Bumps on every navigate() call so a page can react even when re-navigated to itself with a new filter. */
+  const [navToken, setNavToken] = useState(0);
   /** Bumping this remounts the page so it refetches for the new customer. */
   const [scopeKey, setScopeKey] = useState(0);
 
   useEffect(() => { api.getSession().then(setSession); }, []);
 
-  const go = (p: Page) => { setDetailId(null); setPage(p); };
+  function navigate(p: Page, filter?: NavFilter) {
+    setDetailId(null);
+    setPage(p);
+    setNavFilter(filter);
+    setNavToken((t) => t + 1);
+  }
 
   async function switchCustomer(customerId: string) {
     const next = await api.setActiveCustomer(customerId);
@@ -44,6 +140,8 @@ export default function App() {
       setScopeKey((k) => k + 1);
     });
   }
+
+  const navTarget: NavTarget = { navFilter, navToken };
 
   return (
     <div className="app">
@@ -66,10 +164,8 @@ export default function App() {
       </header>
 
       <nav className="mainnav">
-        {NAV.map((n) => (
-          <button key={n.key} className={page === n.key && !detailId ? "on" : ""} onClick={() => go(n.key)}>
-            {n.label}
-          </button>
+        {NAV_GROUPS.map((g) => (
+          <NavGroupMenu key={g.label} group={g} page={page} navFilter={navFilter} onNavigate={navigate} />
         ))}
         <span className="spacer" />
         <span className="settings">Settings</span>
@@ -78,14 +174,18 @@ export default function App() {
       <main className="page" key={scopeKey}>
         {detailId ? (
           <ChangeDetail changeId={detailId} onBack={() => setDetailId(null)} />
-        ) : page === "home" ? (
-          <Dashboard onOpenChange={setDetailId} onGoTo={(p) => go(p)} />
-        ) : page === "story" ? (
-          <StoryEnhancement onOpenChange={setDetailId} />
-        ) : page === "backlog" ? (
-          <ApprovalBacklog />
+        ) : page === "dashboard" ? (
+          <Dashboard onOpenChange={setDetailId} onNavigate={navigate} />
+        ) : page === "userstories" ? (
+          <UserStories onOpenChange={setDetailId} {...navTarget} />
+        ) : page === "approval" ? (
+          <ApprovalBacklog {...navTarget} />
+        ) : page === "deliveryqueue" ? (
+          <DeliveryQueuePage onOpenChange={setDetailId} />
+        ) : page === "domains" ? (
+          <BusinessDomains onNavigate={navigate} />
         ) : (
-          <BuildStatus onOpenChange={setDetailId} />
+          <Pipeline onOpenChange={setDetailId} {...navTarget} />
         )}
       </main>
 

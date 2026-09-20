@@ -13,6 +13,7 @@ import type {
   BusinessDomain,
   Change,
   ChangeSource,
+  DeliveryQueueEntry,
   DomainReview,
   FactoryMetrics,
   Session,
@@ -63,7 +64,9 @@ export const API_ENDPOINTS = {
   startDomainOwnerReview: "POST /changes/{id}/domain-review/start",
   submitDomainOwnerEdit: "POST /changes/{id}/domain-review/edit",
   approveDomainOwnerStory: "POST /changes/{id}/domain-review/approve",
-  approveForSprint: "POST /changes/{id}/domain-review/application-manager-approve",
+  approveForDelivery: "POST /changes/{id}/domain-review/application-manager-approve",
+
+  listDeliveryQueue: "GET /delivery-queue",
 } as const;
 
 /**
@@ -150,8 +153,16 @@ export interface ChangeFactoryApi {
     input: { editedBy: string; note?: string; userStory: UserStory }
   ): Promise<DomainReview>;
   approveDomainOwnerStory(changeId: string, input: DecisionInput): Promise<DomainReview>;
-  /** Application Manager approval — separate from Domain Owner approval, and the only one that clears Gate 2. */
-  approveForSprint(changeId: string, input: DecisionInput): Promise<DomainReview>;
+  /**
+   * Application Manager approval — separate from Domain Owner approval,
+   * the only one that clears Gate 2, and the action that adds the
+   * change to the Delivery Queue. Not a sprint approval: there is no
+   * planning ceremony or capacity behind this, just a queue admission.
+   */
+  approveForDelivery(changeId: string, input: DecisionInput): Promise<DomainReview>;
+
+  /** The set of approved changes Jade is authorised to work on, in queue order. */
+  listDeliveryQueue(): Promise<DeliveryQueueEntry[]>;
 }
 
 // ---------------------------------------------------------------------
