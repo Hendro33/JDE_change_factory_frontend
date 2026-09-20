@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
-import type { Change } from "../types/domain";
+import type { ArchitectureReviewRun, Change, DomainReview } from "../types/domain";
+import { AskJadePanel } from "../components/AskJade";
 import { ChangeGrid, FilterBar, useChangeListControls, type GridColumn } from "../components/WorkQueue";
 import { ConfirmDialog, Loading, PriorityBadge, Provenance } from "../components/ui";
 
@@ -15,6 +16,13 @@ export function ArchitectureReview() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<"approve" | "reject" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [domainReview, setDomainReview] = useState<DomainReview | null>(null);
+  const [run, setRun] = useState<ArchitectureReviewRun | null>(null);
+  const [showAnalysisHistory, setShowAnalysisHistory] = useState(false);
+  // Same identity key ConfirmDialog already uses on this page (approve/
+  // reject exact change) -- one Application Manager identity for every
+  // decision and conversation turn here, not a second name to type.
+  const [appManagerName, setAppManagerName] = useState(() => localStorage.getItem("ciq_approver") ?? "");
 
   const reload = () => {
     api.listChanges().then((all) => {
@@ -24,6 +32,12 @@ export function ArchitectureReview() {
     });
   };
   useEffect(reload, []);
+
+  useEffect(() => {
+    if (!openId) { setDomainReview(null); setRun(null); return; }
+    api.getDomainReview(openId).then((r) => setDomainReview(r ?? null));
+    api.getArchitectureReview(openId).then((r) => setRun(r ?? null));
+  }, [openId]);
 
   const columns: GridColumn[] = [
     { key: "id", header: "Change", render: (c) => <span className="mono">{c.id}</span>, sortValue: (c) => c.id },
@@ -51,6 +65,12 @@ export function ArchitectureReview() {
   const open = changes?.find((c) => c.id === openId) ?? null;
   const ec = open?.exactChange;
   const decided = open?.changeApproval?.status === "approved" || open?.changeApproval?.status === "rejected";
+  // Prefer the Architecture Review run's own "current" fields (kept in
+  // sync with history's newest entry) over the Change's own static
+  // copy -- the run reflects a re-analysis immediately, the Change
+  // record only on its next full reload.
+  const architectDecision = run?.architectDecision ?? open?.architectDecision;
+  const implementationSpec = run?.implementationSpec ?? open?.implementationSpec;
 
   return (
     <>
@@ -97,18 +117,18 @@ export function ArchitectureReview() {
             </div>
           </section>
 
-          {open.architectDecision ? (
+          {architectDecision ? (
             <section className="panel">
               <h2>Architect recommendation</h2>
-              <Provenance kind="ai" label={`Recommended route: ${open.architectDecision.recommendedRoute} · confidence ${Math.round(open.architectDecision.confidence * 100)}%`}>
-                <p style={{ margin: "0 0 10px", fontSize: 13.5 }}>{open.architectDecision.existingFunctionalityFound}</p>
-                {open.architectDecision.alternativesConsidered.length > 0 && (
+              <Provenance kind="ai" label={`Recommended route: ${architectDecision.recommendedRoute} · confidence ${Math.round(architectDecision.confidence * 100)}%`}>
+                <p style={{ margin: "0 0 10px", fontSize: 13.5 }}>{architectDecision.existingFunctionalityFound}</p>
+                {architectDecision.alternativesConsidered.length > 0 && (
                   <>
                     <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>Why not the simpler options</div>
                     <table className="data">
                       <thead><tr><th>Considered</th><th>Why it was not selected</th></tr></thead>
                       <tbody>
-                        {open.architectDecision.alternativesConsidered.map((a, i) => (
+                        {architectDecision.alternativesConsidered.map((a, i) => (
                           <tr key={i}><td>{a.approach}</td><td>{a.whyNot}</td></tr>
                         ))}
                       </tbody>
@@ -118,15 +138,35 @@ export function ArchitectureReview() {
               </Provenance>
               <dl className="facts" style={{ marginTop: 14 }}>
                 <dt>Objects affected</dt>
-                <dd>{open.architectDecision.objectsAffected.length
-                  ? <span className="mono">{open.architectDecision.objectsAffected.join(", ")}</span>
+                <dd>{architectDecision.objectsAffected.length
+                  ? <span className="mono">{architectDecision.objectsAffected.join(", ")}</span>
                   : "None"}</dd>
                 <dt>Could break</dt>
-                <dd>{open.architectDecision.dependenciesAndConflicts.length
-                  ? open.architectDecision.dependenciesAndConflicts.join("; ")
+                <dd>{architectDecision.dependenciesAndConflicts.length
+                  ? architectDecision.dependenciesAndConflicts.join("; ")
                   : "Nothing identified"}</dd>
-                <dt>Rollback</dt><dd>{open.architectDecision.rollbackStrategy}</dd>
+                <dt>Rollback</dt><dd>{architectDecision.rollbackStrategy}</dd>
               </dl>
+              {run && run.history.length > 1 && (
+                <div style={{ marginTop: 14 }}>
+                  <button className="linkish" onClick={() => setShowAnalysisHistory((v) => !v)}>
+                    {showAnalysisHistory ? "Hide" : "Show"} analysis history ({run.history.length})
+                  </button>
+                  {showAnalysisHistory && (
+                    <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                      {[...run.history].reverse().map((v, i) => (
+                        <div key={i} style={{ fontSize: 13, borderLeft: "3px solid var(--line-strong)", paddingLeft: 10 }}>
+                          <div style={{ fontWeight: 700 }}>
+                            {i === 0 ? "Current" : "Superseded"} — {v.architectDecision.recommendedRoute}, confidence {Math.round(v.architectDecision.confidence * 100)}% · {new Date(v.capturedAt).toLocaleString("en-GB")}
+                          </div>
+                          <div>{v.architectDecision.existingFunctionalityFound}</div>
+                          {v.note && <div style={{ color: "var(--muted)" }}>{v.note}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
           ) : (
             <section className="panel">
@@ -137,24 +177,78 @@ export function ArchitectureReview() {
             </section>
           )}
 
-          {open.implementationSpec && (
+          {implementationSpec && (
             <section className="panel">
               <h2>Implementation specification</h2>
               <dl className="facts">
                 <dt>Sequence</dt>
                 <dd>
                   <ol style={{ margin: 0, paddingLeft: 18 }}>
-                    {open.implementationSpec.sequence.map((s, i) => <li key={i}>{s}</li>)}
+                    {implementationSpec.sequence.map((s, i) => <li key={i}>{s}</li>)}
                   </ol>
                 </dd>
                 <dt>MCP operations</dt>
-                <dd className="mono">{open.implementationSpec.requiredMcpOperations.join(", ") || "None"}</dd>
+                <dd className="mono">{implementationSpec.requiredMcpOperations.join(", ") || "None"}</dd>
                 <dt>Human actions required</dt>
-                <dd>{open.implementationSpec.humanActionsRequired.join("; ") || "None"}</dd>
+                <dd>{implementationSpec.humanActionsRequired.join("; ") || "None"}</dd>
                 <dt>Validation approach</dt>
-                <dd>{open.implementationSpec.validationApproach}</dd>
+                <dd>{implementationSpec.validationApproach}</dd>
               </dl>
             </section>
+          )}
+
+          {domainReview && (
+            <AskJadePanel
+              title="Ask Jade about this requirement"
+              turns={domainReview.conversation}
+              askedByDefault={appManagerName}
+              onAsk={async (question, askedBy) => {
+                setAppManagerName(askedBy);
+                localStorage.setItem("ciq_approver", askedBy);
+                const updated = await api.askAboutRequirement(open.id, { askedBy, question });
+                setDomainReview(updated);
+              }}
+              renderAmendmentActions={(turn) => (
+                <button
+                  className="btn primary"
+                  onClick={async () => {
+                    const updated = await api.requestRequirementReconsideration(open.id, {
+                      decidedBy: appManagerName || turn.askedBy,
+                      note: `Flagged from Ask Jade about this requirement: "${turn.question}"`,
+                    });
+                    setDomainReview(updated);
+                  }}
+                >
+                  Flag for Domain Owner reconsideration
+                </button>
+              )}
+            />
+          )}
+
+          {architectDecision && (
+            <AskJadePanel
+              title="Ask Jade about this solution"
+              turns={run?.conversation ?? []}
+              askedByDefault={appManagerName}
+              onAsk={async (question, askedBy) => {
+                setAppManagerName(askedBy);
+                localStorage.setItem("ciq_approver", askedBy);
+                const updated = await api.askAboutSolution(open.id, { askedBy, question });
+                setRun(updated);
+              }}
+              renderRecommendReanalysisActions={() => (
+                <button
+                  className="btn primary"
+                  onClick={async () => {
+                    await api.retriggerArchitectureReview(open.id);
+                    const updated = await api.getArchitectureReview(open.id);
+                    setRun(updated ?? null);
+                  }}
+                >
+                  Re-run Architecture Review
+                </button>
+              )}
+            />
           )}
 
           {ec && (

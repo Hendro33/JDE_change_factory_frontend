@@ -3,10 +3,12 @@ import type {
   AgentDefinition,
   AgentHealth,
   AgentRunSummary,
+  ArchitectureReviewRun,
   BusinessDomain,
   BusinessDomainCreateInput,
   Change,
   ChangeType,
+  ConversationTurn,
   CustomerProfile,
   DeliveryQueueEntry,
   DomainReview,
@@ -106,6 +108,7 @@ function defaultJiraFixture(): MockJiraIssue[] {
 export class MockChangeFactoryApi implements ChangeFactoryApi {
   private changes: Change[] = JSON.parse(JSON.stringify(MOCK_CHANGES));
   private domainReviews = new Map<string, DomainReview>();
+  private architectureReviews = new Map<string, ArchitectureReviewRun>();
   private deliveryQueue: DeliveryQueueEntry[] = [];
   private businessDomains: BusinessDomain[] = JSON.parse(JSON.stringify(MOCK_BUSINESS_DOMAINS));
   private engagementScopes = new Map<string, EngagementScope>();
@@ -226,6 +229,8 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       testScript: [
         { id: "T1", action: "Reproduce the original scenario", expected: "The described problem does not occur" },
       ],
+      businessRules: [],
+      assumptions: [],
       openQuestions: [
         "Which specific JD Edwards application and version does this affect?",
         "How often does this occur, and how many people does it affect?",
@@ -497,14 +502,40 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     if (existing) return existing;
     const change = this.scoped().find((c) => c.id === changeId);
     if (!change?.userStory) throw new Error(`No user story yet for ${changeId}`);
+    // A change that already carries an Architect decision or exact
+    // change could only exist in the real system if its DomainReview
+    // already cleared both gates -- static seed data (CHG-1041,
+    // CHG-1039, ...) models the Change as already past Architecture
+    // Review without ever separately seeding the DomainReview sidecar
+    // that got it there. Infer that here rather than defaulting every
+    // first-touched change to "ready_for_domain_owner" regardless of
+    // how far along it actually is -- otherwise Architecture Review's
+    // "Flag for Domain Owner reconsideration" (which requires an
+    // already-approved stage) would wrongly refuse on these.
+    const alreadyPastGate1 = Boolean(change.architectDecision || change.exactChange);
+    const approvedBy = change.storyApproval?.approvedBy ?? "Application Manager";
+    const approvedAt = change.storyApproval?.approvedAt ?? now();
     const review: DomainReview = {
       changeId,
       domainClassificationUncertain: false,
       domainClassificationNote: "",
-      stage: "ready_for_domain_owner",
+      stage: alreadyPastGate1 ? "application_manager_approved" : "ready_for_domain_owner",
       history: [
         { label: "ai_generated", userStory: change.userStory, actor: "Check Agent", note: "", capturedAt: now() },
       ],
+      conversation: [],
+      ...(alreadyPastGate1
+        ? {
+            domainOwnerApproval: {
+              approvalId: `AP-${changeId}-DO`, kind: "domain_owner" as const, status: "approved" as const,
+              approvedBy, approvedAt, note: "",
+            },
+            applicationManagerApproval: {
+              approvalId: `AP-${changeId}-AM`, kind: "application_manager" as const, status: "approved" as const,
+              approvedBy, approvedAt, note: "",
+            },
+          }
+        : {}),
       updatedAt: now(),
     };
     this.domainReviews.set(changeId, review);
@@ -519,7 +550,13 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       change.businessDomainId = review.businessDomainId;
       change.domainReviewStage = review.stage;
     }
-    return review;
+    // A fresh object, not the stored reference: callers set React state
+    // directly from this return value, and a setState call given the
+    // SAME reference as current state is a silent no-op (Object.is
+    // bails the re-render) even though the stored copy was genuinely
+    // mutated -- this bit askAboutRequirement below exactly that way
+    // when it was the only state update in its round trip.
+    return { ...review };
   }
 
   async getDomainReview(changeId: string): Promise<DomainReview | undefined> {
@@ -665,7 +702,56 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
         note: input.note,
       });
     }
-    return review;
+    return { ...review };
+  }
+
+  /**
+   * Mock stand-in for conversation_driver.py -- a simple heuristic
+   * (question-shaped text -> explanation, anything else -> a proposed
+   * amendment appending it as a business rule) so "Ask Jade about this
+   * requirement" is exercisable end to end without a real model call,
+   * the same "representative, not real" convention enhanceStory above
+   * already uses.
+   */
+  async askAboutRequirement(changeId: string, input: { askedBy: string; question: string }): Promise<DomainReview> {
+    const review = this.ensureDomainReview(changeId);
+    if (review.history.length === 0) throw new Error(`No requirement to discuss yet for ${changeId}`);
+    const currentStory = review.history[review.history.length - 1].userStory;
+    const q = input.question.trim();
+    const looksLikeAQuestion = /^(why|what|how|is|does|can|could|explain|when|who|where)\b/i.test(q) || q.endsWith("?");
+
+    const turn: ConversationTurn = looksLikeAQuestion
+      ? {
+          turnId: `CONV-${Math.random().toString(16).slice(2, 10)}`,
+          askedBy: input.askedBy,
+          question: q,
+          answer: currentStory.businessContext || currentStory.statement,
+          kind: "explanation",
+          askedAt: now(),
+        }
+      : {
+          turnId: `CONV-${Math.random().toString(16).slice(2, 10)}`,
+          askedBy: input.askedBy,
+          question: q,
+          answer: "That reads like new information rather than a question — here is how I would update the requirement to include it. Nothing changes until you review and submit it.",
+          kind: "proposed_amendment",
+          proposedUserStory: { ...currentStory, businessRules: [...currentStory.businessRules, q] },
+          askedAt: now(),
+        };
+
+    review.conversation = [...review.conversation, turn];
+    return delay(this.saveDomainReview(review), 500);
+  }
+
+  async requestRequirementReconsideration(changeId: string, input: DecisionInput): Promise<DomainReview> {
+    const review = this.ensureDomainReview(changeId);
+    const reconsiderable = new Set(["domain_owner_approved", "ready_for_application_manager", "application_manager_approved"]);
+    if (!reconsiderable.has(review.stage)) {
+      throw new Error(`Cannot request reconsideration from stage ${review.stage}`);
+    }
+    review.stage = "domain_owner_reviewing";
+    this.feedbackLog.push({ customerId: this.scope, kind: "requirement_reconsideration_requested" });
+    return delay(this.saveDomainReview(review));
   }
 
   async rejectForDelivery(changeId: string, input: DecisionInput): Promise<DomainReview> {
@@ -690,7 +776,112 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     // REJECTED and no Delivery Queue entry is ever created.
     await this.rejectChange(changeId, input);
     this.feedbackLog.push({ customerId: this.scope, kind: "application_manager_rejection", reasonCode: input.rejectionReason });
-    return review;
+    return { ...review };
+  }
+
+  /**
+   * Lazily materialised from the Change's own (static seed) architect
+   * decision/implementation spec, the first time either is asked for --
+   * same convention as ensureDomainReview. undefined when Architecture
+   * Review hasn't produced anything yet for this change (the mock never
+   * synthesises one on its own, same honest limitation as this file's
+   * existing "architectDecision is seed data only" note).
+   */
+  private ensureArchitectureReview(changeId: string): ArchitectureReviewRun | undefined {
+    const existing = this.architectureReviews.get(changeId);
+    if (existing) return existing;
+    const change = this.scoped().find((c) => c.id === changeId);
+    if (!change?.architectDecision || !change.implementationSpec) return undefined;
+    const run: ArchitectureReviewRun = {
+      storyId: changeId,
+      stage: "done",
+      startedAt: change.architectDecision.decidedAt,
+      updatedAt: change.architectDecision.decidedAt,
+      architectDecision: change.architectDecision,
+      implementationSpec: change.implementationSpec,
+      history: [
+        {
+          architectDecision: change.architectDecision,
+          implementationSpec: change.implementationSpec,
+          note: "",
+          capturedAt: change.architectDecision.decidedAt,
+        },
+      ],
+      conversation: [],
+    };
+    this.architectureReviews.set(changeId, run);
+    return run;
+  }
+
+  private saveArchitectureReview(run: ArchitectureReviewRun): ArchitectureReviewRun {
+    run.updatedAt = now();
+    this.architectureReviews.set(run.storyId, run);
+    // Same fresh-object rule saveDomainReview's own comment explains --
+    // never return the stored reference.
+    return { ...run };
+  }
+
+  async getArchitectureReview(changeId: string): Promise<ArchitectureReviewRun | undefined> {
+    const run = this.ensureArchitectureReview(changeId);
+    return delay(run ? { ...run } : undefined);
+  }
+
+  /**
+   * Mock stand-in for conversation_driver.ask_about_solution -- same
+   * question-shaped heuristic as askAboutRequirement above, but there is
+   * never a draft to propose: a non-question input only ever recommends
+   * re-running Architecture Review (kind "recommend_reanalysis"), never
+   * an inline amendment.
+   */
+  async askAboutSolution(changeId: string, input: { askedBy: string; question: string }): Promise<ArchitectureReviewRun> {
+    const run = this.ensureArchitectureReview(changeId);
+    if (!run || run.history.length === 0) throw new Error(`No completed architecture review to discuss yet for ${changeId}`);
+    const latest = run.history[run.history.length - 1];
+    const q = input.question.trim();
+    const looksLikeAQuestion = /^(why|what|how|is|does|can|could|explain|when|who|where)\b/i.test(q) || q.endsWith("?");
+
+    const turn: ConversationTurn = looksLikeAQuestion
+      ? {
+          turnId: `CONV-${Math.random().toString(16).slice(2, 10)}`,
+          askedBy: input.askedBy,
+          question: q,
+          answer:
+            latest.architectDecision.existingFunctionalityFound ||
+            `Recommended route: ${latest.architectDecision.recommendedRoute}.`,
+          kind: "explanation",
+          askedAt: now(),
+        }
+      : {
+          turnId: `CONV-${Math.random().toString(16).slice(2, 10)}`,
+          askedBy: input.askedBy,
+          question: q,
+          answer:
+            "That reads like new information that could change the recommended approach. I can't redo the analysis here -- this looks worth a fresh Architecture Review run.",
+          kind: "recommend_reanalysis",
+          askedAt: now(),
+        };
+
+    run.conversation = [...run.conversation, turn];
+    return delay(this.saveArchitectureReview(run), 500);
+  }
+
+  /**
+   * Mock stand-in for the existing manual retrigger -- a real re-run
+   * would call the architect subagent again; the mock has no dynamic
+   * architect to call (architectDecision here is static seed data, see
+   * ensureArchitectureReview's own comment), so it appends a fresh
+   * history entry confirming the same recommendation rather than
+   * fabricating a different one. What matters for this flow is that it
+   * APPENDS -- never overwrites -- the prior entry, same as the real
+   * backend's complete().
+   */
+  async retriggerArchitectureReview(changeId: string): Promise<void> {
+    const run = this.ensureArchitectureReview(changeId);
+    if (!run || run.history.length === 0) throw new Error(`No architecture review yet for ${changeId}`);
+    const latest = run.history[run.history.length - 1];
+    run.history = [...run.history, { ...latest, note: "Re-run via manual retrigger.", capturedAt: now() }];
+    this.saveArchitectureReview(run);
+    await delay(undefined, 400);
   }
 
   async listDeliveryQueue(): Promise<DeliveryQueueEntry[]> {

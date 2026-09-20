@@ -125,6 +125,10 @@ export interface UserStory {
   businessContext: string;
   acceptanceCriteria: AcceptanceCriterion[];
   testScript: TestStep[];
+  /** Explicit constraints/rules the source actually stated — empty means none were stated, never a guess. */
+  businessRules: string[];
+  /** Things Jade is treating as true because the source implies them, flagged for the Domain Owner to confirm — distinct from openQuestions. */
+  assumptions: string[];
   /** Questions the Improve Agent could not resolve on its own. */
   openQuestions: string[];
   qualityStatus: "draft" | "needs_revision" | "passed" | "needs_human_input";
@@ -151,6 +155,33 @@ export interface ImplementationSpecification {
   requiredMcpOperations: string[];
   humanActionsRequired: string[];
   validationApproach: string;
+}
+
+/** One completed Architecture Review run's reasoning — append-only, same evidence convention as StoryVersion. */
+export interface ArchitectAnalysisVersion {
+  architectDecision: ArchitectDecision;
+  implementationSpec: ImplementationSpecification;
+  note: string;
+  capturedAt: string;
+}
+
+/**
+ * The full Architecture Review run for one story — history (every
+ * completed analysis, never overwritten) and conversation ("Ask Jade
+ * about this solution" turns). architectDecision/implementationSpec at
+ * the top level always mirror history's newest entry, kept for
+ * whatever already reads them off Change directly.
+ */
+export interface ArchitectureReviewRun {
+  storyId: string;
+  stage: "analyzing" | "done" | "failed";
+  startedAt: string;
+  updatedAt: string;
+  architectDecision?: ArchitectDecision;
+  implementationSpec?: ImplementationSpecification;
+  error?: string;
+  history: ArchitectAnalysisVersion[];
+  conversation: ConversationTurn[];
 }
 
 /**
@@ -288,6 +319,28 @@ export interface StoryVersion {
 }
 
 /**
+ * One turn of "Ask Jade about this requirement" or "Ask Jade about
+ * this solution" — collaboration scoped to one artefact, never a
+ * general chatbot. "explanation" never changes anything.
+ * "proposed_amendment" (requirement side only) is a full draft for a
+ * human to review — never applied automatically, only ever through the
+ * existing governed edit flow (StoryVersion/history above), after
+ * explicit human action. "recommend_reanalysis" (solution side only)
+ * has no draft payload at all — the Architect can't produce an inline
+ * one the way Improve does, so it only ever points back at re-running
+ * Architecture Review.
+ */
+export interface ConversationTurn {
+  turnId: string;
+  askedBy: string;
+  question: string;
+  answer: string;
+  kind: "explanation" | "proposed_amendment" | "recommend_reanalysis";
+  proposedUserStory?: UserStory;
+  askedAt: string;
+}
+
+/**
  * The Domain Owner / Application Manager governance record for one
  * Change. Workflow rule this enforces: a Domain Owner edit is never
  * silently the approved story —
@@ -301,6 +354,8 @@ export interface DomainReview {
   domainClassificationNote: string;
   stage: DomainReviewStage;
   history: StoryVersion[];
+  /** "Ask Jade about this requirement" — append-only, same evidence convention as history. */
+  conversation: ConversationTurn[];
   domainOwnerApproval?: ApprovalRecord;
   applicationManagerApproval?: ApprovalRecord;
   updatedAt: string;

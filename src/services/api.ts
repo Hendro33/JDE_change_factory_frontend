@@ -15,6 +15,7 @@ import type {
   BusinessDomain,
   BusinessDomainCreateInput,
   Change,
+  ArchitectureReviewRun,
   ChangeSource,
   CustomerProfile,
   DeliveryQueueEntry,
@@ -60,6 +61,9 @@ export const API_ENDPOINTS = {
 
   getArchitecture: "GET /changes/{id}/architecture",
   getImplementation: "GET /changes/{id}/implementation",
+  getArchitectureReview: "GET /changes/{id}/architecture-review",
+  askAboutSolution: "POST /changes/{id}/architecture-review/ask",
+  retriggerArchitectureReview: "POST /changes/{id}/architecture-review",
 
   approveExactChange: "POST /changes/{id}/approve-change",
   rejectExactChange: "POST /changes/{id}/reject-change",
@@ -81,6 +85,8 @@ export const API_ENDPOINTS = {
   rejectDomainOwnerStory: "POST /changes/{id}/domain-review/reject",
   approveForDelivery: "POST /changes/{id}/domain-review/application-manager-approve",
   rejectForDelivery: "POST /changes/{id}/domain-review/application-manager-reject",
+  askAboutRequirement: "POST /changes/{id}/domain-review/ask",
+  requestRequirementReconsideration: "POST /changes/{id}/domain-review/request-reconsideration",
 
   listDeliveryQueue: "GET /delivery-queue",
 
@@ -209,6 +215,54 @@ export interface ChangeFactoryApi {
    * entry is created.
    */
   rejectForDelivery(changeId: string, input: DecisionInput): Promise<DomainReview>;
+  /**
+   * "Ask Jade about this requirement" — requirement collaboration, not
+   * a generic chatbot. Callable by the Domain Owner (mid review) or the
+   * Application Manager (on an already-approved requirement, from
+   * Architecture Review); the answer is scoped to this one requirement
+   * either way. An "explanation" turn never changes anything. A
+   * "proposed_amendment" turn is a full draft for a human to review —
+   * it is recorded but never applied here; applying one goes through
+   * submitDomainOwnerEdit, unchanged, and requesting reconsideration
+   * (below) is the only path forward on an already-approved requirement.
+   */
+  askAboutRequirement(changeId: string, input: { askedBy: string; question: string }): Promise<DomainReview>;
+  /**
+   * The only way back from past Domain Owner approval: reopens Domain
+   * Owner review (the existing domain_owner_reviewing stage) so a
+   * concern raised via askAboutRequirement — or any other reason — is
+   * never a silent amendment, only an explicit human request to
+   * reconsider, going through the existing governed flow from there.
+   */
+  requestRequirementReconsideration(changeId: string, input: DecisionInput): Promise<DomainReview>;
+
+  /**
+   * The full Architecture Review run for a story — history (every
+   * completed analysis, never overwritten by a re-run) and the "Ask
+   * Jade about this solution" conversation. undefined until the story
+   * has reached the Delivery Queue (Gate 1 cleared).
+   */
+  getArchitectureReview(changeId: string): Promise<ArchitectureReviewRun | undefined>;
+  /**
+   * "Ask Jade about this solution" — Architect-backed, scoped to the
+   * solution already analysed for this story, never a generic chatbot.
+   * An "explanation" turn never changes anything. A
+   * "recommend_reanalysis" turn has no draft to apply — the Architect
+   * can't produce one inline the way Improve does — it only ever
+   * recommends re-running Architecture Review (the existing manual
+   * retrigger), never applies anything itself.
+   */
+  askAboutSolution(changeId: string, input: { askedBy: string; question: string }): Promise<ArchitectureReviewRun>;
+  /**
+   * The existing manual (re)trigger a recommend_reanalysis turn from
+   * askAboutSolution points back at — normally unnecessary, since Gate 1
+   * already starts Architecture Review automatically; useful after a
+   * failed run, or when new information means the analysis should be
+   * redone. Appends a new history entry rather than replacing the prior
+   * one. Fire-and-forget on the backend (202) — callers re-fetch
+   * getArchitectureReview to see the result once it lands.
+   */
+  retriggerArchitectureReview(changeId: string): Promise<void>;
 
   /** The set of approved changes Jade is authorised to work on, in queue order. */
   listDeliveryQueue(): Promise<DeliveryQueueEntry[]>;

@@ -345,6 +345,26 @@ export function UserStories({ onOpenChange, navFilter, navToken }: { onOpenChang
                 </table>
               )}
 
+              {selected.userStory.businessRules.length > 0 && (
+                <>
+                  <h3 style={{ fontSize: 14, margin: "18px 0 8px" }}>Business rules &amp; constraints</h3>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5 }}>
+                    {selected.userStory.businessRules.map((r, i) => <li key={i}>{r}</li>)}
+                  </ul>
+                </>
+              )}
+
+              {selected.userStory.assumptions.length > 0 && (
+                <>
+                  <h3 style={{ fontSize: 14, margin: "18px 0 8px" }}>Assumptions</h3>
+                  <Provenance kind="ai" label="Jade is treating these as true — confirm or correct">
+                    <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5 }}>
+                      {selected.userStory.assumptions.map((a, i) => <li key={i}>{a}</li>)}
+                    </ul>
+                  </Provenance>
+                </>
+              )}
+
               {selected.userStory.openQuestions.length > 0 && (
                 <>
                   <h3 style={{ fontSize: 14, margin: "18px 0 8px" }}>Still missing</h3>
