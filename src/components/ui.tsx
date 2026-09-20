@@ -77,8 +77,10 @@ export const DOMAIN_STAGE_LABEL: Record<string, string> = {
   domain_owner_requested_revision: "Domain Owner requested revision",
   reviewer_agent_refining: "Reviewer Agent refining",
   domain_owner_approved: "Domain Owner approved",
+  domain_owner_rejected: "Domain Owner rejected — will not proceed",
   ready_for_application_manager: "Ready for Application Manager",
   application_manager_approved: "Application Manager approved — queued for delivery",
+  application_manager_rejected: "Application Manager rejected — will not proceed",
 };
 
 export function PriorityBadge({ priority }: { priority: "High" | "Medium" | "Low" }) {
