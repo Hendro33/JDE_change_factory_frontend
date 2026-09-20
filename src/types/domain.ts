@@ -267,8 +267,16 @@ export type DomainReviewStage =
   | "domain_owner_requested_revision"
   | "reviewer_agent_refining"
   | "domain_owner_approved"
+  /** Terminal: the Domain Owner decided the requirement itself should not
+   *  proceed — distinct from a revision request, which stays in play.
+   *  Recorded entirely in this sidecar; never reaches mcp_server. */
+  | "domain_owner_rejected"
   | "ready_for_application_manager"
-  | "application_manager_approved";
+  | "application_manager_approved"
+  /** Terminal: Gate 1 rejection — the only rejection stage that also
+   *  reaches mcp_server (backlog.reject()), same as approval reaching
+   *  backlog.approve(). */
+  | "application_manager_rejected";
 
 /** One version in the story's evidence trail — never overwritten. */
 export interface StoryVersion {

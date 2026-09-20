@@ -27,6 +27,7 @@ export function UserStoryReview() {
   const [editForm, setEditForm] = useState<UserStory | null>(null);
   const [editNote, setEditNote] = useState("");
   const [approveDialog, setApproveDialog] = useState(false);
+  const [rejectDialog, setRejectDialog] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
   const reload = () => {
@@ -273,6 +274,7 @@ export function UserStoryReview() {
               <div className="btnrow">
                 <button className="btn primary" onClick={() => setApproveDialog(true)}>Approve</button>
                 <button className="btn" onClick={beginEdit}>Request revision</button>
+                <button className="btn danger" onClick={() => setRejectDialog(true)}>Reject</button>
               </div>
             )}
           </section>
@@ -317,6 +319,30 @@ export function UserStoryReview() {
           onConfirm={async (decidedBy, note) => {
             setApproveDialog(false); setBusy(true);
             await api.approveDomainOwnerStory(selected.id, { decidedBy, note });
+            reload();
+            setBusy(false);
+          }}
+        />
+      )}
+
+      {rejectDialog && selected && domainReview && (
+        <ConfirmDialog
+          title="Reject this requirement?"
+          intro={
+            <>
+              <p style={{ marginTop: 0 }}><strong>{selected.title}</strong> ({selected.id})</p>
+              <p style={{ fontSize: 13.5, color: "var(--ink-soft)" }}>{latestStory?.statement}</p>
+            </>
+          }
+          whatHappensNext="This is terminal — the requirement will not proceed. This is different from Request revision: use this only when the requirement itself should not go ahead, not when the story just needs more work."
+          confirmLabel="Reject"
+          tone="danger"
+          requireNote={true}
+          showReasonCode={true}
+          onCancel={() => setRejectDialog(false)}
+          onConfirm={async (decidedBy, note, rejectionReason) => {
+            setRejectDialog(false); setBusy(true);
+            await api.rejectDomainOwnerStory(selected.id, { decidedBy, note, rejectionReason });
             reload();
             setBusy(false);
           }}

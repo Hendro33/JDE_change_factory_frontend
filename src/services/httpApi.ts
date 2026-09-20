@@ -300,12 +300,30 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     });
   }
 
+  async rejectDomainOwnerStory(changeId: string, input: DecisionInput): Promise<DomainReview> {
+    const customerId = await this.activeCustomerId();
+    return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/reject`, {
+      method: "POST",
+      customerId,
+      body: { decidedBy: input.decidedBy, note: input.note, rejectionReason: input.rejectionReason },
+    });
+  }
+
   async approveForDelivery(changeId: string, input: DecisionInput): Promise<DomainReview> {
     const customerId = await this.activeCustomerId();
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/application-manager-approve`, {
       method: "POST",
       customerId,
       body: { decidedBy: input.decidedBy, note: input.note },
+    });
+  }
+
+  async rejectForDelivery(changeId: string, input: DecisionInput): Promise<DomainReview> {
+    const customerId = await this.activeCustomerId();
+    return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/application-manager-reject`, {
+      method: "POST",
+      customerId,
+      body: { decidedBy: input.decidedBy, note: input.note, rejectionReason: input.rejectionReason },
     });
   }
 

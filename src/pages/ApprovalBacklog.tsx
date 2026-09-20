@@ -16,6 +16,7 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
   const [backlog, setBacklog] = useState<Change[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [dialog, setDialog] = useState(false);
+  const [rejectDialog, setRejectDialog] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const [domains, setDomains] = useState<BusinessDomain[]>([]);
@@ -244,6 +245,13 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
               >
                 Approve for Delivery
               </button>
+              <button
+                className="btn danger"
+                onClick={() => setRejectDialog(true)}
+                disabled={busy || (!!openReview && !readyForDelivery)}
+              >
+                Reject
+              </button>
             </div>
           </section>
         </div>
@@ -266,6 +274,29 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
           onConfirm={async (decidedBy, note) => {
             setDialog(false); setBusy(true);
             await api.approveForDelivery(open.id, { decidedBy, note });
+            await reload(); setBusy(false);
+          }}
+        />
+      )}
+
+      {rejectDialog && open && (
+        <ConfirmDialog
+          title="Reject this change?"
+          intro={
+            <>
+              <p style={{ marginTop: 0 }}><strong>{open.title}</strong> ({open.id})</p>
+              <p style={{ fontSize: 13.5, color: "var(--ink-soft)" }}>{open.userStory?.statement ?? open.originalRequest}</p>
+            </>
+          }
+          whatHappensNext="This is terminal — the change will not proceed and is never admitted to the Delivery Queue. This is different from a revision request: use this only when the work itself should not go ahead, not when the story just needs more detail."
+          confirmLabel="Reject"
+          tone="danger"
+          requireNote={true}
+          showReasonCode={true}
+          onCancel={() => setRejectDialog(false)}
+          onConfirm={async (decidedBy, note, rejectionReason) => {
+            setRejectDialog(false); setBusy(true);
+            await api.rejectForDelivery(open.id, { decidedBy, note, rejectionReason });
             await reload(); setBusy(false);
           }}
         />

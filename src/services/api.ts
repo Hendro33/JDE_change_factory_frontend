@@ -74,7 +74,9 @@ export const API_ENDPOINTS = {
   startDomainOwnerReview: "POST /changes/{id}/domain-review/start",
   submitDomainOwnerEdit: "POST /changes/{id}/domain-review/edit",
   approveDomainOwnerStory: "POST /changes/{id}/domain-review/approve",
+  rejectDomainOwnerStory: "POST /changes/{id}/domain-review/reject",
   approveForDelivery: "POST /changes/{id}/domain-review/application-manager-approve",
+  rejectForDelivery: "POST /changes/{id}/domain-review/application-manager-reject",
 
   listDeliveryQueue: "GET /delivery-queue",
 
@@ -179,12 +181,26 @@ export interface ChangeFactoryApi {
   ): Promise<DomainReview>;
   approveDomainOwnerStory(changeId: string, input: DecisionInput): Promise<DomainReview>;
   /**
+   * Terminal: the Domain Owner decided the requirement itself should
+   * not proceed. Distinct from sendStoryBack/a revision request, which
+   * stays in play — this ends it. Recorded in the same sidecar as
+   * approval; never reaches Gate 2/mcp_server.
+   */
+  rejectDomainOwnerStory(changeId: string, input: DecisionInput): Promise<DomainReview>;
+  /**
    * Application Manager approval — separate from Domain Owner approval,
    * the only one that clears Gate 2, and the action that adds the
    * change to the Delivery Queue. Not a sprint approval: there is no
    * planning ceremony or capacity behind this, just a queue admission.
    */
   approveForDelivery(changeId: string, input: DecisionInput): Promise<DomainReview>;
+  /**
+   * Terminal Gate 1 rejection — the one Domain Review rejection that
+   * also reaches mcp_server (backlog.reject()), the same real control
+   * approveForDelivery clears via backlog.approve(). No Delivery Queue
+   * entry is created.
+   */
+  rejectForDelivery(changeId: string, input: DecisionInput): Promise<DomainReview>;
 
   /** The set of approved changes Jade is authorised to work on, in queue order. */
   listDeliveryQueue(): Promise<DeliveryQueueEntry[]>;

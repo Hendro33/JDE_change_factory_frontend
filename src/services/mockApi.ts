@@ -546,6 +546,27 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     return delay(this.saveDomainReview(review));
   }
 
+  async rejectDomainOwnerStory(changeId: string, input: DecisionInput): Promise<DomainReview> {
+    const review = this.ensureDomainReview(changeId);
+    if (review.stage !== "domain_owner_reviewing") {
+      throw new Error(`Cannot reject from stage ${review.stage}`);
+    }
+    review.domainOwnerApproval = {
+      approvalId: `AP-${changeId}-DO`,
+      kind: "domain_owner",
+      status: "rejected",
+      approvedBy: input.decidedBy,
+      approvedAt: now(),
+      note: input.note,
+      identityId: getMockSession().userId,
+    };
+    // Terminal: recorded in this sidecar only, same as approval never
+    // calling into mcp_server -- Change.state is untouched.
+    review.stage = "domain_owner_rejected";
+    this.feedbackLog.push({ customerId: this.scope, kind: "domain_owner_rejection", reasonCode: input.rejectionReason });
+    return delay(this.saveDomainReview(review));
+  }
+
   async approveForDelivery(changeId: string, input: DecisionInput): Promise<DomainReview> {
     const review = this.ensureDomainReview(changeId);
     if (review.stage !== "ready_for_application_manager") {
@@ -579,6 +600,31 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
         note: input.note,
       });
     }
+    return review;
+  }
+
+  async rejectForDelivery(changeId: string, input: DecisionInput): Promise<DomainReview> {
+    const review = this.ensureDomainReview(changeId);
+    if (review.stage !== "ready_for_application_manager") {
+      throw new Error(`Cannot reject for delivery from stage ${review.stage}`);
+    }
+    review.applicationManagerApproval = {
+      approvalId: `AP-${changeId}-AM`,
+      kind: "application_manager",
+      status: "rejected",
+      approvedBy: input.decidedBy,
+      approvedAt: now(),
+      note: input.note,
+      identityId: getMockSession().userId,
+    };
+    review.stage = "application_manager_rejected";
+    this.saveDomainReview(review);
+
+    // Mirrors the real backend: this is the one Domain Review rejection
+    // that reaches Gate 2 (backlog.reject()) -- Change.state becomes
+    // REJECTED and no Delivery Queue entry is ever created.
+    await this.rejectChange(changeId, input);
+    this.feedbackLog.push({ customerId: this.scope, kind: "application_manager_rejection", reasonCode: input.rejectionReason });
     return review;
   }
 
@@ -658,7 +704,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
 
     const feedbackKinds: Record<string, string[]> = {
       architect: ["exact_change_approval", "exact_change_rejection"],
-      "improve-agent": ["domain_owner_edit"],
+      "improve-agent": ["domain_owner_edit", "domain_owner_rejection"],
     };
     const kinds = feedbackKinds[agentName] ?? [];
     const customerFeedback = this.feedbackLog.filter((f) => f.customerId === this.scope);
