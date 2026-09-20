@@ -251,6 +251,14 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     const awaitingDomainOwner = all.filter(
       (c) => c.state === "BACKLOG_READY" && (!c.domainReviewStage || PRE_DOMAIN_OWNER_APPROVAL.has(c.domainReviewStage))
     ).length;
+    // Gate 1 -- Domain Owner already approved, Application Manager hasn't
+    // authorised it for delivery yet.
+    const awaitingApplicationManager = all.filter(
+      (c) => c.state === "BACKLOG_READY" && c.domainReviewStage === "ready_for_application_manager"
+    ).length;
+    // Gate 2 -- an exact change has been proposed and nobody has approved
+    // or rejected it yet.
+    const awaitingExactChangeApproval = all.filter((c) => c.exactChange && !c.changeApproval).length;
     const inDelivery = this.deliveryQueue.filter((e) => e.customerId === this.scope).length;
     const inBuild = inState("APPROVED", "ARCHITECTING", "SPEC_READY", "CHANGE_APPROVED", "EXECUTING");
     const inTesting = inState("TESTING");
@@ -279,7 +287,8 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       totals: [
         { key: "incoming_requests", label: "Incoming Requests", value: incomingRequests, delta: 0 },
         { key: "awaiting_domain_owner", label: "User Stories awaiting Domain Owner approval", value: awaitingDomainOwner, delta: 0 },
-        { key: "backlog_ready", label: "Backlog-ready User Stories", value: awaitingApproval, delta: 0 },
+        { key: "awaiting_application_manager", label: "User Stories awaiting Application Manager decision", value: awaitingApplicationManager, delta: 0 },
+        { key: "awaiting_exact_change_approval", label: "Changes awaiting Exact Change Approval", value: awaitingExactChangeApproval, delta: 0 },
         { key: "in_delivery", label: "Changes in Delivery", value: inDelivery, delta: 0 },
         { key: "awaiting_business_validation", label: "Awaiting Business Validation", value: inTesting, delta: 0 },
         { key: "completed", label: "Completed", value: completed, delta: 0 },
