@@ -13,6 +13,10 @@ import type {
   ErpLandscape,
   FactoryMetrics,
   IntegrationStatus,
+  JiraConnectionStatus,
+  JiraIntegrationConfig,
+  JiraIntegrationConfigUpdateInput,
+  JiraSyncResult,
   Session,
   UserStory,
 } from "../types/domain";
@@ -379,5 +383,25 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
   async listIntegrations(): Promise<IntegrationStatus[]> {
     const customerId = await this.activeCustomerId();
     return request<IntegrationStatus[]>("/admin/integrations", { customerId });
+  }
+
+  async getJiraIntegration(): Promise<JiraIntegrationConfig> {
+    const customerId = await this.activeCustomerId();
+    return request<JiraIntegrationConfig>("/admin/jira-integration", { customerId });
+  }
+
+  async updateJiraIntegration(input: JiraIntegrationConfigUpdateInput): Promise<JiraIntegrationConfig> {
+    const customerId = await this.activeCustomerId();
+    return request<JiraIntegrationConfig>("/admin/jira-integration", { method: "PUT", customerId, body: input });
+  }
+
+  async getJiraIntegrationStatus(): Promise<JiraConnectionStatus> {
+    const customerId = await this.activeCustomerId();
+    return request<JiraConnectionStatus>("/admin/jira-integration/status", { customerId });
+  }
+
+  async syncJiraIntegration(): Promise<JiraSyncResult> {
+    const customerId = await this.activeCustomerId();
+    return request<JiraSyncResult>("/admin/jira-integration/sync", { method: "POST", customerId });
   }
 }

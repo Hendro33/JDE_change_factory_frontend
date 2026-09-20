@@ -25,6 +25,10 @@ import type {
   FactoryMetrics,
   FeedbackReasonCode,
   IntegrationStatus,
+  JiraConnectionStatus,
+  JiraIntegrationConfig,
+  JiraIntegrationConfigUpdateInput,
+  JiraSyncResult,
   Session,
   UserStory,
 } from "../types/domain";
@@ -90,6 +94,10 @@ export const API_ENDPOINTS = {
   createBusinessDomain: "POST /admin/business-domains",
   updateBusinessDomainStatus: "PUT /admin/business-domains/{id}/status",
   listIntegrations: "GET /admin/integrations",
+  getJiraIntegration: "GET /admin/jira-integration",
+  updateJiraIntegration: "PUT /admin/jira-integration",
+  getJiraIntegrationStatus: "GET /admin/jira-integration/status",
+  syncJiraIntegration: "POST /admin/jira-integration/sync",
 } as const;
 
 /**
@@ -226,6 +234,26 @@ export interface ChangeFactoryApi {
   updateBusinessDomainStatus(domainId: string, status: BusinessDomain["status"]): Promise<BusinessDomain>;
 
   listIntegrations(): Promise<IntegrationStatus[]>;
+
+  /**
+   * Jira Service Management hand-off (Admin > Integrations > Jira).
+   * Customer-scoped configuration only — the API token itself is never
+   * part of this surface; getJiraIntegrationStatus reports only whether
+   * one is present. See JiraIntegrationConfig's own docstring for why
+   * the credential is still deployment-level, not per-customer, in
+   * this increment.
+   */
+  getJiraIntegration(): Promise<JiraIntegrationConfig>;
+  updateJiraIntegration(input: JiraIntegrationConfigUpdateInput): Promise<JiraIntegrationConfig>;
+  getJiraIntegrationStatus(): Promise<JiraConnectionStatus>;
+  /**
+   * Runs the sync handshake once, on demand: finds tickets in the
+   * configured pickup status, creates a durable Jade Change Request for
+   * each one not already imported, then moves Jira to the configured
+   * post-pickup status with the Jade id written back and an acceptance
+   * comment. Never triggers Receive -> Improve -> Check itself.
+   */
+  syncJiraIntegration(): Promise<JiraSyncResult>;
 }
 
 // ---------------------------------------------------------------------

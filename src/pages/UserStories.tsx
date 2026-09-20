@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { api } from "../services/api";
 import type { BusinessDomain, Change, ChangeSource } from "../types/domain";
 import type { NavTarget } from "../types/nav";
@@ -258,6 +258,17 @@ export function UserStories({ onOpenChange, navFilter, navToken }: { onOpenChang
                 <div style={{ fontSize: 13.5 }}>{selected.originalRequest}</div>
               </Provenance>
             </div>
+
+            {selected.sourceMetadata && Object.keys(selected.sourceMetadata).length > 0 && (
+              <dl className="facts" style={{ marginTop: 12 }}>
+                {Object.entries(selected.sourceMetadata).map(([key, value]) => (
+                  <Fragment key={key}>
+                    <dt>{key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}</dt>
+                    <dd>{value}</dd>
+                  </Fragment>
+                ))}
+              </dl>
+            )}
 
             {!selected.userStory && (
               <div className="btnrow" style={{ marginTop: 16, alignItems: "center" }}>
