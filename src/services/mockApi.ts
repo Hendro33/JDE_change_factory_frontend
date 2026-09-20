@@ -1035,7 +1035,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
   async updateJiraIntegration(input: JiraIntegrationConfigUpdateInput): Promise<JiraIntegrationConfig> {
     const config: JiraIntegrationConfig = {
       customerId: this.scope,
-      baseUrl: input.baseUrl.replace(/\/+$/, ""),
+      baseUrl: normalizeJiraBaseUrl(input.baseUrl),
       projectKey: input.projectKey,
       pickupStatus: input.pickupStatus,
       postPickupStatus: input.postPickupStatus,
@@ -1072,9 +1072,13 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
    */
   async testJiraConnection(input: JiraTestConnectionInput): Promise<JiraTestConnectionResult> {
     await delay(undefined, 500);
-    if (!input.baseUrl.trim()) return { ok: false, message: "Jira site URL is required." };
     if (!input.email.trim() || !input.apiToken.trim()) return { ok: false, message: "Email and API token are both required." };
-    const site = input.baseUrl.replace(/\/+$/, "");
+    let site: string;
+    try {
+      site = normalizeJiraBaseUrl(input.baseUrl);
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : "Invalid Jira site URL." };
+    }
     if (input.projectKey?.trim()) {
       return { ok: true, message: `Connected to ${site} as ${input.email}. Project '${input.projectKey}' is accessible. (mock check -- no real Jira call was made)` };
     }
@@ -1138,4 +1142,25 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
 
 function jiraIsConfigured(c: JiraIntegrationConfig): boolean {
   return !!(c.baseUrl && c.projectKey && c.pickupStatus && c.postPickupStatus && c.jadeIdField);
+}
+
+/** Mirrors jira_gateway.normalize_jira_base_url on the real backend -- same rule, same error text shape. */
+function normalizeJiraBaseUrl(raw: string): string {
+  const candidate = raw.trim().replace(/\/+$/, "");
+  if (!candidate) throw new Error("Jira site URL is required.");
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    throw new Error("Jira site URL must be a full URL, e.g. https://yourcompany.atlassian.net.");
+  }
+  if (!/^https?:$/.test(parsed.protocol)) {
+    throw new Error("Jira site URL must be a full URL, e.g. https://yourcompany.atlassian.net.");
+  }
+  if ((parsed.pathname && parsed.pathname !== "/") || parsed.search || parsed.hash) {
+    throw new Error(
+      "Jira site URL should be the site's base URL only (e.g. https://yourcompany.atlassian.net) -- not a project, queue, board or issue link."
+    );
+  }
+  return `${parsed.protocol}//${parsed.host}`;
 }

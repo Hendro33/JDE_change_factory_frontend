@@ -3,12 +3,36 @@ import { api } from "../../services/api";
 import type { IntegrationStatus, JiraConnectionStatus, JiraIntegrationConfig, JiraSyncResult, JiraTestConnectionResult } from "../../types/domain";
 import { ApiNote, Loading } from "../../components/ui";
 
+/**
+ * Client-side mirror of the backend's own check (jira_gateway.
+ * normalize_jira_base_url) -- the backend is what actually enforces
+ * this, this is only so the mistake is caught before a round trip.
+ * Returns null when the value is fine to submit (an empty string is
+ * left to the existing required-field handling, not flagged here).
+ */
+function baseUrlIssue(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return "Must be a full URL, e.g. https://yourcompany.atlassian.net.";
+  }
+  if (!/^https?:$/.test(parsed.protocol)) return "Must start with https:// (or http://).";
+  if ((parsed.pathname && parsed.pathname !== "/") || parsed.search || parsed.hash) {
+    return "Should be the site's base URL only (e.g. https://yourcompany.atlassian.net) — not a project, queue, board or issue link.";
+  }
+  return null;
+}
+
 export function Integrations() {
   const [integrations, setIntegrations] = useState<IntegrationStatus[] | null>(null);
   const [jiraConfig, setJiraConfig] = useState<JiraIntegrationConfig | null>(null);
   const [jiraStatus, setJiraStatus] = useState<JiraConnectionStatus | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<JiraTestConnectionResult | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -48,24 +72,30 @@ export function Integrations() {
 
   async function save() {
     setSaving(true);
-    localStorage.setItem("ciq_approver", updatedBy.trim());
-    await api.updateJiraIntegration({
-      baseUrl: baseUrl.trim(),
-      projectKey: projectKey.trim(),
-      pickupStatus: pickupStatus.trim(),
-      postPickupStatus: postPickupStatus.trim(),
-      jadeIdField: jadeIdField.trim(),
-      requestTypeField: requestTypeField.trim(),
-      updatedBy: updatedBy.trim(),
-    });
-    if (email.trim() && apiToken.trim()) {
-      await api.updateJiraCredentials({ email: email.trim(), apiToken: apiToken.trim(), updatedBy: updatedBy.trim() });
+    setSaveError(null);
+    try {
+      localStorage.setItem("ciq_approver", updatedBy.trim());
+      await api.updateJiraIntegration({
+        baseUrl: baseUrl.trim(),
+        projectKey: projectKey.trim(),
+        pickupStatus: pickupStatus.trim(),
+        postPickupStatus: postPickupStatus.trim(),
+        jadeIdField: jadeIdField.trim(),
+        requestTypeField: requestTypeField.trim(),
+        updatedBy: updatedBy.trim(),
+      });
+      if (email.trim() && apiToken.trim()) {
+        await api.updateJiraCredentials({ email: email.trim(), apiToken: apiToken.trim(), updatedBy: updatedBy.trim() });
+      }
+      setEditing(false);
+      setSyncResult(null);
+      setSyncError(null);
+      load();
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Could not save the Jira configuration.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setEditing(false);
-    setSyncResult(null);
-    setSyncError(null);
-    load();
   }
 
   async function testConnection() {
@@ -99,7 +129,9 @@ export function Integrations() {
   }
 
   const configured = !!jiraConfig && !!(jiraConfig.baseUrl && jiraConfig.projectKey && jiraConfig.pickupStatus && jiraConfig.postPickupStatus && jiraConfig.jadeIdField);
-  const canTest = !testing && !!baseUrl.trim() && !!email.trim() && !!apiToken.trim();
+  const baseUrlError = baseUrlIssue(baseUrl);
+  const canTest = !testing && !!baseUrl.trim() && !baseUrlError && !!email.trim() && !!apiToken.trim();
+  const canSave = !saving && !!updatedBy.trim() && !baseUrlError;
 
   return (
     <>
@@ -176,6 +208,11 @@ export function Integrations() {
             <div className="field">
               <label htmlFor="jiraBaseUrl">Jira site URL</label>
               <input id="jiraBaseUrl" type="text" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://yourcompany.atlassian.net" />
+              {baseUrlError ? (
+                <span className="hint" style={{ color: "var(--stop)" }}>{baseUrlError}</span>
+              ) : (
+                <span className="hint">The site's base URL only, e.g. https://yourcompany.atlassian.net — not a project, queue or issue link.</span>
+              )}
             </div>
             <div className="field">
               <label htmlFor="jiraProjectKey">Project key</label>
@@ -233,11 +270,17 @@ export function Integrations() {
               <label htmlFor="jiraUpdatedBy">Your name</label>
               <input id="jiraUpdatedBy" type="text" value={updatedBy} onChange={(e) => setUpdatedBy(e.target.value)} placeholder="Every change is recorded against a person" />
             </div>
+            {saveError && (
+              <div className="callout" style={{ borderColor: "var(--stop)" }}>
+                <strong>Could not save</strong>
+                {saveError}
+              </div>
+            )}
             <div className="btnrow">
-              <button className="btn primary" disabled={saving || !updatedBy.trim()} onClick={save}>
+              <button className="btn primary" disabled={!canSave} onClick={save}>
                 {saving ? "Saving…" : "Save Jira configuration"}
               </button>
-              <button className="btn" onClick={() => { setEditing(false); setTestResult(null); load(); }}>Cancel</button>
+              <button className="btn" onClick={() => { setEditing(false); setTestResult(null); setSaveError(null); load(); }}>Cancel</button>
             </div>
           </div>
         )}
