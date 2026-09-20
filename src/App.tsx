@@ -5,7 +5,9 @@ import type { NavFilter, NavTarget, Page } from "./types/nav";
 import { CustomerScope, PersonaSwitch } from "./components/CustomerScope";
 import { Dashboard } from "./pages/Dashboard";
 import { UserStories } from "./pages/UserStories";
+import { UserStoryReview } from "./pages/UserStoryReview";
 import { ApprovalBacklog } from "./pages/ApprovalBacklog";
+import { ArchitectureReview } from "./pages/ArchitectureReview";
 import { DeliveryQueuePage } from "./pages/DeliveryQueue";
 import { Pipeline } from "./pages/Pipeline";
 import { BusinessDomains } from "./pages/BusinessDomains";
@@ -16,17 +18,19 @@ import { Agents } from "./pages/admin/Agents";
 import { Integrations } from "./pages/admin/Integrations";
 
 interface NavItem { key: Page; label: string; filter?: NavFilter }
-interface NavGroup { label: string; items: NavItem[] }
+interface NavGroup { label: string; items: NavItem[]; align?: "right" }
 
 const NAV_GROUPS: NavGroup[] = [
   { label: "Home", items: [{ key: "dashboard", label: "Dashboard" }] },
   { label: "Demand", items: [
     { key: "userstories", label: "Requests", filter: { view: "requests" } },
+    { key: "userstories", label: "Create Request", filter: { view: "requests", action: "create" } },
     { key: "userstories", label: "User Stories", filter: { view: "all" } },
   ] },
   { label: "Governance", items: [
-    { key: "userstories", label: "User Story Review", filter: { view: "review" } },
-    { key: "approval", label: "Approval & Backlog" },
+    { key: "userstoryreview", label: "User Story Review" },
+    { key: "approval", label: "Backlog Review" },
+    { key: "architecture", label: "Architecture Review" },
   ] },
   { label: "Delivery", items: [
     { key: "deliveryqueue", label: "Delivery Queue" },
@@ -45,10 +49,14 @@ const NAV_GROUPS: NavGroup[] = [
  * Kept out of NAV_GROUPS on purpose and rendered after the `.spacer`,
  * in the same slot the inert "Settings" label used to occupy — an
  * administrative area is deliberately visually separate from the main
- * task-oriented groups, not just another item among them.
+ * task-oriented groups, not just another item among them. `align:
+ * "right"` keeps its dropdown anchored to the button's right edge
+ * (it's the rightmost item in the bar) so the menu opens onto the
+ * page rather than off the right edge of the viewport.
  */
 const ADMIN_GROUP: NavGroup = {
   label: "Admin",
+  align: "right",
   items: [
     { key: "admin-customer", label: "Customer Setup" },
     { key: "admin-erp", label: "ERP / JDE Landscape" },
@@ -91,7 +99,7 @@ function NavGroupMenu({
   const groupActive = activeItem ?? group.items.find((it) => it.key === page);
 
   return (
-    <div className="navgroup" ref={ref}>
+    <div className={`navgroup${group.align === "right" ? " right" : ""}`} ref={ref}>
       <button
         className={groupActive ? "on" : ""}
         aria-haspopup="menu"
@@ -199,8 +207,12 @@ export default function App() {
           <Dashboard onOpenChange={setDetailId} onNavigate={navigate} />
         ) : page === "userstories" ? (
           <UserStories onOpenChange={setDetailId} {...navTarget} />
+        ) : page === "userstoryreview" ? (
+          <UserStoryReview />
         ) : page === "approval" ? (
           <ApprovalBacklog {...navTarget} />
+        ) : page === "architecture" ? (
+          <ArchitectureReview />
         ) : page === "deliveryqueue" ? (
           <DeliveryQueuePage onOpenChange={setDetailId} />
         ) : page === "domains" ? (

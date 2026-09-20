@@ -4,7 +4,6 @@ import type { BusinessDomain, Change, DomainReview } from "../types/domain";
 import type { NavTarget } from "../types/nav";
 import { ChangeGrid, FilterBar, useChangeListControls, type GridColumn } from "../components/WorkQueue";
 import {
-  ApiNote,
   ConfirmDialog,
   DOMAIN_STAGE_LABEL,
   Loading,
@@ -13,18 +12,19 @@ import {
   Provenance,
 } from "../components/ui";
 
-type Decision = "approve" | "reject" | "sendback";
-
 export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
   const [backlog, setBacklog] = useState<Change[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<Decision | null>(null);
+  const [dialog, setDialog] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const [domains, setDomains] = useState<BusinessDomain[]>([]);
   const [reviews, setReviews] = useState<Map<string, DomainReview>>(new Map());
   const [filterDomainId, setFilterDomainId] = useState("");
-  const [filterStage, setFilterStage] = useState("");
+  // Defaults to just the business-approved backlog — the actual Gate 1
+  // queue — rather than every story still mid Domain Owner review.
+  // "All stages" is one filter click away for anyone who wants context.
+  const [filterStage, setFilterStage] = useState("ready_for_application_manager");
 
   const reload = () => api.getBacklog().then(async (b) => {
     setBacklog(b);
@@ -40,7 +40,7 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
   // "3 Backlog-ready User Stories").
   useEffect(() => {
     if (!navFilter) return;
-    setFilterStage(navFilter.stage ?? "");
+    setFilterStage(navFilter.stage ?? "ready_for_application_manager");
     setFilterDomainId(navFilter.domainId ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navToken]);
@@ -88,31 +88,13 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
   const openReview = open ? reviews.get(open.id) : undefined;
   const readyForDelivery = openReview?.stage === "ready_for_application_manager";
 
-  const COPY: Record<Decision, { title: string; next: string; label: string; tone: "primary" | "danger"; note: boolean }> = {
-    approve: {
-      title: "Add this change to the Delivery Queue (Application Manager)?",
-      next: "It's admitted to the Delivery Queue — the set of work Jade is authorised to deliver. The Architect then analyses it and proposes an exact change, which you approve separately before anything is written to JD Edwards.",
-      label: "Add to Delivery Queue", tone: "primary", note: false,
-    },
-    reject: {
-      title: "Reject this change?",
-      next: "The change is closed with your reason recorded. If the need stands, it re-enters as a fresh request.",
-      label: "Reject", tone: "danger", note: true,
-    },
-    sendback: {
-      title: "Send back for refinement?",
-      next: "It returns to story enhancement with your reason attached.",
-      label: "Send back", tone: "danger", note: true,
-    },
-  };
-
   return (
     <>
       <div className="pagehead">
         <div>
-          <h1>Approval &amp; Backlog</h1>
+          <h1>Backlog Review</h1>
           <div className="sub">
-            The Application Manager's work queue — is this approved work that Jade is authorised to deliver?
+            Application Manager Gate 1 — the business-approved backlog, waiting to be authorised for delivery.
           </div>
         </div>
         <div className="meta">{filtered.length} awaiting your review</div>
@@ -153,7 +135,6 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
             sortDir={sortDir}
             onSortChange={onSortChange}
           />
-          <ApiNote endpoint="GET /backlog" />
         </section>
       )}
 
@@ -258,38 +239,33 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
             <div className="btnrow">
               <button
                 className="btn primary"
-                onClick={() => setDialog("approve")}
+                onClick={() => setDialog(true)}
                 disabled={busy || (!!openReview && !readyForDelivery)}
               >
-                Add to Delivery Queue
+                Approve for Delivery
               </button>
-              <button className="btn" onClick={() => setDialog("sendback")} disabled={busy}>Send back for refinement</button>
-              <button className="btn danger" onClick={() => setDialog("reject")} disabled={busy}>Reject</button>
             </div>
-            <ApiNote endpoint="POST /changes/{id}/domain-review/application-manager-approve" />
           </section>
         </div>
       )}
 
       {dialog && open && (
         <ConfirmDialog
-          title={COPY[dialog].title}
+          title="Approve this change for delivery?"
           intro={
             <>
               <p style={{ marginTop: 0 }}><strong>{open.title}</strong> ({open.id})</p>
               <p style={{ fontSize: 13.5, color: "var(--ink-soft)" }}>{open.userStory?.statement ?? open.originalRequest}</p>
             </>
           }
-          whatHappensNext={COPY[dialog].next}
-          confirmLabel={COPY[dialog].label}
-          tone={COPY[dialog].tone}
-          requireNote={COPY[dialog].note}
-          onCancel={() => setDialog(null)}
+          whatHappensNext="It's admitted to the Delivery Queue — the set of work Jade is authorised to deliver. The Architect then analyses it and proposes an exact change, which you approve separately on Architecture Review before anything is written to JD Edwards."
+          confirmLabel="Approve for Delivery"
+          tone="primary"
+          requireNote={false}
+          onCancel={() => setDialog(false)}
           onConfirm={async (decidedBy, note) => {
-            setDialog(null); setBusy(true);
-            if (dialog === "approve") await api.approveForDelivery(open.id, { decidedBy, note });
-            else if (dialog === "reject") await api.rejectChange(open.id, { decidedBy, note });
-            else await api.sendStoryBack(open.id, { decidedBy, note });
+            setDialog(false); setBusy(true);
+            await api.approveForDelivery(open.id, { decidedBy, note });
             await reload(); setBusy(false);
           }}
         />

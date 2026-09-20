@@ -24,9 +24,9 @@ const KPI_MARKS = ["▤", "◷", "⚗", "⛭", "⚙", "✓", "◆"];
  */
 const METRIC_ROUTES: Record<string, { page: Page; filter?: NavFilter }> = {
   incoming_requests: { page: "userstories", filter: { view: "requests" } },
-  awaiting_domain_owner: { page: "userstories", filter: { view: "review" } },
+  awaiting_domain_owner: { page: "userstoryreview" },
   awaiting_application_manager: { page: "approval", filter: { stage: "ready_for_application_manager" } },
-  awaiting_exact_change_approval: { page: "deliveryqueue" },
+  awaiting_exact_change_approval: { page: "architecture" },
   in_delivery: { page: "deliveryqueue" },
   awaiting_business_validation: { page: "pipeline", filter: { stage: "validation" } },
   completed: { page: "pipeline", filter: { stage: "completed" } },

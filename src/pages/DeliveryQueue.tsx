@@ -9,7 +9,7 @@ import { ApiNote, Loading, PIPELINE_STATES, PipelineFlow, StateBadge } from "../
  *
  * Deliberately NOT a Sprint board: no capacity, no start/end dates, no
  * planning ceremony. Just an ordered list one human decision
- * (Application Manager approval, on Approval & Backlog) adds entries
+ * (Application Manager approval, on Backlog Review) adds entries
  * to, plus whatever status/owner/blocked information is known.
  */
 export function DeliveryQueuePage({ onOpenChange }: { onOpenChange: (id: string) => void }) {
@@ -53,8 +53,8 @@ export function DeliveryQueuePage({ onOpenChange }: { onOpenChange: (id: string)
 
           {entries.length === 0 ? (
             <div className="empty">
-              Nothing queued yet. Once the Application Manager approves a change on Approval &amp;
-              Backlog, it appears here.
+              Nothing queued yet. Once the Application Manager approves a change on Backlog
+              Review, it appears here.
             </div>
           ) : (
             <section className="panel">

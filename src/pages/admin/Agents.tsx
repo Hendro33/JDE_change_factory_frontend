@@ -1,29 +1,34 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type { AgentDefinition, AgentHealth } from "../../types/domain";
-import { ApiNote, Loading, NotStated } from "../../components/ui";
+import { Loading, NotStated } from "../../components/ui";
 
 const STAGE_TONE: Record<string, string> = { started: "info", done: "ok", failed: "stop" };
 
+/** The agent's own stated role, e.g. "System Analyst / Architect Agent" from its description's first sentence. */
+function roleLine(description: string): string {
+  return description.split(".")[0];
+}
+
 export function Agents() {
   const [agents, setAgents] = useState<AgentDefinition[] | null>(null);
+  const [healthByAgent, setHealthByAgent] = useState<Record<string, AgentHealth>>({});
   const [selected, setSelected] = useState<string | null>(null);
-  const [health, setHealth] = useState<AgentHealth | null>(null);
 
   useEffect(() => {
-    api.listAgents().then((list) => {
+    api.listAgents().then(async (list) => {
       setAgents(list);
       setSelected((cur) => cur ?? list[0]?.name ?? null);
+      // Every card needs its own real health snapshot, not just the
+      // selected agent's — this is the "team dashboard" the roster
+      // itself has to show, not a byproduct of clicking through.
+      const pairs = await Promise.all(list.map(async (a) => [a.name, await api.getAgentHealth(a.name)] as const));
+      setHealthByAgent(Object.fromEntries(pairs));
     });
   }, []);
 
-  useEffect(() => {
-    if (!selected) return;
-    setHealth(null);
-    api.getAgentHealth(selected).then(setHealth);
-  }, [selected]);
-
   const open = agents?.find((a) => a.name === selected) ?? null;
+  const openHealth = open ? healthByAgent[open.name] : undefined;
 
   return (
     <>
@@ -31,8 +36,8 @@ export function Agents() {
         <div>
           <h1>Agents</h1>
           <div className="sub">
-            The five subagent definitions, parsed live from .claude/agents/*.md, plus each one's
-            recent runs and human feedback — visibility only. Editing an agent's instructions
+            The AI team — five subagents, parsed live from .claude/agents/*.md, with the real
+            activity and feedback Jade has captured for each. Editing an agent's instructions
             happens through the normal code-review and deploy process, not here.
           </div>
         </div>
@@ -41,27 +46,47 @@ export function Agents() {
       {!agents ? (
         <Loading what="the agent registry" />
       ) : (
-        <div className="detailgrid">
-          <section className="panel">
-            <h2>Definitions</h2>
-            <table className="data">
-              <thead><tr><th>Name</th><th>Driver</th><th>Version</th></tr></thead>
-              <tbody>
-                {agents.map((a) => (
-                  <tr key={a.name} className="clickable" onClick={() => setSelected(a.name)}
-                    style={a.name === selected ? { background: "var(--wash)" } : undefined}>
-                    <td>{a.name}</td>
-                    <td>{a.runtime?.driver ?? <NotStated />}</td>
-                    <td className="mono">{a.version}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <ApiNote endpoint="GET /admin/agents" />
-          </section>
+        <div className="stack">
+          <div className="agentgrid">
+            {agents.map((a) => {
+              const h = healthByAgent[a.name];
+              const totalRuns = h ? Object.values(h.runCounts).reduce((n, c) => n + c, 0) : undefined;
+              const lastRun = h?.recentRuns[0];
+              const feedbackTotal = h?.feedback.reduce((n, f) => n + f.count, 0) ?? 0;
+              return (
+                <button
+                  key={a.name}
+                  className={`agentcard${a.name === selected ? " selected" : ""}`}
+                  onClick={() => setSelected(a.name)}
+                >
+                  <div className="agentcard-name">{a.name}</div>
+                  <div className="agentcard-role">{roleLine(a.description)}</div>
+                  <div className="agentcard-stats">
+                    {h === undefined ? (
+                      <span className="notstated">loading…</span>
+                    ) : totalRuns === 0 ? (
+                      <span className="notstated">No recorded runs yet</span>
+                    ) : (
+                      <>
+                        {Object.entries(h.runCounts).map(([stage, count]) => (
+                          <span key={stage} className={`badge ${STAGE_TONE[stage] ?? "grey"}`}>{stage}: {count}</span>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                  <div className="agentcard-meta">
+                    {lastRun
+                      ? `Last activity ${new Date(lastRun.startedAt).toLocaleDateString("en-GB")}`
+                      : "No activity yet"}
+                    {feedbackTotal > 0 && ` · ${feedbackTotal} feedback record${feedbackTotal === 1 ? "" : "s"}`}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
 
           {open && (
-            <div className="stack">
+            <div className="grid halves">
               <section className="panel">
                 <h2>{open.name}</h2>
                 <p style={{ marginTop: 0 }}>{open.description}</p>
@@ -93,25 +118,16 @@ export function Agents() {
               </section>
 
               <section className="panel">
-                <h2>Health <span className="qualifier">— last 20 runs, across all customers</span></h2>
-                {!health ? (
-                  <Loading what="agent health" />
+                <h2>Activity &amp; quality <span className="qualifier">— last 20 runs, across all customers</span></h2>
+                {!openHealth ? (
+                  <Loading what="agent activity" />
                 ) : (
                   <>
-                    <div className="btnrow" style={{ marginBottom: 12 }}>
-                      {Object.entries(health.runCounts).length === 0 ? (
-                        <span className="notstated">No recorded runs yet</span>
-                      ) : (
-                        Object.entries(health.runCounts).map(([stage, count]) => (
-                          <span key={stage} className={`badge ${STAGE_TONE[stage] ?? "grey"}`}>{stage}: {count}</span>
-                        ))
-                      )}
-                    </div>
-                    {health.recentRuns.length > 0 && (
+                    {openHealth.recentRuns.length > 0 && (
                       <table className="data">
                         <thead><tr><th>Story</th><th>Stage</th><th>Started</th><th>Error</th></tr></thead>
                         <tbody>
-                          {health.recentRuns.map((r) => (
+                          {openHealth.recentRuns.map((r) => (
                             <tr key={r.runId}>
                               <td className="mono">{r.storyId}</td>
                               <td><span className={`badge ${STAGE_TONE[r.stage] ?? "grey"}`}>{r.stage}</span></td>
@@ -122,10 +138,10 @@ export function Agents() {
                         </tbody>
                       </table>
                     )}
-                    {health.feedback.length > 0 && (
+                    {openHealth.feedback.length > 0 && (
                       <>
                         <h2 style={{ marginTop: 20 }}>Feedback <span className="qualifier">— this customer only</span></h2>
-                        {health.feedback.map((f) => (
+                        {openHealth.feedback.map((f) => (
                           <div key={f.kind} className="callout" style={{ marginBottom: 10 }}>
                             <strong>{f.kind.replace(/_/g, " ")} — {f.count}</strong>
                             {Object.keys(f.reasons).length > 0
@@ -135,9 +151,11 @@ export function Agents() {
                         ))}
                       </>
                     )}
+                    {openHealth.recentRuns.length === 0 && openHealth.feedback.length === 0 && (
+                      <div className="empty" style={{ padding: 16 }}>No recorded activity yet for this agent.</div>
+                    )}
                   </>
                 )}
-                <ApiNote endpoint="GET /admin/agents/{name}/health" />
               </section>
             </div>
           )}

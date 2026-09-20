@@ -3,10 +3,10 @@ import type { Change } from "../types/domain";
 
 /**
  * Shared building blocks for every work queue in Jade (Requests, User
- * Stories, User Story Review, Approval & Backlog, Active Changes,
- * Validation, Ready for Release) — one grid/filter implementation
- * reused with different columns and filters, rather than a bespoke
- * table per page.
+ * Stories, User Story Review, Backlog Review, Architecture Review,
+ * Active Changes, Validation, Ready for Release) — one grid/filter
+ * implementation reused with different columns and filters, rather
+ * than a bespoke table per page.
  */
 
 export interface GridColumn {

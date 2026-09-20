@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
-import type { BusinessDomain, Change, DomainReview, LifecycleState } from "../types/domain";
+import type { BusinessDomain, Change, DomainReview } from "../types/domain";
 import {
   ApiNote,
   ConfirmDialog,
@@ -79,7 +79,7 @@ const LIFECYCLE: { key: string; title: string; reached: (c: Change) => boolean; 
 
 export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: () => void }) {
   const [change, setChange] = useState<Change | null>(null);
-  const [dialog, setDialog] = useState(false);
+  const [dialog, setDialog] = useState<"approve" | "reject" | null>(null);
   const [busy, setBusy] = useState(false);
   const [domainReview, setDomainReview] = useState<DomainReview | null>(null);
   const [domains, setDomains] = useState<BusinessDomain[]>([]);
@@ -267,30 +267,36 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                 <div style={{ marginTop: 12 }}>
                   <Provenance
                     kind="human"
-                    label={`Exact change approved by ${change.changeApproval.approvedBy} · ${new Date(change.changeApproval.approvedAt!).toLocaleString("en-GB")}`}
+                    label={`Exact change ${change.changeApproval.status} by ${change.changeApproval.approvedBy} · ${new Date(change.changeApproval.approvedAt!).toLocaleString("en-GB")}`}
                   >
                     <div style={{ fontSize: 13.5 }}>
                       {change.changeApproval.note || <span className="notstated">no note recorded</span>}
                     </div>
-                    <div className="mono" style={{ fontSize: 12, marginTop: 8, color: "var(--muted)" }}>
-                      Bound to hash {change.changeApproval.changeHash} — if the operation differs at
-                      execution by even one character, it is refused.
-                    </div>
+                    {change.changeApproval.status === "approved" && (
+                      <div className="mono" style={{ fontSize: 12, marginTop: 8, color: "var(--muted)" }}>
+                        Bound to hash {change.changeApproval.changeHash} — if the operation differs at
+                        execution by even one character, it is refused.
+                      </div>
+                    )}
                   </Provenance>
                 </div>
               ) : (
                 <div style={{ marginTop: 14 }}>
                   <div className="callout" style={{ marginBottom: 14 }}>
-                    <strong>This still needs your approval</strong>
+                    <strong>This still needs your decision</strong>
                     Approving the story was a decision about whether the work is worth doing.
                     This is a separate decision about whether this exact operation is the right one.
                   </div>
-                  <button className="btn primary" onClick={() => setDialog(true)} disabled={busy}>
-                    Approve this exact change
-                  </button>
+                  <div className="btnrow">
+                    <button className="btn primary" onClick={() => setDialog("approve")} disabled={busy}>
+                      Approve this exact change
+                    </button>
+                    <button className="btn danger" onClick={() => setDialog("reject")} disabled={busy}>
+                      Reject this exact change
+                    </button>
+                  </div>
                 </div>
               )}
-              <ApiNote endpoint="POST /changes/{id}/approve-change" />
             </section>
           )}
 
@@ -368,10 +374,14 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
 
       {dialog && ec && (
         <ConfirmDialog
-          title="Approve this exact change?"
+          title={dialog === "approve" ? "Approve this exact change?" : "Reject this exact change?"}
           intro={
             <>
-              <p style={{ marginTop: 0 }}>You are approving one specific operation, not the change in general.</p>
+              <p style={{ marginTop: 0 }}>
+                {dialog === "approve"
+                  ? "You are approving one specific operation, not the change in general."
+                  : "The Architect will need to propose a different operation, or this may need Human Implementation."}
+              </p>
               <dl className="facts">
                 <dt>Application</dt><dd className="mono">{ec.application}</dd>
                 <dt>Version</dt><dd className="mono">{ec.version}</dd>
@@ -381,13 +391,21 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
               </dl>
             </>
           }
-          whatHappensNext="The Functional Agent may apply exactly this operation in DEV, then run the named test. If anything about the operation differs from what you see here, it will be refused."
-          confirmLabel="Approve this exact change"
-          requireNote={false}
-          onCancel={() => setDialog(false)}
-          onConfirm={async (decidedBy, note) => {
-            setDialog(false); setBusy(true);
-            await api.approveExactChange(change.id, { decidedBy, note });
+          whatHappensNext={
+            dialog === "approve"
+              ? "The Functional Agent may apply exactly this operation in DEV, then run the named test. If anything about the operation differs from what you see here, it will be refused."
+              : "This exact operation is refused. Nothing is written to JD Edwards."
+          }
+          confirmLabel={dialog === "approve" ? "Approve this exact change" : "Reject this exact change"}
+          tone={dialog === "approve" ? "primary" : "danger"}
+          requireNote={dialog === "reject"}
+          showReasonCode={dialog === "reject"}
+          onCancel={() => setDialog(null)}
+          onConfirm={async (decidedBy, note, reasonCode) => {
+            const wasApprove = dialog === "approve";
+            setDialog(null); setBusy(true);
+            if (wasApprove) await api.approveExactChange(change.id, { decidedBy, note });
+            else await api.rejectExactChange(change.id, { decidedBy, note, rejectionReason: reasonCode });
             await reload(); setBusy(false);
           }}
         />

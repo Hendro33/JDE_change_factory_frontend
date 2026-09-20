@@ -253,6 +253,33 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     return delay(change);
   }
 
+  async rejectExactChange(id: string, input: DecisionInput): Promise<Change> {
+    const change = this.scoped().find((c) => c.id === id);
+    if (!change) throw new Error(`No change ${id}`);
+    change.changeApproval = {
+      approvalId: `AP-${id}-C`,
+      kind: "change",
+      status: "rejected",
+      approvedBy: input.decidedBy,
+      approvedAt: now(),
+      note: input.note,
+    };
+    change.state = "REJECTED";
+    change.updatedAt = now();
+    change.updatedBy = input.decidedBy;
+    change.evidence.push({
+      entryId: `E${change.evidence.length + 1}`,
+      stage: "Change approval",
+      detail: `Exact change rejected by ${input.decidedBy}${input.rejectionReason ? ` (${input.rejectionReason})` : ""}`,
+      actor: input.decidedBy,
+      capturedAt: now(),
+      prevHash: `hash-${change.evidence.length}`,
+      entryHash: `hash-${change.evidence.length + 1}`,
+    });
+    this.feedbackLog.push({ customerId: this.scope, kind: "exact_change_rejection", reasonCode: input.rejectionReason });
+    return delay(change);
+  }
+
   private async recordDecision(
     id: string,
     state: LifecycleState,

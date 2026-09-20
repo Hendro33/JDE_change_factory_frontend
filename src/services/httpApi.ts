@@ -215,8 +215,22 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     notImplemented("rejectChange");
   }
 
-  async approveExactChange(_id: string, _input: DecisionInput): Promise<Change> {
-    notImplemented("approveExactChange");
+  async approveExactChange(id: string, input: DecisionInput): Promise<Change> {
+    const customerId = await this.activeCustomerId();
+    return request<Change>(`/changes/${encodeURIComponent(id)}/approve-change`, {
+      method: "POST",
+      customerId,
+      body: { decidedBy: input.decidedBy, note: input.note },
+    });
+  }
+
+  async rejectExactChange(id: string, input: DecisionInput): Promise<Change> {
+    const customerId = await this.activeCustomerId();
+    return request<Change>(`/changes/${encodeURIComponent(id)}/reject-change`, {
+      method: "POST",
+      customerId,
+      body: { decidedBy: input.decidedBy, note: input.note, rejectionReason: input.rejectionReason },
+    });
   }
 
   async getMetrics(): Promise<FactoryMetrics> {

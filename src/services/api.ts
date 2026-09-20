@@ -58,6 +58,7 @@ export const API_ENDPOINTS = {
   getImplementation: "GET /changes/{id}/implementation",
 
   approveExactChange: "POST /changes/{id}/approve-change",
+  rejectExactChange: "POST /changes/{id}/reject-change",
   executeChange: "POST /changes/{id}/execute",
   runTest: "POST /changes/{id}/test",
   validate: "POST /changes/{id}/validate",
@@ -152,6 +153,8 @@ export interface ChangeFactoryApi {
    * the same decision as approving the specific write it becomes.
    */
   approveExactChange(id: string, input: DecisionInput): Promise<Change>;
+  /** Rejects that same exact operation instead — the other half of Section 6.5's Gate 2 decision, already real on the backend (mcp_server's reject_change). */
+  rejectExactChange(id: string, input: DecisionInput): Promise<Change>;
 
   getMetrics(): Promise<FactoryMetrics>;
   getActivity(): Promise<ActivityEntry[]>;

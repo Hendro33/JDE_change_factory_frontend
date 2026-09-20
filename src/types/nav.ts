@@ -6,7 +6,9 @@
 export type Page =
   | "dashboard"
   | "userstories"
+  | "userstoryreview"
   | "approval"
+  | "architecture"
   | "deliveryqueue"
   | "pipeline"
   | "domains"

@@ -1,6 +1,15 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import type { LifecycleState } from "../types/domain";
+import type { FeedbackReasonCode, LifecycleState } from "../types/domain";
+
+export const REASON_CODE_LABEL: Record<FeedbackReasonCode, string> = {
+  missing_information: "Missing information",
+  wrong_business_domain: "Wrong business domain",
+  incorrect_analysis_or_route: "Incorrect analysis or route",
+  risk_or_compliance_concern: "Risk or compliance concern",
+  duplicate_or_superseded: "Duplicate or superseded",
+  other: "Other",
+};
 
 /* ------------------------------------------------------------------ */
 /* Status vocabulary                                                    */
@@ -384,6 +393,7 @@ export function ConfirmDialog({
   confirmLabel,
   tone = "primary",
   requireNote,
+  showReasonCode,
   onConfirm,
   onCancel,
 }: {
@@ -393,11 +403,14 @@ export function ConfirmDialog({
   confirmLabel: string;
   tone?: "primary" | "danger";
   requireNote: boolean;
-  onConfirm: (decidedBy: string, note: string) => void;
+  /** Adds a structured reason-code picker alongside the free-text note — only meaningful on a rejection/send-back. */
+  showReasonCode?: boolean;
+  onConfirm: (decidedBy: string, note: string, reasonCode?: FeedbackReasonCode) => void;
   onCancel: () => void;
 }) {
   const [who, setWho] = useState(() => localStorage.getItem("ciq_approver") ?? "");
   const [note, setNote] = useState("");
+  const [reasonCode, setReasonCode] = useState<FeedbackReasonCode | "">("");
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
@@ -430,6 +443,17 @@ export function ConfirmDialog({
               }}
             />
           </div>
+          {showReasonCode && (
+            <div className="field">
+              <label htmlFor="reasoncode">Reason code</label>
+              <select id="reasoncode" value={reasonCode} onChange={(e) => setReasonCode(e.target.value as FeedbackReasonCode | "")}>
+                <option value="">— not categorised —</option>
+                {(Object.entries(REASON_CODE_LABEL) as [FeedbackReasonCode, string][]).map(([code, label]) => (
+                  <option key={code} value={code}>{label}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="field">
             <label htmlFor="note">
               Reason {requireNote ? "" : <span className="hint">(optional)</span>}
@@ -448,7 +472,7 @@ export function ConfirmDialog({
           <button
             className={`btn ${tone}`}
             disabled={!ready}
-            onClick={() => onConfirm(who.trim(), note.trim())}
+            onClick={() => onConfirm(who.trim(), note.trim(), reasonCode || undefined)}
           >
             {confirmLabel}
           </button>
