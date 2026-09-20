@@ -10,6 +10,10 @@ import { DeliveryQueuePage } from "./pages/DeliveryQueue";
 import { Pipeline } from "./pages/Pipeline";
 import { BusinessDomains } from "./pages/BusinessDomains";
 import { ChangeDetail } from "./pages/ChangeDetail";
+import { CustomerSetup } from "./pages/admin/CustomerSetup";
+import { ErpLandscape } from "./pages/admin/ErpLandscape";
+import { Agents } from "./pages/admin/Agents";
+import { Integrations } from "./pages/admin/Integrations";
 
 interface NavItem { key: Page; label: string; filter?: NavFilter }
 interface NavGroup { label: string; items: NavItem[] }
@@ -36,6 +40,23 @@ const NAV_GROUPS: NavGroup[] = [
     { key: "domains", label: "Business Domains" },
   ] },
 ];
+
+/**
+ * Kept out of NAV_GROUPS on purpose and rendered after the `.spacer`,
+ * in the same slot the inert "Settings" label used to occupy — an
+ * administrative area is deliberately visually separate from the main
+ * task-oriented groups, not just another item among them.
+ */
+const ADMIN_GROUP: NavGroup = {
+  label: "Admin",
+  items: [
+    { key: "admin-customer", label: "Customer Setup" },
+    { key: "admin-erp", label: "ERP / JDE Landscape" },
+    { key: "admin-agents", label: "Agents" },
+    { key: "domains", label: "Business Domains" },
+    { key: "admin-integrations", label: "Integrations" },
+  ],
+};
 
 function NavGroupMenu({
   group, page, navFilter, onNavigate,
@@ -168,7 +189,7 @@ export default function App() {
           <NavGroupMenu key={g.label} group={g} page={page} navFilter={navFilter} onNavigate={navigate} />
         ))}
         <span className="spacer" />
-        <span className="settings">Settings</span>
+        <NavGroupMenu group={ADMIN_GROUP} page={page} navFilter={navFilter} onNavigate={navigate} />
       </nav>
 
       <main className="page" key={scopeKey}>
@@ -184,6 +205,14 @@ export default function App() {
           <DeliveryQueuePage onOpenChange={setDetailId} />
         ) : page === "domains" ? (
           <BusinessDomains onNavigate={navigate} />
+        ) : page === "admin-customer" ? (
+          <CustomerSetup />
+        ) : page === "admin-erp" ? (
+          <ErpLandscape />
+        ) : page === "admin-agents" ? (
+          <Agents />
+        ) : page === "admin-integrations" ? (
+          <Integrations />
         ) : (
           <Pipeline onOpenChange={setDetailId} {...navTarget} />
         )}

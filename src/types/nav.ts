@@ -3,7 +3,17 @@
  * import them without a circular import (App.tsx imports every page).
  */
 
-export type Page = "dashboard" | "userstories" | "approval" | "deliveryqueue" | "pipeline" | "domains";
+export type Page =
+  | "dashboard"
+  | "userstories"
+  | "approval"
+  | "deliveryqueue"
+  | "pipeline"
+  | "domains"
+  | "admin-customer"
+  | "admin-erp"
+  | "admin-agents"
+  | "admin-integrations";
 
 export type NavFilter = Record<string, string>;
 

@@ -1,4 +1,4 @@
-import type { Customer, Session } from "../types/domain";
+import type { Customer, IdentitySummary, Session } from "../types/domain";
 
 /**
  * Mock authentication and customer entitlement.
@@ -93,4 +93,12 @@ export function setMockPersona(key: PersonaKey): void {
 
 export function getMockPersona(): PersonaKey {
   return readPersona();
+}
+
+/** Admin > Customer Setup: who is entitled to a given customer, mirroring
+ * customer_service.py's identities_for_customer(). */
+export function identitiesForCustomer(customerId: string): IdentitySummary[] {
+  return Object.values(PERSONAS)
+    .filter((p) => p.customers.some((c) => c.id === customerId))
+    .map((p) => ({ id: p.userId, displayName: p.displayName, role: p.role }));
 }

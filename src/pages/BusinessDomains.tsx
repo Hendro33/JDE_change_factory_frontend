@@ -4,16 +4,45 @@ import type { BusinessDomain } from "../types/domain";
 import type { Navigate } from "../types/nav";
 import { ApiNote, Loading, NotStated } from "../components/ui";
 
+const STATUS_OPTIONS: BusinessDomain["status"][] = ["active", "proposed", "retired"];
+
 /**
  * The customer's business domain taxonomy (Increment: domain-aware
- * governance / Continuous Delivery Flow navigation). A small,
- * representative set classified against APQC — not the full
- * catalogue. Clicking a domain jumps to User Stories filtered to it.
+ * governance / Continuous Delivery Flow navigation; Administration).
+ * A small, representative set classified against APQC — not the full
+ * catalogue. Clicking a domain row jumps to User Stories filtered to
+ * it; the status selector and "New domain" form are the Admin write
+ * path onto the same list GET /business-domains already serves.
  */
 export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
   const [domains, setDomains] = useState<BusinessDomain[] | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [apqcCode, setApqcCode] = useState("");
+  const [name, setName] = useState("");
+  const [level, setLevel] = useState("");
+  const [description, setDescription] = useState("");
+  const [domainOwner, setDomainOwner] = useState("");
 
-  useEffect(() => { api.listBusinessDomains().then(setDomains); }, []);
+  const load = () => { api.listBusinessDomains().then(setDomains); };
+  useEffect(load, []);
+
+  async function createDomain() {
+    setSaving(true);
+    try {
+      await api.createBusinessDomain({ apqcCode, name, level, description, domainOwner });
+      setApqcCode(""); setName(""); setLevel(""); setDescription(""); setDomainOwner("");
+      setShowNew(false);
+      load();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function changeStatus(domainId: string, status: BusinessDomain["status"]) {
+    await api.updateBusinessDomainStatus(domainId, status);
+    load();
+  }
 
   return (
     <>
@@ -25,8 +54,45 @@ export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
             for the User Stories raised against each one.
           </div>
         </div>
-        <div className="meta">{domains?.length ?? 0} domains</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div className="meta">{domains?.length ?? 0} domains</div>
+          <button className="btn primary" onClick={() => setShowNew((v) => !v)}>
+            {showNew ? "Cancel" : "New domain"}
+          </button>
+        </div>
       </div>
+
+      {showNew && (
+        <section className="panel" style={{ marginBottom: 16 }}>
+          <h2>New business domain</h2>
+          <div className="grid halves">
+            <div className="field">
+              <label htmlFor="apqcCode">APQC code</label>
+              <input id="apqcCode" type="text" value={apqcCode} onChange={(e) => setApqcCode(e.target.value)} placeholder="4.4.1" />
+            </div>
+            <div className="field">
+              <label htmlFor="level">Level <span className="hint">(dotted depth, matches APQC code)</span></label>
+              <input id="level" type="text" value={level} onChange={(e) => setLevel(e.target.value)} placeholder="4.4.1" />
+            </div>
+          </div>
+          <div className="field">
+            <label htmlFor="name">Name</label>
+            <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="field">
+            <label htmlFor="description">Description <span className="hint">(optional)</span></label>
+            <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+          <div className="field">
+            <label htmlFor="domainOwner">Domain Owner <span className="hint">(optional — a name for record-keeping, not access control)</span></label>
+            <input id="domainOwner" type="text" value={domainOwner} onChange={(e) => setDomainOwner(e.target.value)} />
+          </div>
+          <button className="btn primary" disabled={saving || !apqcCode.trim() || !name.trim() || !level.trim()} onClick={createDomain}>
+            {saving ? "Creating…" : "Create domain"}
+          </button>
+          <ApiNote endpoint="POST /admin/business-domains" />
+        </section>
+      )}
 
       {!domains ? <Loading what="business domains" /> : domains.length === 0 ? (
         <div className="empty">No business domains defined for this customer yet.</div>
@@ -46,7 +112,16 @@ export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
                   </td>
                   <td className="mono">{d.level}</td>
                   <td>{d.domainOwner || <NotStated />}</td>
-                  <td><span className={`badge ${d.status === "active" ? "ok" : "grey"}`}>{d.status}</span></td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <select
+                      value={d.status}
+                      onChange={(e) => changeStatus(d.id, e.target.value as BusinessDomain["status"])}
+                      className={`badge ${d.status === "active" ? "ok" : "grey"}`}
+                      style={{ cursor: "pointer" }}
+                    >
+                      {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </td>
                 </tr>
               ))}
             </tbody>

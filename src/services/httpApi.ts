@@ -1,10 +1,18 @@
 import type {
   ActivityEntry,
+  AgentDefinition,
+  AgentHealth,
   BusinessDomain,
+  BusinessDomainCreateInput,
   Change,
+  CustomerProfile,
   DeliveryQueueEntry,
   DomainReview,
+  EngagementScope,
+  EngagementScopeUpdateInput,
+  ErpLandscape,
   FactoryMetrics,
+  IntegrationStatus,
   Session,
   UserStory,
 } from "../types/domain";
@@ -15,14 +23,16 @@ import { getMockPersona, type PersonaKey } from "./session";
  * Real implementation of ChangeFactoryApi, talking to the Phase 1
  * FastAPI backend (api_service/).
  *
- * Phase 1 only implements the read endpoints plus direct-entry intake
- * (POST /change-requests) -- see the repository analysis. Everything
- * downstream of "approve for backlog" (enhance, send-back, approve,
- * reject, approve-exact-change) has no backend endpoint yet, since
- * that needs the Claude Agent SDK orchestration and the Phase 2/3
- * approval UI wiring this phase deliberately does not build. Calling
- * one of those methods against this implementation throws a clear
- * "not implemented yet" error rather than silently doing nothing.
+ * Read endpoints, direct-entry intake, Receive/Improve/Check, the full
+ * Domain Owner / Application Manager governance flow, Architecture
+ * Review, and the Administration area (Customer Setup, ERP Landscape,
+ * Agents, Business Domains write path, Integrations) are all backed by
+ * real endpoints. A handful of older, superseded methods
+ * (sendStoryBack, approveStoryForBacklog, approveChange, rejectChange
+ * -- the pre-domain-governance story-level decision flow) still have
+ * no backend route and throw a clear "not implemented yet" error
+ * rather than silently doing nothing; use the mock service for those
+ * specific flows until a later phase adds them.
  *
  * SECURITY NOTE: the X-Customer-Id and X-Demo-User-Id headers sent
  * below are assertions, exactly like the comment on
@@ -288,5 +298,54 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
   async listDeliveryQueue(): Promise<DeliveryQueueEntry[]> {
     const customerId = await this.activeCustomerId();
     return request<DeliveryQueueEntry[]>("/delivery-queue", { customerId });
+  }
+
+  async getCustomerProfile(): Promise<CustomerProfile> {
+    const customerId = await this.activeCustomerId();
+    return request<CustomerProfile>("/admin/customer-profile", { customerId });
+  }
+
+  async getErpLandscape(): Promise<ErpLandscape> {
+    const customerId = await this.activeCustomerId();
+    return request<ErpLandscape>("/admin/erp-landscape", { customerId });
+  }
+
+  async getEngagementScope(): Promise<EngagementScope> {
+    const customerId = await this.activeCustomerId();
+    return request<EngagementScope>("/admin/engagement-scope", { customerId });
+  }
+
+  async updateEngagementScope(input: EngagementScopeUpdateInput): Promise<EngagementScope> {
+    const customerId = await this.activeCustomerId();
+    return request<EngagementScope>("/admin/engagement-scope", { method: "PUT", customerId, body: input });
+  }
+
+  async listAgents(): Promise<AgentDefinition[]> {
+    const customerId = await this.activeCustomerId();
+    return request<AgentDefinition[]>("/admin/agents", { customerId });
+  }
+
+  async getAgentHealth(agentName: string): Promise<AgentHealth> {
+    const customerId = await this.activeCustomerId();
+    return request<AgentHealth>(`/admin/agents/${encodeURIComponent(agentName)}/health`, { customerId });
+  }
+
+  async createBusinessDomain(input: BusinessDomainCreateInput): Promise<BusinessDomain> {
+    const customerId = await this.activeCustomerId();
+    return request<BusinessDomain>("/admin/business-domains", { method: "POST", customerId, body: input });
+  }
+
+  async updateBusinessDomainStatus(domainId: string, status: BusinessDomain["status"]): Promise<BusinessDomain> {
+    const customerId = await this.activeCustomerId();
+    return request<BusinessDomain>(`/admin/business-domains/${encodeURIComponent(domainId)}/status`, {
+      method: "PUT",
+      customerId,
+      body: { status },
+    });
+  }
+
+  async listIntegrations(): Promise<IntegrationStatus[]> {
+    const customerId = await this.activeCustomerId();
+    return request<IntegrationStatus[]>("/admin/integrations", { customerId });
   }
 }

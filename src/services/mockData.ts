@@ -1,4 +1,4 @@
-import type { BusinessDomain, Change, EvidenceRecord } from "../types/domain";
+import type { AgentDefinition, BusinessDomain, Change, EvidenceRecord } from "../types/domain";
 
 /**
  * Mock records standing in for the backend.
@@ -37,6 +37,129 @@ export const MOCK_BUSINESS_DOMAINS: BusinessDomain[] = [
   { id: "DOM-VDB-2", customerId: "vdb", apqcCode: "4.4.3", name: "Order Fulfilment & Shipment Management", level: "4.4.3", description: "Sales order entry and shipment status.", domainOwner: "", status: "active" },
   { id: "DOM-NHD-1", customerId: "nhd", apqcCode: "4.3", name: "Manufacture / Produce Product", level: "4.3", description: "Production scheduling and shop floor execution.", domainOwner: "", status: "active" },
   { id: "DOM-MRV-1", customerId: "mrv", apqcCode: "9.3", name: "Manage Order-to-Cash / Credit & Collections", level: "9.3", description: "Customer credit limits and accounts receivable.", domainOwner: "", status: "active" },
+];
+
+/**
+ * Mirrors the real .claude/agents/*.md definitions and each driver's
+ * own ClaudeAgentOptions field-for-field (there is no filesystem to
+ * read in the browser, so this is a static snapshot rather than a
+ * live parse — version/fileUpdatedAt are illustrative placeholders,
+ * same convention as the other static-but-representative numbers
+ * already in this file, e.g. performance.averageCycleTimeDays in
+ * mockApi.ts).
+ */
+export const MOCK_AGENTS: AgentDefinition[] = [
+  {
+    name: "architect",
+    description:
+      "System Analyst / Architect Agent. Analyses the JDE estate and an approved backlog story to decide whether it is a Functional change, Technical change, Human Implementation, or needs no change at all.",
+    declaredTools: [
+      "mcp__jde-change-factory__get_approved_story",
+      "mcp__jde-change-factory__get_object",
+      "mcp__jde-change-factory__get_version",
+      "mcp__jde-change-factory__get_processing_options",
+      "mcp__jde-change-factory__resolve_without_change",
+      "mcp__jde-change-factory__propose_change",
+    ],
+    version: "mock-a1b2c3d4e5f6",
+    fileUpdatedAt: "2026-09-19T16:29:00.000Z",
+    runtime: {
+      driver: "architecture_driver",
+      permissionMode: "dontAsk",
+      maxTurns: 40,
+      allowedTools: [
+        "Task",
+        "mcp__jde-change-factory__get_approved_story",
+        "mcp__jde-change-factory__get_object",
+        "mcp__jde-change-factory__get_version",
+        "mcp__jde-change-factory__get_processing_options",
+        "mcp__jde-change-factory__resolve_without_change",
+        "mcp__jde-change-factory__propose_change",
+      ],
+    },
+  },
+  {
+    name: "check-agent",
+    description:
+      "Scores an enriched User Story against the fixed quality checklist and either proposes it to the Phase 2 backlog, sends it back to the Improve Agent with named failures, or escalates to a human after repeated failure.",
+    declaredTools: ["mcp__jde-change-factory__propose_to_backlog"],
+    version: "mock-b2c3d4e5f6a1",
+    fileUpdatedAt: "2026-09-19T16:29:00.000Z",
+    runtime: {
+      driver: "orchestration_driver",
+      permissionMode: "dontAsk",
+      maxTurns: 40,
+      allowedTools: [
+        "Task",
+        "mcp__jde-change-factory__get_object",
+        "mcp__jde-change-factory__get_version",
+        "mcp__jde-change-factory__get_processing_options",
+        "mcp__jde-change-factory__propose_to_backlog",
+      ],
+    },
+  },
+  {
+    name: "functional-agent",
+    description:
+      "Executes the one validated configuration write for the pilot -- changing a processing option value on a pre-agreed version -- then runs the exact approved acceptance test and captures evidence.",
+    declaredTools: [
+      "mcp__jde-change-factory__get_object",
+      "mcp__jde-change-factory__get_version",
+      "mcp__jde-change-factory__get_processing_options",
+      "mcp__jde-change-factory__set_processing_option",
+      "mcp__jde-change-factory__run_orchestration",
+      "mcp__jde-change-factory__capture_evidence",
+      "mcp__jde-change-factory__verify_evidence_chain",
+    ],
+    version: "mock-c3d4e5f6a1b2",
+    fileUpdatedAt: "2026-09-19T16:29:00.000Z",
+    // No api_service driver invokes this agent today -- still run
+    // directly via Claude Code, not yet orchestrated from this service.
+  },
+  {
+    name: "improve-agent",
+    description:
+      "Enriches a draft (or revision-bounced) User Story with specific business context, testable acceptance criteria, a test script, and the business impact criteria and rough complexity signal.",
+    declaredTools: [
+      "mcp__jde-change-factory__get_object",
+      "mcp__jde-change-factory__get_version",
+      "mcp__jde-change-factory__get_processing_options",
+    ],
+    version: "mock-d4e5f6a1b2c3",
+    fileUpdatedAt: "2026-09-19T16:29:00.000Z",
+    runtime: {
+      driver: "orchestration_driver",
+      permissionMode: "dontAsk",
+      maxTurns: 40,
+      allowedTools: [
+        "Task",
+        "mcp__jde-change-factory__get_object",
+        "mcp__jde-change-factory__get_version",
+        "mcp__jde-change-factory__get_processing_options",
+        "mcp__jde-change-factory__propose_to_backlog",
+      ],
+    },
+  },
+  {
+    name: "receive-agent",
+    description:
+      "Normalises a raw draft story from any intake route into the canonical User Story schema. Purely structural -- no quality judgement, no JDE access.",
+    declaredTools: [],
+    version: "mock-e5f6a1b2c3d4",
+    fileUpdatedAt: "2026-09-19T16:29:00.000Z",
+    runtime: {
+      driver: "orchestration_driver",
+      permissionMode: "dontAsk",
+      maxTurns: 40,
+      allowedTools: [
+        "Task",
+        "mcp__jde-change-factory__get_object",
+        "mcp__jde-change-factory__get_version",
+        "mcp__jde-change-factory__get_processing_options",
+        "mcp__jde-change-factory__propose_to_backlog",
+      ],
+    },
+  },
 ];
 
 export const MOCK_CHANGES: Change[] = [
