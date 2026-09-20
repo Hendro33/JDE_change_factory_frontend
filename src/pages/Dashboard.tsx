@@ -13,7 +13,7 @@ import {
   StateBadge,
 } from "../components/ui";
 
-const KPI_MARKS = ["▤", "◷", "⚗", "⚙", "✓", "◆"];
+const KPI_MARKS = ["▤", "◷", "⚗", "⛭", "⚙", "✓", "◆"];
 
 /**
  * Every dashboard total maps deterministically to a work queue + a
@@ -24,7 +24,8 @@ const KPI_MARKS = ["▤", "◷", "⚗", "⚙", "✓", "◆"];
 const METRIC_ROUTES: Record<string, { page: Page; filter?: NavFilter }> = {
   incoming_requests: { page: "userstories", filter: { view: "requests" } },
   awaiting_domain_owner: { page: "userstories", filter: { view: "review" } },
-  backlog_ready: { page: "approval", filter: {} },
+  awaiting_application_manager: { page: "approval", filter: { stage: "ready_for_application_manager" } },
+  awaiting_exact_change_approval: { page: "deliveryqueue" },
   in_delivery: { page: "deliveryqueue" },
   awaiting_business_validation: { page: "pipeline", filter: { stage: "validation" } },
   completed: { page: "pipeline", filter: { stage: "completed" } },
