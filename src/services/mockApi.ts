@@ -17,6 +17,11 @@ import type {
   FactoryMetrics,
   FeedbackSummary,
   IntegrationStatus,
+  JiraConnectionStatus,
+  JiraIntegrationConfig,
+  JiraIntegrationConfigUpdateInput,
+  JiraSyncError,
+  JiraSyncResult,
   LifecycleState,
   StoryVersion,
   UserStory,
@@ -37,6 +42,59 @@ const PRE_DOMAIN_OWNER_APPROVAL = new Set<DomainReviewStage>([
   "ready_for_domain_owner", "domain_owner_reviewing", "domain_owner_requested_revision", "reviewer_agent_refining",
 ]);
 
+/** Mirrors jira_gateway.py's JiraMockGateway -- an in-memory stand-in
+ * exercising the same field/comment/transition write-back sequence a
+ * live Jira connector would, against whatever status names the admin
+ * configures (never a hardcoded default). */
+interface MockJiraIssue {
+  key: string;
+  id: string;
+  summary: string;
+  description: string;
+  reporter: string;
+  createdAt: string;
+  status: string;
+  metadata: Record<string, string>;
+  fields: Record<string, string>;
+  comments: string[];
+}
+
+function defaultJiraFixture(): MockJiraIssue[] {
+  // Arbitrary fixture content, exactly like the backend's own
+  // JiraMockGateway seed -- the status value is a seed default only,
+  // matching the example name used throughout this integration's own
+  // design discussion; it is never read or special-cased by any logic
+  // below, which always filters by whatever status name is configured.
+  return [
+    {
+      key: "JADE-101", id: "10101",
+      summary: "Default delivery date is wrong on sales orders",
+      description:
+        "When our sales team enters a new sales order, the requested delivery date defaults to today. " +
+        "We would like it to default to 7 working days out instead.",
+      reporter: "BicycleWorks Sales Team",
+      createdAt: "2026-09-01T09:00:00.000Z",
+      status: "Ready for Jade",
+      metadata: { workType: "Change", priority: "Medium" },
+      fields: {},
+      comments: [],
+    },
+    {
+      key: "JADE-104", id: "10104",
+      summary: "Warehouse cannot see available stock at a glance",
+      description:
+        "Warehouse staff need On hand, Allocated, Available, On order and Backordered for an item in one " +
+        "place instead of interpreting several separate quantities.",
+      reporter: "BicycleWorks Warehouse",
+      createdAt: "2026-09-03T14:30:00.000Z",
+      status: "Ready for Jade",
+      metadata: { workType: "Improvement", priority: "Low" },
+      fields: {},
+      comments: [],
+    },
+  ];
+}
+
 /**
  * In-memory implementation of ChangeFactoryApi.
  *
@@ -56,6 +114,13 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
    * same "derived, not hard-coded" rule as everything else here. */
   private agentRuns = new Map<string, AgentRunSummary[]>();
   private feedbackLog: { customerId: string; kind: string; reasonCode?: string }[] = [];
+  private jiraConfigs = new Map<string, JiraIntegrationConfig>();
+  /** Per-customer fixture tickets for the Jira mock -- stateful across
+   * "Sync now" clicks within a session (unlike the real backend's
+   * per-call mock gateway), so a second click legitimately shows
+   * nothing new once the first has moved everything past the
+   * configured pickup status. */
+  private jiraMockIssues = new Map<string, MockJiraIssue[]>();
 
   private recordAgentRun(agentName: string, storyId: string, stage: AgentRunSummary["stage"] = "done"): void {
     const runs = this.agentRuns.get(agentName) ?? [];
@@ -743,10 +808,113 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
   }
 
   async listIntegrations(): Promise<IntegrationStatus[]> {
+    const jira = this.jiraConfigs.get(this.scope);
+    const jiraConfigured = !!jira && jiraIsConfigured(jira);
     return delay([
       { name: "JD Edwards (AIS)", connected: false, detail: "Running in mock mode -- see ERP / JDE Landscape for connection status" },
+      {
+        name: "Jira Service Management",
+        connected: false,
+        detail: jiraConfigured
+          ? `Running in mock mode -- configured for project ${jira!.projectKey}, try "Sync now" below`
+          : "Running in mock mode -- see Jira below to configure and try a sync",
+      },
       { name: "Topdesk", connected: false, detail: "Not connected -- source and source reference are free-text fields today, no live connector" },
       { name: "Slack / Teams approvals", connected: false, detail: "Not connected -- approvals happen in-app today" },
     ]);
   }
+
+  async getJiraIntegration(): Promise<JiraIntegrationConfig> {
+    const existing = this.jiraConfigs.get(this.scope);
+    if (existing) return delay(existing);
+    return delay({
+      customerId: this.scope, baseUrl: "", projectKey: "", pickupStatus: "", postPickupStatus: "",
+      jadeIdField: "", requestTypeField: "",
+    });
+  }
+
+  async updateJiraIntegration(input: JiraIntegrationConfigUpdateInput): Promise<JiraIntegrationConfig> {
+    const config: JiraIntegrationConfig = {
+      customerId: this.scope,
+      baseUrl: input.baseUrl.replace(/\/+$/, ""),
+      projectKey: input.projectKey,
+      pickupStatus: input.pickupStatus,
+      postPickupStatus: input.postPickupStatus,
+      jadeIdField: input.jadeIdField,
+      requestTypeField: input.requestTypeField,
+      updatedAt: now(),
+      updatedBy: input.updatedBy,
+    };
+    this.jiraConfigs.set(this.scope, config);
+    return delay(config);
+  }
+
+  async getJiraIntegrationStatus(): Promise<JiraConnectionStatus> {
+    const config = this.jiraConfigs.get(this.scope);
+    return delay({
+      mockMode: true,
+      // The mock never has a real credential -- same honest "nothing
+      // is live yet" answer getErpLandscape's ais field already gives.
+      credentialsConfigured: false,
+      configConfigured: !!config && jiraIsConfigured(config),
+    });
+  }
+
+  async syncJiraIntegration(): Promise<JiraSyncResult> {
+    const config = this.jiraConfigs.get(this.scope);
+    if (!config || !jiraIsConfigured(config)) {
+      throw new Error("Jira is not fully configured for this customer -- set it up under Admin > Integrations > Jira first.");
+    }
+    let issues = this.jiraMockIssues.get(this.scope);
+    if (!issues) {
+      issues = defaultJiraFixture();
+      this.jiraMockIssues.set(this.scope, issues);
+    }
+
+    const picked = issues.filter((i) => i.status === config.pickupStatus);
+    const imported: string[] = [];
+    const updatedInJira: string[] = [];
+    const errors: JiraSyncError[] = [];
+
+    for (const issue of picked) {
+      const stableId = `CR-JIRA-${issue.key}`;
+      if (!this.changes.some((c) => c.id === stableId)) {
+        // Intake only -- never triggers enhanceStory itself.
+        const change: Change = {
+          id: stableId,
+          customerId: this.scope,
+          title: issue.summary,
+          source: "Jira",
+          sourceReference: `Jira ${issue.key}`,
+          originalRequest: issue.description,
+          changeType: "Other",
+          state: "RECEIVED",
+          priority: "Medium",
+          complexitySignal: "Unknown",
+          businessImpact: { financialImpact: "", operationalReach: "", riskCompliance: "", strategicAlignment: "", urgency: "" },
+          createdAt: issue.createdAt,
+          updatedAt: now(),
+          updatedBy: issue.reporter,
+          sourceMetadata: { ...issue.metadata },
+          evidence: [],
+        };
+        this.changes = [change, ...this.changes];
+        imported.push(stableId);
+      }
+
+      // Idempotency short-circuit -- skip a duplicate comment on retry.
+      if (issue.fields[config.jadeIdField] !== stableId) {
+        issue.fields[config.jadeIdField] = stableId;
+        issue.comments.push(`Jade has accepted this request. Jade Change ID: ${stableId}`);
+      }
+      issue.status = config.postPickupStatus;
+      updatedInJira.push(issue.key);
+    }
+
+    return delay({ considered: picked.length, imported, updatedInJira, errors }, 400);
+  }
+}
+
+function jiraIsConfigured(c: JiraIntegrationConfig): boolean {
+  return !!(c.baseUrl && c.projectKey && c.pickupStatus && c.postPickupStatus && c.jadeIdField);
 }

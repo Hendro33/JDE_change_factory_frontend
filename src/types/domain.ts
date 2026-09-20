@@ -53,7 +53,7 @@ export interface Session {
 }
 
 /** Where the original request came from (design doc Section 3.1). */
-export type ChangeSource = "Business" | "Support / Topdesk" | "Optimisation" | "DevOps";
+export type ChangeSource = "Business" | "Support / Topdesk" | "Optimisation" | "DevOps" | "Jira";
 
 /**
  * The lifecycle states (design doc Section 16.1).
@@ -354,6 +354,15 @@ export interface Change {
   processingError?: string;
 
   /**
+   * Free-form context carried verbatim from the source connector (e.g.
+   * Jira's Work Type / Priority / Request Type) — imported for display
+   * only. Never used by this UI or the backend to decide routing.
+   * Absent/empty for anything not sourced through a connector that
+   * populates it.
+   */
+  sourceMetadata?: Record<string, string>;
+
+  /**
    * Business domain governance (Section 2/3). A read-only projection
    * of the DomainReview sidecar for list/filter display — the full
    * record (history, notes, approvals) comes from getDomainReview.
@@ -561,4 +570,60 @@ export interface BusinessDomainCreateInput {
   level: string;
   description?: string;
   domainOwner?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Jira Service Management hand-off                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Per-customer, human-authored connector configuration — mirrors
+ * EngagementScope's own customer-scoping. The API token itself is
+ * NEVER part of this shape; see JiraConnectionStatus for its presence
+ * only, and Integrations.tsx's own note on why that credential is
+ * still deployment-level, not truly per-customer, in this increment.
+ */
+export interface JiraIntegrationConfig {
+  customerId: string;
+  baseUrl: string;
+  projectKey: string;
+  /** The Jira workflow status a human moves a ticket to once ITSM has decided it's genuine change demand for Jade, e.g. "Ready for Jade". */
+  pickupStatus: string;
+  /** The status Jade transitions the ticket to once intake has durably succeeded, e.g. "Jade - In Progress". */
+  postPickupStatus: string;
+  /** The Jira custom field id Jade writes its own Change Request id into. */
+  jadeIdField: string;
+  /** Optional Jira custom field id for JSM's own Request Type, imported into sourceMetadata for display only. */
+  requestTypeField: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface JiraIntegrationConfigUpdateInput {
+  baseUrl: string;
+  projectKey: string;
+  pickupStatus: string;
+  postPickupStatus: string;
+  jadeIdField: string;
+  requestTypeField: string;
+  updatedBy: string;
+}
+
+/** Status only — NEVER a credential. The credential itself is deployment-level, not per-customer, in this increment. */
+export interface JiraConnectionStatus {
+  mockMode: boolean;
+  credentialsConfigured: boolean;
+  configConfigured: boolean;
+}
+
+export interface JiraSyncError {
+  issueKey: string;
+  message: string;
+}
+
+export interface JiraSyncResult {
+  considered: number;
+  imported: string[];
+  updatedInJira: string[];
+  errors: JiraSyncError[];
 }
