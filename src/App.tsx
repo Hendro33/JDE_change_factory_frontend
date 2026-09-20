@@ -52,7 +52,7 @@ export default function App() {
           <span className="logo">consult<b>IQ</b></span>
           <span className="product">
             <strong>Jade</strong>
-            <span>AI-enabled change delivery. Less firefighting. More progress.</span>
+            <span>An AI delivery team for enterprise change</span>
           </span>
         </div>
         <div className="who">
@@ -91,7 +91,7 @@ export default function App() {
 
       <footer className="sitefoot">
         <span className="logo">consult<b>IQ</b></span>
-        <span>AI-enabled change delivery. Less firefighting. More progress.</span>
+        <span>An AI delivery team for enterprise change</span>
         <span style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <PersonaSwitch onChange={reloadSession} />
           <span>Jade · v0.1 prototype · front-end only, mock data</span>

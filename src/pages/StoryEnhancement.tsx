@@ -150,7 +150,7 @@ export function StoryEnhancement({ onOpenChange }: { onOpenChange: (id: string) 
       <div className="pagehead">
         <div>
           <h1>User story enhancement</h1>
-          <div className="sub">Turn an incoming request into a story the factory can actually act on.</div>
+          <div className="sub">Turn an incoming request into a story Jade can actually act on.</div>
         </div>
         <button className="btn primary" onClick={() => setCreating(true)}>New change request</button>
       </div>
@@ -179,7 +179,7 @@ export function StoryEnhancement({ onOpenChange }: { onOpenChange: (id: string) 
             <div className="field">
               <label htmlFor="req">The request, in the requester's own words</label>
               <textarea id="req" value={request} onChange={(e) => setRequest(e.target.value)}
-                placeholder="Paste the ticket text or note exactly as it was written. Don't tidy it up — the factory works better with the original wording." />
+                placeholder="Paste the ticket text or note exactly as it was written. Don't tidy it up — Jade works better with the original wording." />
             </div>
           </div>
           <div className="btnrow">
@@ -294,7 +294,7 @@ export function StoryEnhancement({ onOpenChange }: { onOpenChange: (id: string) 
                     {selected.userStory.openQuestions.length > 0 && (
                       <>
                         <h3 style={{ fontSize: 14, margin: "18px 0 8px" }}>Still missing</h3>
-                        <Provenance kind="ai" label="The factory could not answer these from the request">
+                        <Provenance kind="ai" label="Jade could not answer these from the request">
                           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5 }}>
                             {selected.userStory.openQuestions.map((q, i) => <li key={i}>{q}</li>)}
                           </ul>

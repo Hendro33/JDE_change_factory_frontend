@@ -175,7 +175,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
           {change.userStory && (
             <section className="panel">
               <h2>User story</h2>
-              <Provenance kind="ai" label="Written by the factory — reviewed and approved by a person below">
+              <Provenance kind="ai" label="Written by Jade — reviewed and approved by a person below">
                 <p style={{ margin: "0 0 10px", fontSize: 14.5, fontWeight: 700 }}>{change.userStory.statement}</p>
                 <p style={{ margin: 0, fontSize: 13.5 }}>{change.userStory.businessContext}</p>
               </Provenance>

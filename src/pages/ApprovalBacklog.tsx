@@ -160,7 +160,7 @@ export function ApprovalBacklog() {
                   </Provenance>
                   {open.userStory && (
                     <div style={{ marginTop: 12 }}>
-                      <Provenance kind="ai" label="Story written by the factory from that request">
+                      <Provenance kind="ai" label="Story written by Jade from that request">
                         <p style={{ margin: "0 0 10px", fontSize: 14.5, fontWeight: 700 }}>
                           {open.userStory.statement}
                         </p>

@@ -38,7 +38,7 @@ export function Dashboard({ onOpenChange, onGoTo }: {
     <>
       <div className="pagehead">
         <div>
-          <h1>Factory Production Dashboard</h1>
+          <h1>Jade Dashboard</h1>
           <div className="sub">
             Jade helps enterprise application teams resolve changes, support requests, testing,
             documentation, and releases faster—creating space for optimization work.
@@ -157,7 +157,7 @@ export function Dashboard({ onOpenChange, onGoTo }: {
           </div>
 
           <section className="panel">
-            <h2>Factory performance <span className="qualifier">— last 30 days</span></h2>
+            <h2>Delivery performance <span className="qualifier">— last 30 days</span></h2>
             <div className="grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
               <Perf
                 label="Average cycle time"
