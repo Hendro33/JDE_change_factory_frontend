@@ -19,10 +19,6 @@ export function ArchitectureReview() {
   const [domainReview, setDomainReview] = useState<DomainReview | null>(null);
   const [run, setRun] = useState<ArchitectureReviewRun | null>(null);
   const [showAnalysisHistory, setShowAnalysisHistory] = useState(false);
-  // Same identity key ConfirmDialog already uses on this page (approve/
-  // reject exact change) -- one Application Manager identity for every
-  // decision and conversation turn here, not a second name to type.
-  const [appManagerName, setAppManagerName] = useState(() => localStorage.getItem("ciq_approver") ?? "");
 
   const reload = () => {
     api.listChanges().then((all) => {
@@ -201,11 +197,8 @@ export function ArchitectureReview() {
             <AskJadePanel
               title="Ask Jade about this requirement"
               turns={domainReview.conversation}
-              askedByDefault={appManagerName}
-              onAsk={async (question, askedBy) => {
-                setAppManagerName(askedBy);
-                localStorage.setItem("ciq_approver", askedBy);
-                const updated = await api.askAboutRequirement(open.id, { askedBy, question });
+              onAsk={async (question) => {
+                const updated = await api.askAboutRequirement(open.id, { question });
                 setDomainReview(updated);
               }}
               renderAmendmentActions={(turn) => (
@@ -213,7 +206,6 @@ export function ArchitectureReview() {
                   className="btn primary"
                   onClick={async () => {
                     const updated = await api.requestRequirementReconsideration(open.id, {
-                      decidedBy: appManagerName || turn.askedBy,
                       note: `Flagged from Ask Jade about this requirement: "${turn.question}"`,
                     });
                     setDomainReview(updated);
@@ -229,11 +221,8 @@ export function ArchitectureReview() {
             <AskJadePanel
               title="Ask Jade about this solution"
               turns={run?.conversation ?? []}
-              askedByDefault={appManagerName}
-              onAsk={async (question, askedBy) => {
-                setAppManagerName(askedBy);
-                localStorage.setItem("ciq_approver", askedBy);
-                const updated = await api.askAboutSolution(open.id, { askedBy, question });
+              onAsk={async (question) => {
+                const updated = await api.askAboutSolution(open.id, { question });
                 setRun(updated);
               }}
               renderRecommendReanalysisActions={() => (
@@ -324,10 +313,10 @@ export function ArchitectureReview() {
           requireNote={dialog === "reject"}
           showReasonCode={dialog === "reject"}
           onCancel={() => setDialog(null)}
-          onConfirm={async (decidedBy, note, reasonCode) => {
+          onConfirm={async (note, reasonCode) => {
             setDialog(null); setBusy(true);
-            if (dialog === "approve") await api.approveExactChange(open.id, { decidedBy, note });
-            else await api.rejectExactChange(open.id, { decidedBy, note, rejectionReason: reasonCode });
+            if (dialog === "approve") await api.approveExactChange(open.id, { note });
+            else await api.rejectExactChange(open.id, { note, rejectionReason: reasonCode });
             await reload(); setBusy(false);
           }}
         />

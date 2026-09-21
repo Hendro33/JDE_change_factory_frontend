@@ -38,6 +38,12 @@ export function Integrations() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<JiraSyncResult | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
+  // Set when getJiraIntegration() 403s -- this company's Admin role is
+  // required to view/edit Jira configuration (require_role("admin") on
+  // the backend); jiraStatus below still loads for everyone.
+  const [configAccessError, setConfigAccessError] = useState<string | null>(null);
 
   // Form state, only meaningful while editing.
   const [baseUrl, setBaseUrl] = useState("");
@@ -52,15 +58,24 @@ export function Integrations() {
 
   const load = () => {
     api.listIntegrations().then(setIntegrations);
-    api.getJiraIntegration().then((c) => {
-      setJiraConfig(c);
-      setBaseUrl(c.baseUrl);
-      setProjectKey(c.projectKey);
-      setPickupStatus(c.pickupStatus);
-      setPostPickupStatus(c.postPickupStatus);
-      setJadeIdField(c.jadeIdField);
-      setRequestTypeField(c.requestTypeField);
-    });
+    api
+      .getJiraIntegration()
+      .then((c) => {
+        setConfigAccessError(null);
+        setJiraConfig(c);
+        setBaseUrl(c.baseUrl);
+        setProjectKey(c.projectKey);
+        setPickupStatus(c.pickupStatus);
+        setPostPickupStatus(c.postPickupStatus);
+        setJadeIdField(c.jadeIdField);
+        setRequestTypeField(c.requestTypeField);
+      })
+      .catch((e) => {
+        setJiraConfig(null);
+        setConfigAccessError(
+          e instanceof Error ? e.message : "Could not load the Jira configuration for this company."
+        );
+      });
     api.getJiraIntegrationStatus().then(setJiraStatus);
     // The credential is write-only -- there is nothing to prefill here,
     // on purpose. A blank field on save means "leave it as it is".
@@ -128,6 +143,19 @@ export function Integrations() {
     }
   }
 
+  async function disconnect() {
+    setDisconnecting(true);
+    setDisconnectError(null);
+    try {
+      await api.disconnectJiraCredentials();
+      load();
+    } catch (e) {
+      setDisconnectError(e instanceof Error ? e.message : "Could not disconnect.");
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
   const configured = !!jiraConfig && !!(jiraConfig.baseUrl && jiraConfig.projectKey && jiraConfig.pickupStatus && jiraConfig.postPickupStatus && jiraConfig.jadeIdField);
   const baseUrlError = baseUrlIssue(baseUrl);
   const canTest = !testing && !!baseUrl.trim() && !baseUrlError && !!email.trim() && !!apiToken.trim();
@@ -165,8 +193,30 @@ export function Integrations() {
       <section className="panel">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
           <h2 style={{ margin: 0 }}>Jira</h2>
-          {!editing && <button className="btn" onClick={() => setEditing(true)}>{configured ? "Edit" : "Configure"}</button>}
+          {!editing && !configAccessError && (
+            <div className="btnrow" style={{ margin: 0 }}>
+              <button className="btn" onClick={() => setEditing(true)}>{configured ? "Edit" : "Configure"}</button>
+              {jiraStatus?.credentialsConfigured && (
+                <button className="btn danger" disabled={disconnecting} onClick={disconnect}>
+                  {disconnecting ? "Disconnecting…" : "Disconnect"}
+                </button>
+              )}
+            </div>
+          )}
         </div>
+        {configAccessError && (
+          <div className="callout" style={{ marginBottom: 16 }}>
+            <strong>Admin role required</strong>
+            Only company Admins can view or change the Jira configuration and credential. The status below is
+            visible to everyone.
+          </div>
+        )}
+        {disconnectError && (
+          <div className="callout" style={{ marginBottom: 16, borderColor: "var(--stop)" }}>
+            <strong>Could not disconnect</strong>
+            {disconnectError}
+          </div>
+        )}
         <div className="sub" style={{ marginBottom: 12 }}>
           Jira/ITSM remains responsible for intake and triage — Jade only ever picks up a ticket a human has
           already moved to the configured pickup status below, and never decides that on Jira's behalf. This
@@ -285,7 +335,11 @@ export function Integrations() {
           </div>
         )}
 
-        {!editing && configured && (
+        {/* Driven by jiraStatus (visible to every active member), not
+            jiraConfig (Admin-only) -- syncing is an everyday action for
+            any non-Viewer role, not an Admin-only one, so this must not
+            disappear just because this user can't see the full config. */}
+        {!editing && jiraStatus?.configConfigured && (
           <div className="btnrow" style={{ marginTop: 16 }}>
             <button className="btn primary" disabled={syncing} onClick={sync}>
               {syncing ? "Syncing…" : "Sync now"}

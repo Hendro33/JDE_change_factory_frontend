@@ -15,7 +15,8 @@ export type Page =
   | "admin-customer"
   | "admin-erp"
   | "admin-agents"
-  | "admin-integrations";
+  | "admin-integrations"
+  | "admin-users";
 
 export type NavFilter = Record<string, string>;
 

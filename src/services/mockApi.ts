@@ -6,8 +6,10 @@ import type {
   ArchitectureReviewRun,
   BusinessDomain,
   BusinessDomainCreateInput,
+  CapabilityCatalog,
   Change,
   ChangeType,
+  CompanyUsersOut,
   ConversationTurn,
   CustomerProfile,
   DeliveryQueueEntry,
@@ -19,6 +21,8 @@ import type {
   FactoryMetrics,
   FeedbackSummary,
   IntegrationStatus,
+  InvitationOut,
+  InviteInput,
   JiraConnectionStatus,
   JiraCredentialsUpdateInput,
   JiraIntegrationConfig,
@@ -28,13 +32,15 @@ import type {
   JiraTestConnectionInput,
   JiraTestConnectionResult,
   LifecycleState,
+  MembershipOut,
   StoryVersion,
+  UpdateMembershipInput,
   UserStory,
 } from "../types/domain";
 import type { Session } from "../types/domain";
 import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
 import { CUSTOMERS, getMockSession, identitiesForCustomer, setMockActiveCustomer } from "./session";
-import { MOCK_AGENTS, MOCK_BUSINESS_DOMAINS, MOCK_CHANGES } from "./mockData";
+import { MOCK_AGENTS, MOCK_BUSINESS_DOMAINS, MOCK_CAPABILITY_CATALOG, MOCK_CHANGES } from "./mockData";
 
 /** Simulates network latency so loading states are real, not decorative. */
 const delay = <T,>(value: T, ms = 220): Promise<T> =>
@@ -132,6 +138,30 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
    * nothing new once the first has moved everything past the
    * configured pickup status. */
   private jiraMockIssues = new Map<string, MockJiraIssue[]>();
+  /** Per-customer company member list -- lazily seeded on first read
+   * from the two demo personas (session.ts), then mutable via the
+   * Admin > Users methods below, same "derived once, then a real
+   * mutable store for the rest of the session" pattern jiraConfigs
+   * already follows. */
+  private companyMembers = new Map<string, MembershipOut[]>();
+  private invitations = new Map<string, InvitationOut[]>();
+
+  private ensureCompanyMembers(customerId: string): MembershipOut[] {
+    let members = this.companyMembers.get(customerId);
+    if (!members) {
+      members = identitiesForCustomer(customerId).map((identity) => ({
+        membershipId: `mem-${identity.id}`,
+        userId: identity.id,
+        email: `${identity.id.replace(/^u-/, "")}@example.com`,
+        displayName: identity.displayName,
+        status: "active",
+        roles: ["admin", "domain_owner", "product_manager", "dashboard_viewer"],
+        domainIds: [],
+      }));
+      this.companyMembers.set(customerId, members);
+    }
+    return members;
+  }
 
   private recordAgentRun(agentName: string, storyId: string, stage: AgentRunSummary["stage"] = "done"): void {
     const runs = this.agentRuns.get(agentName) ?? [];
@@ -281,7 +311,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvalId: `AP-${id}-S`,
       kind: "story",
       status: "approved",
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       note: input.note,
     };
@@ -294,7 +324,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvalId: `AP-${id}-S`,
       kind: "story",
       status: "rejected",
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       note: input.note,
     };
@@ -309,19 +339,19 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       kind: "change",
       status: "approved",
       changeHash: "mock-hash-" + Math.random().toString(16).slice(2, 10),
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       expiresAt: new Date(Date.now() + 86400000).toISOString(),
       note: input.note,
     };
     change.state = "CHANGE_APPROVED";
     change.updatedAt = now();
-    change.updatedBy = input.decidedBy;
+    change.updatedBy = getMockSession().displayName;
     change.evidence.push({
       entryId: `E${change.evidence.length + 1}`,
       stage: "Change approval",
-      detail: `Exact change approved by ${input.decidedBy}`,
-      actor: input.decidedBy,
+      detail: `Exact change approved by ${getMockSession().displayName}`,
+      actor: getMockSession().displayName,
       capturedAt: now(),
       prevHash: `hash-${change.evidence.length}`,
       entryHash: `hash-${change.evidence.length + 1}`,
@@ -338,18 +368,18 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvalId: `AP-${id}-C`,
       kind: "change",
       status: "rejected",
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       note: input.note,
     };
     change.state = "REJECTED";
     change.updatedAt = now();
-    change.updatedBy = input.decidedBy;
+    change.updatedBy = getMockSession().displayName;
     change.evidence.push({
       entryId: `E${change.evidence.length + 1}`,
       stage: "Change approval",
-      detail: `Exact change rejected by ${input.decidedBy}${input.rejectionReason ? ` (${input.rejectionReason})` : ""}`,
-      actor: input.decidedBy,
+      detail: `Exact change rejected by ${getMockSession().displayName}${input.rejectionReason ? ` (${input.rejectionReason})` : ""}`,
+      actor: getMockSession().displayName,
       capturedAt: now(),
       prevHash: `hash-${change.evidence.length}`,
       entryHash: `hash-${change.evidence.length + 1}`,
@@ -368,12 +398,12 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     if (!change) throw new Error(`No change ${id}`);
     change.state = state;
     change.updatedAt = now();
-    change.updatedBy = input.decidedBy;
+    change.updatedBy = getMockSession().displayName;
     change.evidence.push({
       entryId: `E${change.evidence.length + 1}`,
       stage: "Decision",
       detail: input.note ? `${detail} — ${input.note}` : detail,
-      actor: input.decidedBy,
+      actor: getMockSession().displayName,
       capturedAt: now(),
       prevHash: `hash-${change.evidence.length}`,
       entryHash: `hash-${change.evidence.length + 1}`,
@@ -598,7 +628,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
    */
   async submitDomainOwnerEdit(
     changeId: string,
-    input: { editedBy: string; note?: string; userStory: UserStory }
+    input: { note?: string; userStory: UserStory }
   ): Promise<DomainReview> {
     const review = this.ensureDomainReview(changeId);
     if (review.stage !== "domain_owner_reviewing") {
@@ -607,7 +637,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     const editVersion: StoryVersion = {
       label: "domain_owner_edit",
       userStory: input.userStory,
-      actor: input.editedBy,
+      actor: getMockSession().displayName,
       note: input.note ?? "",
       capturedAt: now(),
     };
@@ -647,7 +677,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvalId: `AP-${changeId}-DO`,
       kind: "domain_owner",
       status: "approved",
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       note: input.note,
       identityId: getMockSession().userId,
@@ -665,7 +695,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvalId: `AP-${changeId}-DO`,
       kind: "domain_owner",
       status: "rejected",
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       note: input.note,
       identityId: getMockSession().userId,
@@ -686,7 +716,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvalId: `AP-${changeId}-AM`,
       kind: "application_manager",
       status: "approved",
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       note: input.note,
       identityId: getMockSession().userId,
@@ -705,7 +735,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
         customerId,
         position: this.deliveryQueue.filter((e) => e.customerId === customerId).length + 1,
         status: "queued",
-        addedBy: input.decidedBy,
+        addedBy: getMockSession().displayName,
         addedAt: now(),
         note: input.note,
       });
@@ -721,7 +751,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
    * the same "representative, not real" convention enhanceStory above
    * already uses.
    */
-  async askAboutRequirement(changeId: string, input: { askedBy: string; question: string }): Promise<DomainReview> {
+  async askAboutRequirement(changeId: string, input: { question: string }): Promise<DomainReview> {
     const review = this.ensureDomainReview(changeId);
     if (review.history.length === 0) throw new Error(`No requirement to discuss yet for ${changeId}`);
     const currentStory = review.history[review.history.length - 1].userStory;
@@ -731,7 +761,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     const turn: ConversationTurn = looksLikeAQuestion
       ? {
           turnId: `CONV-${Math.random().toString(16).slice(2, 10)}`,
-          askedBy: input.askedBy,
+          askedBy: getMockSession().displayName,
           question: q,
           answer: currentStory.businessContext || currentStory.statement,
           kind: "explanation",
@@ -739,7 +769,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
         }
       : {
           turnId: `CONV-${Math.random().toString(16).slice(2, 10)}`,
-          askedBy: input.askedBy,
+          askedBy: getMockSession().displayName,
           question: q,
           answer: "That reads like new information rather than a question — here is how I would update the requirement to include it. Nothing changes until you review and submit it.",
           kind: "proposed_amendment",
@@ -771,7 +801,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvalId: `AP-${changeId}-AM`,
       kind: "application_manager",
       status: "rejected",
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       note: input.note,
       identityId: getMockSession().userId,
@@ -841,7 +871,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
    * re-running Architecture Review (kind "recommend_reanalysis"), never
    * an inline amendment.
    */
-  async askAboutSolution(changeId: string, input: { askedBy: string; question: string }): Promise<ArchitectureReviewRun> {
+  async askAboutSolution(changeId: string, input: { question: string }): Promise<ArchitectureReviewRun> {
     const run = this.ensureArchitectureReview(changeId);
     if (!run || run.history.length === 0) throw new Error(`No completed architecture review to discuss yet for ${changeId}`);
     const latest = run.history[run.history.length - 1];
@@ -851,7 +881,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     const turn: ConversationTurn = looksLikeAQuestion
       ? {
           turnId: `CONV-${Math.random().toString(16).slice(2, 10)}`,
-          askedBy: input.askedBy,
+          askedBy: getMockSession().displayName,
           question: q,
           answer:
             latest.architectDecision.existingFunctionalityFound ||
@@ -861,7 +891,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
         }
       : {
           turnId: `CONV-${Math.random().toString(16).slice(2, 10)}`,
-          askedBy: input.askedBy,
+          askedBy: getMockSession().displayName,
           question: q,
           answer:
             "That reads like new information that could change the recommended approach. I can't redo the analysis here -- this looks worth a fresh Architecture Review run.",
@@ -959,6 +989,10 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
 
   async listAgents(): Promise<AgentDefinition[]> {
     return delay(MOCK_AGENTS);
+  }
+
+  async listCapabilities(): Promise<CapabilityCatalog> {
+    return delay(MOCK_CAPABILITY_CATALOG);
   }
 
   async getAgentHealth(agentName: string): Promise<AgentHealth> {
@@ -1063,6 +1097,11 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     return this.getJiraIntegrationStatus();
   }
 
+  async disconnectJiraCredentials(): Promise<JiraConnectionStatus> {
+    this.jiraCredentials.delete(this.scope);
+    return this.getJiraIntegrationStatus();
+  }
+
   /**
    * Mock stand-in for jira_gateway.test_live_connection -- there is no
    * real Jira site to call here, so this is a representative check
@@ -1137,6 +1176,100 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     }
 
     return delay({ considered: picked.length, imported, updatedInJira, errors }, 400);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Admin > Users -- company members and invitations. The mock has no */
+  /* real per-user login (see session.ts's persona picker), so "who    */
+  /* invited this" is always the active persona's own display name.   */
+  /* ---------------------------------------------------------------- */
+
+  async listCompanyUsers(): Promise<CompanyUsersOut> {
+    return delay({
+      members: this.ensureCompanyMembers(this.scope),
+      invitations: this.invitations.get(this.scope) ?? [],
+    });
+  }
+
+  async inviteUser(input: InviteInput): Promise<InvitationOut> {
+    const session = getMockSession();
+    const nowIso = new Date().toISOString();
+    const invitation: InvitationOut = {
+      id: `inv-${Math.random().toString(16).slice(2, 10)}`,
+      email: input.email,
+      roles: input.roles,
+      domainIds: input.domainIds,
+      status: "pending",
+      createdAt: nowIso,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      invitedByDisplayName: session.displayName,
+      previewUrl: `${window.location.origin}${window.location.pathname}?acceptInvitation=mock-${Math.random().toString(16).slice(2, 10)}`,
+    };
+    const list = this.invitations.get(this.scope) ?? [];
+    this.invitations.set(this.scope, [invitation, ...list]);
+    return delay(invitation);
+  }
+
+  private findInvitation(invitationId: string): InvitationOut {
+    const list = this.invitations.get(this.scope) ?? [];
+    const invitation = list.find((i) => i.id === invitationId);
+    if (!invitation) throw new Error(`No such invitation: ${invitationId}`);
+    return invitation;
+  }
+
+  async resendInvitation(invitationId: string): Promise<InvitationOut> {
+    const invitation = this.findInvitation(invitationId);
+    invitation.status = "pending";
+    invitation.expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    invitation.previewUrl = `${window.location.origin}${window.location.pathname}?acceptInvitation=mock-${Math.random().toString(16).slice(2, 10)}`;
+    return delay(invitation);
+  }
+
+  async revokeInvitation(invitationId: string): Promise<InvitationOut> {
+    const invitation = this.findInvitation(invitationId);
+    invitation.status = "revoked";
+    invitation.previewUrl = null;
+    return delay(invitation);
+  }
+
+  private findMembership(membershipId: string): MembershipOut {
+    const members = this.ensureCompanyMembers(this.scope);
+    const member = members.find((m) => m.membershipId === membershipId);
+    if (!member) throw new Error(`No such company member: ${membershipId}`);
+    return member;
+  }
+
+  private assertNotLastActiveAdmin(members: MembershipOut[], membershipId: string): void {
+    const otherActiveAdmins = members.some(
+      (m) => m.membershipId !== membershipId && m.status === "active" && m.roles.includes("admin")
+    );
+    const target = members.find((m) => m.membershipId === membershipId);
+    if (target?.roles.includes("admin") && target.status === "active" && !otherActiveAdmins) {
+      throw new Error("Cannot remove the last active Admin from a company.");
+    }
+  }
+
+  async updateMembershipRoles(membershipId: string, input: UpdateMembershipInput): Promise<MembershipOut> {
+    const members = this.ensureCompanyMembers(this.scope);
+    if (!input.roles.includes("admin")) this.assertNotLastActiveAdmin(members, membershipId);
+    const member = this.findMembership(membershipId);
+    member.roles = input.roles;
+    member.domainIds = input.domainIds;
+    return delay(member);
+  }
+
+  async deactivateMembership(membershipId: string): Promise<MembershipOut> {
+    const members = this.ensureCompanyMembers(this.scope);
+    this.assertNotLastActiveAdmin(members, membershipId);
+    const member = this.findMembership(membershipId);
+    member.status = "inactive";
+    return delay(member);
+  }
+
+  async reactivateMembership(membershipId: string): Promise<MembershipOut> {
+    const member = this.findMembership(membershipId);
+    member.status = "active";
+    return delay(member);
   }
 }
 

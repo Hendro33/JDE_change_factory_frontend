@@ -3,6 +3,8 @@ import { api } from "../services/api";
 import type { BusinessDomain, Change, DomainReview } from "../types/domain";
 import {
   ApiNote,
+  CAPABILITY_STATUS_LABEL,
+  CapabilityStatusBadge,
   ConfirmDialog,
   DOMAIN_STAGE_LABEL,
   Loading,
@@ -244,7 +246,10 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
 
           {ec && (
             <section className="panel">
-              <h2>The exact change</h2>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <h2 style={{ margin: 0 }}>The exact change</h2>
+                {ec.capabilityStatus && <CapabilityStatusBadge status={ec.capabilityStatus} />}
+              </div>
               <Provenance
                 kind={applied ? "executed" : "proposed"}
                 label={applied
@@ -260,8 +265,22 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                   <dt>Proposed value</dt><dd className="mono"><strong>{ec.proposedValue}</strong></dd>
                   <dt>Environment</dt><dd className="mono">{ec.environment}</dd>
                   <dt>Verified by</dt><dd className="mono">{ec.testOrchestration}</dd>
+                  {ec.capabilityId && <><dt>Capability</dt><dd className="mono">{ec.capabilityId}</dd></>}
                 </dl>
               </Provenance>
+
+              {ec.capabilityId && ec.capabilityExecutable === false && (
+                <div className="callout" style={{ marginTop: 14, borderColor: "var(--warn)" }}>
+                  <strong>Approving this will not make it execute</strong>
+                  The capability behind this operation is currently{" "}
+                  <strong>{CAPABILITY_STATUS_LABEL[ec.capabilityStatus!]}</strong>, not Validated — the
+                  Functional Agent refuses to execute it regardless of exact-change approval, until a
+                  designated functional owner and technical validator promote it (or, for a Needs-spike
+                  capability, this exact target is explicitly approved as a bounded DEV validation
+                  experiment). Your decision below is still a real, recorded governance decision — it just
+                  will not result in a write to JD Edwards yet.
+                </div>
+              )}
 
               {change.changeApproval ? (
                 <div style={{ marginTop: 12 }}>
@@ -401,11 +420,11 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
           requireNote={dialog === "reject"}
           showReasonCode={dialog === "reject"}
           onCancel={() => setDialog(null)}
-          onConfirm={async (decidedBy, note, reasonCode) => {
+          onConfirm={async (note, reasonCode) => {
             const wasApprove = dialog === "approve";
             setDialog(null); setBusy(true);
-            if (wasApprove) await api.approveExactChange(change.id, { decidedBy, note });
-            else await api.rejectExactChange(change.id, { decidedBy, note, rejectionReason: reasonCode });
+            if (wasApprove) await api.approveExactChange(change.id, { note });
+            else await api.rejectExactChange(change.id, { note, rejectionReason: reasonCode });
             await reload(); setBusy(false);
           }}
         />

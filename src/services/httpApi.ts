@@ -1,11 +1,14 @@
 import type {
+  AcceptInvitationInput,
   ActivityEntry,
   AgentDefinition,
   AgentHealth,
   ArchitectureReviewRun,
   BusinessDomain,
   BusinessDomainCreateInput,
+  CapabilityCatalog,
   Change,
+  CompanyUsersOut,
   CustomerProfile,
   DeliveryQueueEntry,
   DomainReview,
@@ -13,7 +16,11 @@ import type {
   EngagementScopeUpdateInput,
   ErpLandscape,
   FactoryMetrics,
+  ForgotPasswordResult,
   IntegrationStatus,
+  InvitationOut,
+  InvitationPreview,
+  InviteInput,
   JiraConnectionStatus,
   JiraCredentialsUpdateInput,
   JiraIntegrationConfig,
@@ -21,45 +28,39 @@ import type {
   JiraSyncResult,
   JiraTestConnectionInput,
   JiraTestConnectionResult,
+  MembershipOut,
+  MeOut,
   Session,
+  UpdateMembershipInput,
   UserStory,
 } from "../types/domain";
 import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
-import { getMockPersona, type PersonaKey } from "./session";
 
 /**
- * Real implementation of ChangeFactoryApi, talking to the Phase 1
- * FastAPI backend (api_service/).
+ * Real implementation of ChangeFactoryApi, talking to the FastAPI
+ * backend (api_service/).
  *
  * Read endpoints, direct-entry intake, Receive/Improve/Check, the full
  * Domain Owner / Application Manager governance flow, Architecture
  * Review, and the Administration area (Customer Setup, ERP Landscape,
- * Agents, Business Domains write path, Integrations) are all backed by
- * real endpoints. A handful of older, superseded methods
+ * Agents, Business Domains write path, Integrations, Users) are all
+ * backed by real endpoints. A handful of older, superseded methods
  * (sendStoryBack, approveStoryForBacklog, approveChange, rejectChange
  * -- the pre-domain-governance story-level decision flow) still have
  * no backend route and throw a clear "not implemented yet" error
  * rather than silently doing nothing; use the mock service for those
  * specific flows until a later phase adds them.
  *
- * SECURITY NOTE: the X-Customer-Id and X-Demo-User-Id headers sent
- * below are assertions, exactly like the comment on
- * CUSTOMER_SCOPE_HEADER in api.ts already says -- the backend is what
- * actually enforces entitlement (dependencies.py's
- * require_customer_access), never this client. Nothing here should be
- * read as "the frontend decides access."
+ * SECURITY NOTE: identity comes from a real, httponly session cookie
+ * (see auth.ts's login()/logout()) -- this client never asserts who is
+ * calling. X-Customer-Id IS still an assertion, exactly like the
+ * comment on CUSTOMER_SCOPE_HEADER in api.ts already says -- the
+ * backend is what actually enforces both entitlement and role
+ * (dependencies.py's require_customer_access/require_role), never this
+ * client. Nothing here should be read as "the frontend decides access."
  */
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-
-// Mirrors session.ts's persona concept (Phase 1 has no real auth yet --
-// see design doc Section 15.10). Reusing the SAME localStorage key
-// session.ts already defines means the existing PersonaSwitch control
-// drives identity for both the mock and the real API without any
-// change to CustomerScope.tsx.
-function demoUserIdFor(persona: PersonaKey): string {
-  return persona === "customer-user" ? "u-ellen" : "u-hendro";
-}
 
 const ACTIVE_CUSTOMER_KEY = "ciq_http_active_customer";
 
@@ -69,6 +70,22 @@ function rememberActiveCustomer(customerId: string): void {
 
 function readRememberedActiveCustomer(): string | null {
   return localStorage.getItem(ACTIVE_CUSTOMER_KEY);
+}
+
+const CSRF_COOKIE_NAME = "jde_csrf";
+const UNSAFE_METHODS = new Set(["POST", "PUT", "DELETE", "PATCH"]);
+
+/**
+ * Double-submit CSRF cookie (see the backend's dependencies.
+ * verify_csrf_if_unsafe) -- login/accept-invitation set this cookie
+ * deliberately NOT httponly, specifically so this can read it and echo
+ * it back as X-CSRF-Token below. A cross-site attacker's page can
+ * never read it (browsers enforce same-origin cookie access), so it
+ * can never forge a matching header.
+ */
+function readCsrfCookie(): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${CSRF_COOKIE_NAME}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 function messageFromErrorBody(status: number, body: string): string {
@@ -85,25 +102,32 @@ function messageFromErrorBody(status: number, body: string): string {
   return `HTTP ${status}: ${body}`;
 }
 
-class HttpError extends Error {
+export class HttpError extends Error {
   constructor(public status: number, public body: string) {
     super(messageFromErrorBody(status, body));
   }
 }
 
-async function request<T>(
+export async function request<T>(
   path: string,
   options: { method?: string; body?: unknown; customerId?: string } = {}
 ): Promise<T> {
-  const headers: Record<string, string> = {
-    "X-Demo-User-Id": demoUserIdFor(getMockPersona()),
-  };
+  const headers: Record<string, string> = {};
   if (options.customerId) headers["X-Customer-Id"] = options.customerId;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
+  const method = options.method ?? "GET";
+  if (UNSAFE_METHODS.has(method)) {
+    const csrfToken = readCsrfCookie();
+    if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  }
 
   const res = await fetch(`${BASE_URL}${path}`, {
-    method: options.method ?? "GET",
+    method,
     headers,
+    // The session cookie is httponly, set by /auth/login -- this is
+    // what actually sends it (and is required for it to be sent
+    // cross-origin, see config.py's cookie_samesite comment).
+    credentials: "include",
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
 
@@ -242,7 +266,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<Change>(`/changes/${encodeURIComponent(id)}/approve-change`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note },
+      body: { note: input.note },
     });
   }
 
@@ -251,7 +275,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<Change>(`/changes/${encodeURIComponent(id)}/reject-change`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note, rejectionReason: input.rejectionReason },
+      body: { note: input.note, rejectionReason: input.rejectionReason },
     });
   }
 
@@ -297,19 +321,19 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/start`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note },
+      body: { note: input.note },
     });
   }
 
   async submitDomainOwnerEdit(
     changeId: string,
-    input: { editedBy: string; note?: string; userStory: UserStory }
+    input: { note?: string; userStory: UserStory }
   ): Promise<DomainReview> {
     const customerId = await this.activeCustomerId();
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/edit`, {
       method: "POST",
       customerId,
-      body: { editedBy: input.editedBy, note: input.note ?? "", userStory: input.userStory },
+      body: { note: input.note ?? "", userStory: input.userStory },
     });
   }
 
@@ -318,7 +342,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/approve`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note },
+      body: { note: input.note },
     });
   }
 
@@ -327,7 +351,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/reject`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note, rejectionReason: input.rejectionReason },
+      body: { note: input.note, rejectionReason: input.rejectionReason },
     });
   }
 
@@ -336,7 +360,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/application-manager-approve`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note },
+      body: { note: input.note },
     });
   }
 
@@ -345,16 +369,16 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/application-manager-reject`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note, rejectionReason: input.rejectionReason },
+      body: { note: input.note, rejectionReason: input.rejectionReason },
     });
   }
 
-  async askAboutRequirement(changeId: string, input: { askedBy: string; question: string }): Promise<DomainReview> {
+  async askAboutRequirement(changeId: string, input: { question: string }): Promise<DomainReview> {
     const customerId = await this.activeCustomerId();
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/ask`, {
       method: "POST",
       customerId,
-      body: { askedBy: input.askedBy, question: input.question },
+      body: { question: input.question },
     });
   }
 
@@ -363,7 +387,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/request-reconsideration`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note },
+      body: { note: input.note },
     });
   }
 
@@ -385,12 +409,12 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     }
   }
 
-  async askAboutSolution(changeId: string, input: { askedBy: string; question: string }): Promise<ArchitectureReviewRun> {
+  async askAboutSolution(changeId: string, input: { question: string }): Promise<ArchitectureReviewRun> {
     const customerId = await this.activeCustomerId();
     return request<ArchitectureReviewRun>(`/changes/${encodeURIComponent(changeId)}/architecture-review/ask`, {
       method: "POST",
       customerId,
-      body: { askedBy: input.askedBy, question: input.question },
+      body: { question: input.question },
     });
   }
 
@@ -432,6 +456,11 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<AgentDefinition[]>("/admin/agents", { customerId });
   }
 
+  async listCapabilities(): Promise<CapabilityCatalog> {
+    const customerId = await this.activeCustomerId();
+    return request<CapabilityCatalog>("/admin/capabilities", { customerId });
+  }
+
   async getAgentHealth(agentName: string): Promise<AgentHealth> {
     const customerId = await this.activeCustomerId();
     return request<AgentHealth>(`/admin/agents/${encodeURIComponent(agentName)}/health`, { customerId });
@@ -458,6 +487,9 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
 
   async getJiraIntegration(): Promise<JiraIntegrationConfig> {
     const customerId = await this.activeCustomerId();
+    // Requires the Admin role on this company -- enforced server-side
+    // (require_role("admin")); a non-admin gets a 403 here, same as
+    // every other call, with no special header needed on this end.
     return request<JiraIntegrationConfig>("/admin/jira-integration", { customerId });
   }
 
@@ -468,12 +500,19 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
 
   async getJiraIntegrationStatus(): Promise<JiraConnectionStatus> {
     const customerId = await this.activeCustomerId();
+    // Open to any active company member, including Dashboard Viewer --
+    // Demand > Requests reads this too.
     return request<JiraConnectionStatus>("/admin/jira-integration/status", { customerId });
   }
 
   async updateJiraCredentials(input: JiraCredentialsUpdateInput): Promise<JiraConnectionStatus> {
     const customerId = await this.activeCustomerId();
     return request<JiraConnectionStatus>("/admin/jira-credentials", { method: "PUT", customerId, body: input });
+  }
+
+  async disconnectJiraCredentials(): Promise<JiraConnectionStatus> {
+    const customerId = await this.activeCustomerId();
+    return request<JiraConnectionStatus>("/admin/jira-credentials", { method: "DELETE", customerId });
   }
 
   async testJiraConnection(input: JiraTestConnectionInput): Promise<JiraTestConnectionResult> {
@@ -487,4 +526,84 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     const customerId = await this.activeCustomerId();
     return request<JiraSyncResult>("/admin/jira-integration/sync", { method: "POST", customerId });
   }
+
+  async listCompanyUsers(): Promise<CompanyUsersOut> {
+    const customerId = await this.activeCustomerId();
+    return request<CompanyUsersOut>("/admin/users", { customerId });
+  }
+
+  async inviteUser(input: InviteInput): Promise<InvitationOut> {
+    const customerId = await this.activeCustomerId();
+    return request<InvitationOut>("/admin/users/invite", { method: "POST", customerId, body: input });
+  }
+
+  async resendInvitation(invitationId: string): Promise<InvitationOut> {
+    const customerId = await this.activeCustomerId();
+    return request<InvitationOut>(`/admin/users/invitations/${encodeURIComponent(invitationId)}/resend`, {
+      method: "POST", customerId,
+    });
+  }
+
+  async revokeInvitation(invitationId: string): Promise<InvitationOut> {
+    const customerId = await this.activeCustomerId();
+    return request<InvitationOut>(`/admin/users/invitations/${encodeURIComponent(invitationId)}/revoke`, {
+      method: "POST", customerId,
+    });
+  }
+
+  async updateMembershipRoles(membershipId: string, input: UpdateMembershipInput): Promise<MembershipOut> {
+    const customerId = await this.activeCustomerId();
+    return request<MembershipOut>(`/admin/users/${encodeURIComponent(membershipId)}/roles`, {
+      method: "PUT", customerId, body: input,
+    });
+  }
+
+  async deactivateMembership(membershipId: string): Promise<MembershipOut> {
+    const customerId = await this.activeCustomerId();
+    return request<MembershipOut>(`/admin/users/${encodeURIComponent(membershipId)}/deactivate`, {
+      method: "POST", customerId,
+    });
+  }
+
+  async reactivateMembership(membershipId: string): Promise<MembershipOut> {
+    const customerId = await this.activeCustomerId();
+    return request<MembershipOut>(`/admin/users/${encodeURIComponent(membershipId)}/reactivate`, {
+      method: "POST", customerId,
+    });
+  }
 }
+
+// ---------------------------------------------------------------------
+// Auth -- login/logout/password reset/invitation acceptance. Standalone
+// (not part of ChangeFactoryApi) since the mock service has no real
+// login: its existing persona picker (session.ts) is unaffected by any
+// of this, and stays the way to demo the app without a backend.
+// ---------------------------------------------------------------------
+export const authApi = {
+  async me(): Promise<MeOut> {
+    return request<MeOut>("/auth/me");
+  },
+  async login(email: string, password: string): Promise<MeOut> {
+    return request<MeOut>("/auth/login", { method: "POST", body: { email, password } });
+  },
+  async logout(): Promise<void> {
+    await request<{ ok: boolean }>("/auth/logout", { method: "POST" });
+  },
+  async forgotPassword(email: string): Promise<ForgotPasswordResult> {
+    return request<ForgotPasswordResult>("/auth/forgot-password", { method: "POST", body: { email } });
+  },
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    await request<{ ok: boolean }>("/auth/reset-password", {
+      method: "POST", body: { token, newPassword },
+    });
+  },
+  async previewInvitation(token: string): Promise<InvitationPreview> {
+    return request<InvitationPreview>(`/auth/invitation/${encodeURIComponent(token)}/preview`);
+  },
+  async acceptInvitation(input: AcceptInvitationInput): Promise<MeOut> {
+    return request<MeOut>("/auth/accept-invitation", { method: "POST", body: input });
+  },
+  async acceptInvitationAsExistingUser(token: string): Promise<MeOut> {
+    return request<MeOut>("/auth/accept-invitation/existing-user", { method: "POST", body: { token } });
+  },
+};

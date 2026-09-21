@@ -454,3 +454,19 @@ dl.facts dd { margin: 0; }
   margin-top: 18px; padding-top: 10px;
 }
 .apinote code { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--ink-soft); }
+
+/* ---------- Auth (login / reset password / accept invitation) ---------- */
+
+.authscreen {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: var(--wash); padding: 20px;
+}
+.authcard {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(17,17,17,.04); padding: 32px; max-width: 420px; width: 100%;
+}
+.linklike {
+  background: none; border: none; padding: 0; color: var(--info); text-decoration: underline;
+  cursor: pointer; font-size: 14px; text-align: left; width: fit-content;
+}
+.linklike:hover { color: var(--brand-dark); }

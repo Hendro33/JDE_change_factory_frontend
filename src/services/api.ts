@@ -14,9 +14,11 @@ import type {
   AgentHealth,
   BusinessDomain,
   BusinessDomainCreateInput,
+  CapabilityCatalog,
   Change,
   ArchitectureReviewRun,
   ChangeSource,
+  CompanyUsersOut,
   CustomerProfile,
   DeliveryQueueEntry,
   DomainReview,
@@ -26,6 +28,8 @@ import type {
   FactoryMetrics,
   FeedbackReasonCode,
   IntegrationStatus,
+  InvitationOut,
+  InviteInput,
   JiraConnectionStatus,
   JiraCredentialsUpdateInput,
   JiraIntegrationConfig,
@@ -33,7 +37,9 @@ import type {
   JiraSyncResult,
   JiraTestConnectionInput,
   JiraTestConnectionResult,
+  MembershipOut,
   Session,
+  UpdateMembershipInput,
   UserStory,
 } from "../types/domain";
 
@@ -100,6 +106,7 @@ export const API_ENDPOINTS = {
   listAgents: "GET /admin/agents",
   getAgent: "GET /admin/agents/{name}",
   getAgentHealth: "GET /admin/agents/{name}/health",
+  listCapabilities: "GET /admin/capabilities",
   createBusinessDomain: "POST /admin/business-domains",
   updateBusinessDomainStatus: "PUT /admin/business-domains/{id}/status",
   listIntegrations: "GET /admin/integrations",
@@ -107,8 +114,17 @@ export const API_ENDPOINTS = {
   updateJiraIntegration: "PUT /admin/jira-integration",
   getJiraIntegrationStatus: "GET /admin/jira-integration/status",
   updateJiraCredentials: "PUT /admin/jira-credentials",
+  disconnectJiraCredentials: "DELETE /admin/jira-credentials",
   testJiraConnection: "POST /admin/jira-integration/test-connection",
   syncJiraIntegration: "POST /admin/jira-integration/sync",
+
+  listCompanyUsers: "GET /admin/users",
+  inviteUser: "POST /admin/users/invite",
+  resendInvitation: "POST /admin/users/invitations/{id}/resend",
+  revokeInvitation: "POST /admin/users/invitations/{id}/revoke",
+  updateMembershipRoles: "PUT /admin/users/{membershipId}/roles",
+  deactivateMembership: "POST /admin/users/{membershipId}/deactivate",
+  reactivateMembership: "POST /admin/users/{membershipId}/reactivate",
 } as const;
 
 /**
@@ -133,8 +149,10 @@ export interface CreateChangeInput {
 }
 
 export interface DecisionInput {
-  /** Every decision is recorded against a named person. */
-  decidedBy: string;
+  // No decidedBy: who decided is derived server-side from the
+  // authenticated session (never trusted from the client) -- see
+  // dependencies.py's own docstring on identity. The mock service
+  // derives it from the active persona (session.ts) the same way.
   note: string;
   /** Only meaningful on a rejection — ignored on an approval. */
   rejectionReason?: FeedbackReasonCode;
@@ -196,7 +214,7 @@ export interface ChangeFactoryApi {
    */
   submitDomainOwnerEdit(
     changeId: string,
-    input: { editedBy: string; note?: string; userStory: UserStory }
+    input: { note?: string; userStory: UserStory }
   ): Promise<DomainReview>;
   approveDomainOwnerStory(changeId: string, input: DecisionInput): Promise<DomainReview>;
   /**
@@ -231,7 +249,7 @@ export interface ChangeFactoryApi {
    * submitDomainOwnerEdit, unchanged, and requesting reconsideration
    * (below) is the only path forward on an already-approved requirement.
    */
-  askAboutRequirement(changeId: string, input: { askedBy: string; question: string }): Promise<DomainReview>;
+  askAboutRequirement(changeId: string, input: { question: string }): Promise<DomainReview>;
   /**
    * The only way back from past Domain Owner approval: reopens Domain
    * Owner review (the existing domain_owner_reviewing stage) so a
@@ -257,7 +275,7 @@ export interface ChangeFactoryApi {
    * recommends re-running Architecture Review (the existing manual
    * retrigger), never applies anything itself.
    */
-  askAboutSolution(changeId: string, input: { askedBy: string; question: string }): Promise<ArchitectureReviewRun>;
+  askAboutSolution(changeId: string, input: { question: string }): Promise<ArchitectureReviewRun>;
   /**
    * The existing manual (re)trigger a recommend_reanalysis turn from
    * askAboutSolution points back at — normally unnecessary, since Gate 1
@@ -289,6 +307,9 @@ export interface ChangeFactoryApi {
   listAgents(): Promise<AgentDefinition[]>;
   getAgentHealth(agentName: string): Promise<AgentHealth>;
 
+  /** The Functional Agent Capability Catalogue -- read-only, never editable from this API. */
+  listCapabilities(): Promise<CapabilityCatalog>;
+
   createBusinessDomain(input: BusinessDomainCreateInput): Promise<BusinessDomain>;
   updateBusinessDomainStatus(domainId: string, status: BusinessDomain["status"]): Promise<BusinessDomain>;
 
@@ -312,6 +333,13 @@ export interface ChangeFactoryApi {
    */
   updateJiraCredentials(input: JiraCredentialsUpdateInput): Promise<JiraConnectionStatus>;
   /**
+   * "Disconnect" — removes this customer's stored Jira credential
+   * entirely (not just blanking it). The connector falls back to mock
+   * immediately; site/project/status configuration is left untouched,
+   * so reconnecting later doesn't mean re-entering all of it.
+   */
+  disconnectJiraCredentials(): Promise<JiraConnectionStatus>;
+  /**
    * "Test Connection" — checks whatever is currently typed in the form
    * (site URL, project key, email, API token), whether or not it has
    * been saved yet. Always a real call to Jira, regardless of mock
@@ -326,6 +354,21 @@ export interface ChangeFactoryApi {
    * comment. Never triggers Receive -> Improve -> Check itself.
    */
   syncJiraIntegration(): Promise<JiraSyncResult>;
+
+  /**
+   * Admin > Users — company member list (active/inactive/pending
+   * invitations), inviting, role/domain assignment, deactivate/
+   * reactivate, resend/revoke. All require the Admin role on the
+   * active company; enforced server-side (dashboard-only in the mock
+   * service, which has no real role check of its own).
+   */
+  listCompanyUsers(): Promise<CompanyUsersOut>;
+  inviteUser(input: InviteInput): Promise<InvitationOut>;
+  resendInvitation(invitationId: string): Promise<InvitationOut>;
+  revokeInvitation(invitationId: string): Promise<InvitationOut>;
+  updateMembershipRoles(membershipId: string, input: UpdateMembershipInput): Promise<MembershipOut>;
+  deactivateMembership(membershipId: string): Promise<MembershipOut>;
+  reactivateMembership(membershipId: string): Promise<MembershipOut>;
 }
 
 // ---------------------------------------------------------------------
@@ -341,7 +384,6 @@ export interface ChangeFactoryApi {
 import { MockChangeFactoryApi } from "./mockApi";
 import { HttpChangeFactoryApi } from "./httpApi";
 
-export const api: ChangeFactoryApi =
-  import.meta.env.VITE_USE_MOCK_API === "false"
-    ? new HttpChangeFactoryApi()
-    : new MockChangeFactoryApi();
+export const IS_MOCK_MODE = import.meta.env.VITE_USE_MOCK_API !== "false";
+
+export const api: ChangeFactoryApi = IS_MOCK_MODE ? new MockChangeFactoryApi() : new HttpChangeFactoryApi();
