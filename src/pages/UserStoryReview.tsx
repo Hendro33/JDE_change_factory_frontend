@@ -23,7 +23,6 @@ export function UserStoryReview() {
 
   const [domainReview, setDomainReview] = useState<DomainReview | null>(null);
   const [busy, setBusy] = useState(false);
-  const [reviewerName, setReviewerName] = useState(() => localStorage.getItem("ciq_approver") ?? "");
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<UserStory | null>(null);
   const [editNote, setEditNote] = useState("");
@@ -72,11 +71,11 @@ export function UserStoryReview() {
   // Domain Owner opens the story, rather than making them click an
   // extra button before they can actually do anything.
   useEffect(() => {
-    if (!selected || !domainReview || !reviewerName.trim()) return;
+    if (!selected || !domainReview) return;
     if (domainReview.stage !== "ready_for_domain_owner") return;
-    api.startDomainOwnerReview(selected.id, { decidedBy: reviewerName, note: "" }).then(setDomainReview);
+    api.startDomainOwnerReview(selected.id, { note: "" }).then(setDomainReview);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected?.id, domainReview?.stage, reviewerName]);
+  }, [selected?.id, domainReview?.stage]);
 
   const latestStory = domainReview?.history[domainReview.history.length - 1]?.userStory ?? selected?.userStory;
   const canDecide = domainReview?.stage === "domain_owner_reviewing";
@@ -93,7 +92,7 @@ export function UserStoryReview() {
     setBusy(true);
     try {
       const updated = await api.submitDomainOwnerEdit(selected.id, {
-        editedBy: reviewerName, note: editNote, userStory: editForm,
+        note: editNote, userStory: editForm,
       });
       setDomainReview(updated);
       setEditing(false);
@@ -112,15 +111,6 @@ export function UserStoryReview() {
           <div className="sub">The Domain Owner's decision: is this the right business requirement?</div>
         </div>
         <div className="meta">{changes?.length ?? 0} awaiting review</div>
-      </div>
-
-      <div className="field" style={{ maxWidth: 260, marginBottom: 16 }}>
-        <label htmlFor="reviewername">Reviewing as</label>
-        <input
-          id="reviewername" type="text" value={reviewerName}
-          onChange={(e) => { setReviewerName(e.target.value); localStorage.setItem("ciq_approver", e.target.value.trim()); }}
-          placeholder="Your name (Domain Owner)"
-        />
       </div>
 
       {!changes ? <Loading what="stories awaiting review" /> : (
@@ -241,9 +231,8 @@ export function UserStoryReview() {
             <AskJadePanel
               title="Ask Jade about this requirement"
               turns={domainReview.conversation}
-              askedByDefault={reviewerName}
-              onAsk={async (question, askedBy) => {
-                const updated = await api.askAboutRequirement(selected.id, { askedBy, question });
+              onAsk={async (question) => {
+                const updated = await api.askAboutRequirement(selected.id, { question });
                 setDomainReview(updated);
               }}
               renderAmendmentActions={(turn) => (
@@ -263,9 +252,7 @@ export function UserStoryReview() {
 
           <section className="panel">
             <h2>Your decision</h2>
-            {!reviewerName.trim() ? (
-              <div className="callout">Enter your name above to review this story.</div>
-            ) : !canDecide ? (
+            {!canDecide ? (
               <div className="callout">
                 <strong>{domainReview?.stage === "reviewer_agent_refining" ? "Reviewer Agent refining…" : "Not ready for a decision"}</strong>
                 {domainReview?.stage === "reviewer_agent_refining"
@@ -359,9 +346,9 @@ export function UserStoryReview() {
           tone="primary"
           requireNote={false}
           onCancel={() => setApproveDialog(false)}
-          onConfirm={async (decidedBy, note) => {
+          onConfirm={async (note) => {
             setApproveDialog(false); setBusy(true);
-            await api.approveDomainOwnerStory(selected.id, { decidedBy, note });
+            await api.approveDomainOwnerStory(selected.id, { note });
             reload();
             setBusy(false);
           }}
@@ -383,9 +370,9 @@ export function UserStoryReview() {
           requireNote={true}
           showReasonCode={true}
           onCancel={() => setRejectDialog(false)}
-          onConfirm={async (decidedBy, note, rejectionReason) => {
+          onConfirm={async (note, rejectionReason) => {
             setRejectDialog(false); setBusy(true);
-            await api.rejectDomainOwnerStory(selected.id, { decidedBy, note, rejectionReason });
+            await api.rejectDomainOwnerStory(selected.id, { note, rejectionReason });
             reload();
             setBusy(false);
           }}

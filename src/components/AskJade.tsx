@@ -15,15 +15,15 @@ import type { ConversationTurn } from "../types/domain";
 export function AskJadePanel({
   title,
   turns,
-  askedByDefault,
   onAsk,
   renderAmendmentActions,
   renderRecommendReanalysisActions,
 }: {
   title: string;
   turns: ConversationTurn[];
-  askedByDefault: string;
-  onAsk: (question: string, askedBy: string) => Promise<void>;
+  // No askedByDefault -- who is asking is derived automatically from
+  // the signed-in user server-side, never re-entered here.
+  onAsk: (question: string) => Promise<void>;
   renderAmendmentActions?: (turn: ConversationTurn) => ReactNode;
   /** Solution-side only ("Ask Jade about this solution") -- there is no
    * draft to review for a recommend_reanalysis turn, only a pointer
@@ -32,17 +32,16 @@ export function AskJadePanel({
    * governed next step for a proposed_amendment. */
   renderRecommendReanalysisActions?: (turn: ConversationTurn) => ReactNode;
 }) {
-  const [askedBy, setAskedBy] = useState(askedByDefault);
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
-    if (!question.trim() || !askedBy.trim()) return;
+    if (!question.trim()) return;
     setBusy(true);
     setError(null);
     try {
-      await onAsk(question.trim(), askedBy.trim());
+      await onAsk(question.trim());
       setQuestion("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Jade could not answer that just now.");
@@ -86,10 +85,6 @@ export function AskJadePanel({
       )}
 
       <div className="field">
-        <label htmlFor="askjade-who">Your name</label>
-        <input id="askjade-who" type="text" value={askedBy} onChange={(e) => setAskedBy(e.target.value)} />
-      </div>
-      <div className="field">
         <label htmlFor="askjade-question">{title}</label>
         <textarea
           id="askjade-question"
@@ -101,7 +96,7 @@ export function AskJadePanel({
       </div>
       {error && <div className="callout" style={{ borderColor: "var(--stop)", marginBottom: 12 }}>{error}</div>}
       <div className="btnrow">
-        <button className="btn primary" disabled={busy || !question.trim() || !askedBy.trim()} onClick={submit}>
+        <button className="btn primary" disabled={busy || !question.trim()} onClick={submit}>
           {busy ? "Asking Jade…" : "Ask"}
         </button>
       </div>

@@ -147,8 +147,10 @@ export interface CreateChangeInput {
 }
 
 export interface DecisionInput {
-  /** Every decision is recorded against a named person. */
-  decidedBy: string;
+  // No decidedBy: who decided is derived server-side from the
+  // authenticated session (never trusted from the client) -- see
+  // dependencies.py's own docstring on identity. The mock service
+  // derives it from the active persona (session.ts) the same way.
   note: string;
   /** Only meaningful on a rejection — ignored on an approval. */
   rejectionReason?: FeedbackReasonCode;
@@ -210,7 +212,7 @@ export interface ChangeFactoryApi {
    */
   submitDomainOwnerEdit(
     changeId: string,
-    input: { editedBy: string; note?: string; userStory: UserStory }
+    input: { note?: string; userStory: UserStory }
   ): Promise<DomainReview>;
   approveDomainOwnerStory(changeId: string, input: DecisionInput): Promise<DomainReview>;
   /**
@@ -245,7 +247,7 @@ export interface ChangeFactoryApi {
    * submitDomainOwnerEdit, unchanged, and requesting reconsideration
    * (below) is the only path forward on an already-approved requirement.
    */
-  askAboutRequirement(changeId: string, input: { askedBy: string; question: string }): Promise<DomainReview>;
+  askAboutRequirement(changeId: string, input: { question: string }): Promise<DomainReview>;
   /**
    * The only way back from past Domain Owner approval: reopens Domain
    * Owner review (the existing domain_owner_reviewing stage) so a
@@ -271,7 +273,7 @@ export interface ChangeFactoryApi {
    * recommends re-running Architecture Review (the existing manual
    * retrigger), never applies anything itself.
    */
-  askAboutSolution(changeId: string, input: { askedBy: string; question: string }): Promise<ArchitectureReviewRun>;
+  askAboutSolution(changeId: string, input: { question: string }): Promise<ArchitectureReviewRun>;
   /**
    * The existing manual (re)trigger a recommend_reanalysis turn from
    * askAboutSolution points back at — normally unnecessary, since Gate 1

@@ -71,6 +71,22 @@ function readRememberedActiveCustomer(): string | null {
   return localStorage.getItem(ACTIVE_CUSTOMER_KEY);
 }
 
+const CSRF_COOKIE_NAME = "jde_csrf";
+const UNSAFE_METHODS = new Set(["POST", "PUT", "DELETE", "PATCH"]);
+
+/**
+ * Double-submit CSRF cookie (see the backend's dependencies.
+ * verify_csrf_if_unsafe) -- login/accept-invitation set this cookie
+ * deliberately NOT httponly, specifically so this can read it and echo
+ * it back as X-CSRF-Token below. A cross-site attacker's page can
+ * never read it (browsers enforce same-origin cookie access), so it
+ * can never forge a matching header.
+ */
+function readCsrfCookie(): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${CSRF_COOKIE_NAME}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 function messageFromErrorBody(status: number, body: string): string {
   // FastAPI's default error shape is {"detail": "..."} -- surface that
   // directly rather than the raw JSON when present, so a caller that
@@ -98,9 +114,14 @@ export async function request<T>(
   const headers: Record<string, string> = {};
   if (options.customerId) headers["X-Customer-Id"] = options.customerId;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
+  const method = options.method ?? "GET";
+  if (UNSAFE_METHODS.has(method)) {
+    const csrfToken = readCsrfCookie();
+    if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  }
 
   const res = await fetch(`${BASE_URL}${path}`, {
-    method: options.method ?? "GET",
+    method,
     headers,
     // The session cookie is httponly, set by /auth/login -- this is
     // what actually sends it (and is required for it to be sent
@@ -244,7 +265,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<Change>(`/changes/${encodeURIComponent(id)}/approve-change`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note },
+      body: { note: input.note },
     });
   }
 
@@ -253,7 +274,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<Change>(`/changes/${encodeURIComponent(id)}/reject-change`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note, rejectionReason: input.rejectionReason },
+      body: { note: input.note, rejectionReason: input.rejectionReason },
     });
   }
 
@@ -299,19 +320,19 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/start`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note },
+      body: { note: input.note },
     });
   }
 
   async submitDomainOwnerEdit(
     changeId: string,
-    input: { editedBy: string; note?: string; userStory: UserStory }
+    input: { note?: string; userStory: UserStory }
   ): Promise<DomainReview> {
     const customerId = await this.activeCustomerId();
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/edit`, {
       method: "POST",
       customerId,
-      body: { editedBy: input.editedBy, note: input.note ?? "", userStory: input.userStory },
+      body: { note: input.note ?? "", userStory: input.userStory },
     });
   }
 
@@ -320,7 +341,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/approve`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note },
+      body: { note: input.note },
     });
   }
 
@@ -329,7 +350,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/reject`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note, rejectionReason: input.rejectionReason },
+      body: { note: input.note, rejectionReason: input.rejectionReason },
     });
   }
 
@@ -338,7 +359,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/application-manager-approve`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note },
+      body: { note: input.note },
     });
   }
 
@@ -347,16 +368,16 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/application-manager-reject`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note, rejectionReason: input.rejectionReason },
+      body: { note: input.note, rejectionReason: input.rejectionReason },
     });
   }
 
-  async askAboutRequirement(changeId: string, input: { askedBy: string; question: string }): Promise<DomainReview> {
+  async askAboutRequirement(changeId: string, input: { question: string }): Promise<DomainReview> {
     const customerId = await this.activeCustomerId();
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/ask`, {
       method: "POST",
       customerId,
-      body: { askedBy: input.askedBy, question: input.question },
+      body: { question: input.question },
     });
   }
 
@@ -365,7 +386,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<DomainReview>(`/changes/${encodeURIComponent(changeId)}/domain-review/request-reconsideration`, {
       method: "POST",
       customerId,
-      body: { decidedBy: input.decidedBy, note: input.note },
+      body: { note: input.note },
     });
   }
 
@@ -387,12 +408,12 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     }
   }
 
-  async askAboutSolution(changeId: string, input: { askedBy: string; question: string }): Promise<ArchitectureReviewRun> {
+  async askAboutSolution(changeId: string, input: { question: string }): Promise<ArchitectureReviewRun> {
     const customerId = await this.activeCustomerId();
     return request<ArchitectureReviewRun>(`/changes/${encodeURIComponent(changeId)}/architecture-review/ask`, {
       method: "POST",
       customerId,
-      body: { askedBy: input.askedBy, question: input.question },
+      body: { question: input.question },
     });
   }
 

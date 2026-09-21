@@ -271,9 +271,9 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
           tone="primary"
           requireNote={false}
           onCancel={() => setDialog(false)}
-          onConfirm={async (decidedBy, note) => {
+          onConfirm={async (note) => {
             setDialog(false); setBusy(true);
-            await api.approveForDelivery(open.id, { decidedBy, note });
+            await api.approveForDelivery(open.id, { note });
             await reload(); setBusy(false);
           }}
         />
@@ -294,9 +294,9 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
           requireNote={true}
           showReasonCode={true}
           onCancel={() => setRejectDialog(false)}
-          onConfirm={async (decidedBy, note, rejectionReason) => {
+          onConfirm={async (note, rejectionReason) => {
             setRejectDialog(false); setBusy(true);
-            await api.rejectForDelivery(open.id, { decidedBy, note, rejectionReason });
+            await api.rejectForDelivery(open.id, { note, rejectionReason });
             await reload(); setBusy(false);
           }}
         />

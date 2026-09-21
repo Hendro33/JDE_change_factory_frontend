@@ -407,10 +407,12 @@ export function ConfirmDialog({
   requireNote: boolean;
   /** Adds a structured reason-code picker alongside the free-text note — only meaningful on a rejection/send-back. */
   showReasonCode?: boolean;
-  onConfirm: (decidedBy: string, note: string, reasonCode?: FeedbackReasonCode) => void;
+  // No decidedBy parameter -- who is deciding is derived automatically
+  // from the signed-in user (shown in the masthead), never re-entered
+  // here. See api.ts's DecisionInput for the same change on the wire.
+  onConfirm: (note: string, reasonCode?: FeedbackReasonCode) => void;
   onCancel: () => void;
 }) {
-  const [who, setWho] = useState(() => localStorage.getItem("ciq_approver") ?? "");
   const [note, setNote] = useState("");
   const [reasonCode, setReasonCode] = useState<FeedbackReasonCode | "">("");
 
@@ -420,7 +422,7 @@ export function ConfirmDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, [onCancel]);
 
-  const ready = who.trim().length > 0 && (!requireNote || note.trim().length > 0);
+  const ready = !requireNote || note.trim().length > 0;
 
   return (
     <div className="modalwrap" role="dialog" aria-modal="true" aria-label={title} onClick={onCancel}>
@@ -431,19 +433,6 @@ export function ConfirmDialog({
           <div className="callout" style={{ margin: "16px 0" }}>
             <strong>What happens next</strong>
             {whatHappensNext}
-          </div>
-          <div className="field">
-            <label htmlFor="who">Your name</label>
-            <input
-              id="who"
-              type="text"
-              value={who}
-              placeholder="Every decision is recorded against a person"
-              onChange={(e) => {
-                setWho(e.target.value);
-                localStorage.setItem("ciq_approver", e.target.value.trim());
-              }}
-            />
           </div>
           {showReasonCode && (
             <div className="field">
@@ -474,7 +463,7 @@ export function ConfirmDialog({
           <button
             className={`btn ${tone}`}
             disabled={!ready}
-            onClick={() => onConfirm(who.trim(), note.trim(), reasonCode || undefined)}
+            onClick={() => onConfirm(note.trim(), reasonCode || undefined)}
           >
             {confirmLabel}
           </button>

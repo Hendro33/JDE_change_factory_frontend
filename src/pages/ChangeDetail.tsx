@@ -401,11 +401,11 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
           requireNote={dialog === "reject"}
           showReasonCode={dialog === "reject"}
           onCancel={() => setDialog(null)}
-          onConfirm={async (decidedBy, note, reasonCode) => {
+          onConfirm={async (note, reasonCode) => {
             const wasApprove = dialog === "approve";
             setDialog(null); setBusy(true);
-            if (wasApprove) await api.approveExactChange(change.id, { decidedBy, note });
-            else await api.rejectExactChange(change.id, { decidedBy, note, rejectionReason: reasonCode });
+            if (wasApprove) await api.approveExactChange(change.id, { note });
+            else await api.rejectExactChange(change.id, { note, rejectionReason: reasonCode });
             await reload(); setBusy(false);
           }}
         />

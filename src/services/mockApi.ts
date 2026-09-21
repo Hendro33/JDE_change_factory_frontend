@@ -310,7 +310,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvalId: `AP-${id}-S`,
       kind: "story",
       status: "approved",
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       note: input.note,
     };
@@ -323,7 +323,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvalId: `AP-${id}-S`,
       kind: "story",
       status: "rejected",
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       note: input.note,
     };
@@ -338,19 +338,19 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       kind: "change",
       status: "approved",
       changeHash: "mock-hash-" + Math.random().toString(16).slice(2, 10),
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       expiresAt: new Date(Date.now() + 86400000).toISOString(),
       note: input.note,
     };
     change.state = "CHANGE_APPROVED";
     change.updatedAt = now();
-    change.updatedBy = input.decidedBy;
+    change.updatedBy = getMockSession().displayName;
     change.evidence.push({
       entryId: `E${change.evidence.length + 1}`,
       stage: "Change approval",
-      detail: `Exact change approved by ${input.decidedBy}`,
-      actor: input.decidedBy,
+      detail: `Exact change approved by ${getMockSession().displayName}`,
+      actor: getMockSession().displayName,
       capturedAt: now(),
       prevHash: `hash-${change.evidence.length}`,
       entryHash: `hash-${change.evidence.length + 1}`,
@@ -367,18 +367,18 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvalId: `AP-${id}-C`,
       kind: "change",
       status: "rejected",
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       note: input.note,
     };
     change.state = "REJECTED";
     change.updatedAt = now();
-    change.updatedBy = input.decidedBy;
+    change.updatedBy = getMockSession().displayName;
     change.evidence.push({
       entryId: `E${change.evidence.length + 1}`,
       stage: "Change approval",
-      detail: `Exact change rejected by ${input.decidedBy}${input.rejectionReason ? ` (${input.rejectionReason})` : ""}`,
-      actor: input.decidedBy,
+      detail: `Exact change rejected by ${getMockSession().displayName}${input.rejectionReason ? ` (${input.rejectionReason})` : ""}`,
+      actor: getMockSession().displayName,
       capturedAt: now(),
       prevHash: `hash-${change.evidence.length}`,
       entryHash: `hash-${change.evidence.length + 1}`,
@@ -397,12 +397,12 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     if (!change) throw new Error(`No change ${id}`);
     change.state = state;
     change.updatedAt = now();
-    change.updatedBy = input.decidedBy;
+    change.updatedBy = getMockSession().displayName;
     change.evidence.push({
       entryId: `E${change.evidence.length + 1}`,
       stage: "Decision",
       detail: input.note ? `${detail} — ${input.note}` : detail,
-      actor: input.decidedBy,
+      actor: getMockSession().displayName,
       capturedAt: now(),
       prevHash: `hash-${change.evidence.length}`,
       entryHash: `hash-${change.evidence.length + 1}`,
@@ -627,7 +627,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
    */
   async submitDomainOwnerEdit(
     changeId: string,
-    input: { editedBy: string; note?: string; userStory: UserStory }
+    input: { note?: string; userStory: UserStory }
   ): Promise<DomainReview> {
     const review = this.ensureDomainReview(changeId);
     if (review.stage !== "domain_owner_reviewing") {
@@ -636,7 +636,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     const editVersion: StoryVersion = {
       label: "domain_owner_edit",
       userStory: input.userStory,
-      actor: input.editedBy,
+      actor: getMockSession().displayName,
       note: input.note ?? "",
       capturedAt: now(),
     };
@@ -676,7 +676,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvalId: `AP-${changeId}-DO`,
       kind: "domain_owner",
       status: "approved",
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       note: input.note,
       identityId: getMockSession().userId,
@@ -694,7 +694,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvalId: `AP-${changeId}-DO`,
       kind: "domain_owner",
       status: "rejected",
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       note: input.note,
       identityId: getMockSession().userId,
@@ -715,7 +715,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvalId: `AP-${changeId}-AM`,
       kind: "application_manager",
       status: "approved",
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       note: input.note,
       identityId: getMockSession().userId,
@@ -734,7 +734,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
         customerId,
         position: this.deliveryQueue.filter((e) => e.customerId === customerId).length + 1,
         status: "queued",
-        addedBy: input.decidedBy,
+        addedBy: getMockSession().displayName,
         addedAt: now(),
         note: input.note,
       });
@@ -750,7 +750,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
    * the same "representative, not real" convention enhanceStory above
    * already uses.
    */
-  async askAboutRequirement(changeId: string, input: { askedBy: string; question: string }): Promise<DomainReview> {
+  async askAboutRequirement(changeId: string, input: { question: string }): Promise<DomainReview> {
     const review = this.ensureDomainReview(changeId);
     if (review.history.length === 0) throw new Error(`No requirement to discuss yet for ${changeId}`);
     const currentStory = review.history[review.history.length - 1].userStory;
@@ -760,7 +760,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     const turn: ConversationTurn = looksLikeAQuestion
       ? {
           turnId: `CONV-${Math.random().toString(16).slice(2, 10)}`,
-          askedBy: input.askedBy,
+          askedBy: getMockSession().displayName,
           question: q,
           answer: currentStory.businessContext || currentStory.statement,
           kind: "explanation",
@@ -768,7 +768,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
         }
       : {
           turnId: `CONV-${Math.random().toString(16).slice(2, 10)}`,
-          askedBy: input.askedBy,
+          askedBy: getMockSession().displayName,
           question: q,
           answer: "That reads like new information rather than a question — here is how I would update the requirement to include it. Nothing changes until you review and submit it.",
           kind: "proposed_amendment",
@@ -800,7 +800,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       approvalId: `AP-${changeId}-AM`,
       kind: "application_manager",
       status: "rejected",
-      approvedBy: input.decidedBy,
+      approvedBy: getMockSession().displayName,
       approvedAt: now(),
       note: input.note,
       identityId: getMockSession().userId,
@@ -870,7 +870,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
    * re-running Architecture Review (kind "recommend_reanalysis"), never
    * an inline amendment.
    */
-  async askAboutSolution(changeId: string, input: { askedBy: string; question: string }): Promise<ArchitectureReviewRun> {
+  async askAboutSolution(changeId: string, input: { question: string }): Promise<ArchitectureReviewRun> {
     const run = this.ensureArchitectureReview(changeId);
     if (!run || run.history.length === 0) throw new Error(`No completed architecture review to discuss yet for ${changeId}`);
     const latest = run.history[run.history.length - 1];
@@ -880,7 +880,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     const turn: ConversationTurn = looksLikeAQuestion
       ? {
           turnId: `CONV-${Math.random().toString(16).slice(2, 10)}`,
-          askedBy: input.askedBy,
+          askedBy: getMockSession().displayName,
           question: q,
           answer:
             latest.architectDecision.existingFunctionalityFound ||
@@ -890,7 +890,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
         }
       : {
           turnId: `CONV-${Math.random().toString(16).slice(2, 10)}`,
-          askedBy: input.askedBy,
+          askedBy: getMockSession().displayName,
           question: q,
           answer:
             "That reads like new information that could change the recommended approach. I can't redo the analysis here -- this looks worth a fresh Architecture Review run.",
