@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
-import { getStoredAdminKey, setStoredAdminKey } from "../../services/httpApi";
 import type { IntegrationStatus, JiraConnectionStatus, JiraIntegrationConfig, JiraSyncResult, JiraTestConnectionResult } from "../../types/domain";
 import { ApiNote, Loading } from "../../components/ui";
 
@@ -41,11 +40,10 @@ export function Integrations() {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
-
-  // Only sent when this deployment actually requires one
-  // (JDE_ADMIN_API_KEY) -- see httpApi.ts's own comment. Kept in
-  // sessionStorage, never in the build, never in source control.
-  const [adminKey, setAdminKey] = useState(() => getStoredAdminKey());
+  // Set when getJiraIntegration() 403s -- this company's Admin role is
+  // required to view/edit Jira configuration (require_role("admin") on
+  // the backend); jiraStatus below still loads for everyone.
+  const [configAccessError, setConfigAccessError] = useState<string | null>(null);
 
   // Form state, only meaningful while editing.
   const [baseUrl, setBaseUrl] = useState("");
@@ -60,15 +58,24 @@ export function Integrations() {
 
   const load = () => {
     api.listIntegrations().then(setIntegrations);
-    api.getJiraIntegration().then((c) => {
-      setJiraConfig(c);
-      setBaseUrl(c.baseUrl);
-      setProjectKey(c.projectKey);
-      setPickupStatus(c.pickupStatus);
-      setPostPickupStatus(c.postPickupStatus);
-      setJadeIdField(c.jadeIdField);
-      setRequestTypeField(c.requestTypeField);
-    });
+    api
+      .getJiraIntegration()
+      .then((c) => {
+        setConfigAccessError(null);
+        setJiraConfig(c);
+        setBaseUrl(c.baseUrl);
+        setProjectKey(c.projectKey);
+        setPickupStatus(c.pickupStatus);
+        setPostPickupStatus(c.postPickupStatus);
+        setJadeIdField(c.jadeIdField);
+        setRequestTypeField(c.requestTypeField);
+      })
+      .catch((e) => {
+        setJiraConfig(null);
+        setConfigAccessError(
+          e instanceof Error ? e.message : "Could not load the Jira configuration for this company."
+        );
+      });
     api.getJiraIntegrationStatus().then(setJiraStatus);
     // The credential is write-only -- there is nothing to prefill here,
     // on purpose. A blank field on save means "leave it as it is".
@@ -186,7 +193,7 @@ export function Integrations() {
       <section className="panel">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
           <h2 style={{ margin: 0 }}>Jira</h2>
-          {!editing && (
+          {!editing && !configAccessError && (
             <div className="btnrow" style={{ margin: 0 }}>
               <button className="btn" onClick={() => setEditing(true)}>{configured ? "Edit" : "Configure"}</button>
               {jiraStatus?.credentialsConfigured && (
@@ -197,6 +204,13 @@ export function Integrations() {
             </div>
           )}
         </div>
+        {configAccessError && (
+          <div className="callout" style={{ marginBottom: 16 }}>
+            <strong>Admin role required</strong>
+            Only company Admins can view or change the Jira configuration and credential. The status below is
+            visible to everyone.
+          </div>
+        )}
         {disconnectError && (
           <div className="callout" style={{ marginBottom: 16, borderColor: "var(--stop)" }}>
             <strong>Could not disconnect</strong>
@@ -226,22 +240,6 @@ export function Integrations() {
           and never appears anywhere in this UI after you leave this form. Production use would move this
           behind a real secrets provider — not built in this pilot.
         </div>
-
-        {editing && (
-          <div className="field">
-            <label htmlFor="jiraAdminKey">Admin key <span className="hint">(only if this deployment requires one)</span></label>
-            <input
-              id="jiraAdminKey" type="password" autoComplete="off" value={adminKey}
-              onChange={(e) => { setAdminKey(e.target.value); setStoredAdminKey(e.target.value); }}
-              placeholder="Leave blank unless you were given one"
-            />
-            <span className="hint">
-              Remembered only for this browser tab, never saved to this device or sent anywhere except this server.
-              Required to save, test or disconnect Jira here only when the deployment sets JDE_ADMIN_API_KEY —
-              local/dev instances don't need one.
-            </span>
-          </div>
-        )}
 
         {!jiraConfig ? null : !editing ? (
           <dl className="facts">
@@ -337,7 +335,11 @@ export function Integrations() {
           </div>
         )}
 
-        {!editing && configured && (
+        {/* Driven by jiraStatus (visible to every active member), not
+            jiraConfig (Admin-only) -- syncing is an everyday action for
+            any non-Viewer role, not an Admin-only one, so this must not
+            disappear just because this user can't see the full config. */}
+        {!editing && jiraStatus?.configConfigured && (
           <div className="btnrow" style={{ marginTop: 16 }}>
             <button className="btn primary" disabled={syncing} onClick={sync}>
               {syncing ? "Syncing…" : "Sync now"}

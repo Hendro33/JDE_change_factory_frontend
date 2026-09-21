@@ -17,6 +17,7 @@ import type {
   Change,
   ArchitectureReviewRun,
   ChangeSource,
+  CompanyUsersOut,
   CustomerProfile,
   DeliveryQueueEntry,
   DomainReview,
@@ -26,6 +27,8 @@ import type {
   FactoryMetrics,
   FeedbackReasonCode,
   IntegrationStatus,
+  InvitationOut,
+  InviteInput,
   JiraConnectionStatus,
   JiraCredentialsUpdateInput,
   JiraIntegrationConfig,
@@ -33,7 +36,9 @@ import type {
   JiraSyncResult,
   JiraTestConnectionInput,
   JiraTestConnectionResult,
+  MembershipOut,
   Session,
+  UpdateMembershipInput,
   UserStory,
 } from "../types/domain";
 
@@ -110,6 +115,14 @@ export const API_ENDPOINTS = {
   disconnectJiraCredentials: "DELETE /admin/jira-credentials",
   testJiraConnection: "POST /admin/jira-integration/test-connection",
   syncJiraIntegration: "POST /admin/jira-integration/sync",
+
+  listCompanyUsers: "GET /admin/users",
+  inviteUser: "POST /admin/users/invite",
+  resendInvitation: "POST /admin/users/invitations/{id}/resend",
+  revokeInvitation: "POST /admin/users/invitations/{id}/revoke",
+  updateMembershipRoles: "PUT /admin/users/{membershipId}/roles",
+  deactivateMembership: "POST /admin/users/{membershipId}/deactivate",
+  reactivateMembership: "POST /admin/users/{membershipId}/reactivate",
 } as const;
 
 /**
@@ -334,6 +347,21 @@ export interface ChangeFactoryApi {
    * comment. Never triggers Receive -> Improve -> Check itself.
    */
   syncJiraIntegration(): Promise<JiraSyncResult>;
+
+  /**
+   * Admin > Users — company member list (active/inactive/pending
+   * invitations), inviting, role/domain assignment, deactivate/
+   * reactivate, resend/revoke. All require the Admin role on the
+   * active company; enforced server-side (dashboard-only in the mock
+   * service, which has no real role check of its own).
+   */
+  listCompanyUsers(): Promise<CompanyUsersOut>;
+  inviteUser(input: InviteInput): Promise<InvitationOut>;
+  resendInvitation(invitationId: string): Promise<InvitationOut>;
+  revokeInvitation(invitationId: string): Promise<InvitationOut>;
+  updateMembershipRoles(membershipId: string, input: UpdateMembershipInput): Promise<MembershipOut>;
+  deactivateMembership(membershipId: string): Promise<MembershipOut>;
+  reactivateMembership(membershipId: string): Promise<MembershipOut>;
 }
 
 // ---------------------------------------------------------------------
@@ -349,7 +377,6 @@ export interface ChangeFactoryApi {
 import { MockChangeFactoryApi } from "./mockApi";
 import { HttpChangeFactoryApi } from "./httpApi";
 
-export const api: ChangeFactoryApi =
-  import.meta.env.VITE_USE_MOCK_API === "false"
-    ? new HttpChangeFactoryApi()
-    : new MockChangeFactoryApi();
+export const IS_MOCK_MODE = import.meta.env.VITE_USE_MOCK_API !== "false";
+
+export const api: ChangeFactoryApi = IS_MOCK_MODE ? new MockChangeFactoryApi() : new HttpChangeFactoryApi();

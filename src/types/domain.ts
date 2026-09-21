@@ -28,13 +28,36 @@ export interface Customer {
   toolsRelease: string;
   /** Which JDE environment this engagement's pilot targets. */
   environment: string;
+  /**
+   * This user's roles on THIS company specifically — a user can hold
+   * different roles on different companies. See CompanyRole's own
+   * comment for what each role means. Only meaningful in real
+   * (non-mock) mode; the mock service leaves this empty since its own
+   * persona picker already governs what it shows.
+   */
+  roles: CompanyRole[];
 }
 
-export type UserRole =
-  | "Application Manager"
-  | "Product Owner"
-  | "ConsultIQ Consultant"
-  | "JDE CNC";
+/**
+ * Four roles, each mapping onto an existing responsibility rather than
+ * a new concept. Values are snake_case exactly as the backend sends
+ * them — pydantic's camelCase alias generator (models/base.py) only
+ * renames FIELD names, never string VALUES inside a field, so these
+ * are NOT camelCased on the wire.
+ *   - domain_owner: existing Domain Owner intervention/approval
+ *     workflow, scoped to the business domains this membership is
+ *     assigned to.
+ *   - product_manager: existing Application Manager sprint/build
+ *     decision.
+ *   - admin: company user management, invitations, access
+ *     assignments, settings and integrations (Jira). Does NOT confer
+ *     business approval or agent-execution authority on its own.
+ *   - dashboard_viewer: read-only.
+ * A user can hold more than one role on the same company.
+ */
+export type CompanyRole = "domain_owner" | "product_manager" | "admin" | "dashboard_viewer";
+
+export type UserRole = string;
 
 /**
  * The authenticated user and what they can reach.
@@ -47,6 +70,9 @@ export type UserRole =
 export interface Session {
   userId: string;
   displayName: string;
+  email: string;
+  /** Display-only, deprecated: the active company's roles, joined.
+   * Real permission checks use Customer.roles for a specific company. */
   role: UserRole;
   customers: Customer[];
   activeCustomerId: string;
@@ -505,6 +531,84 @@ export interface IdentitySummary {
 export interface CustomerProfile {
   customer: Customer;
   identities: IdentitySummary[];
+}
+
+/* ------------------------------------------------------------------ */
+/* Auth: login, company membership, invitations                      */
+/* ------------------------------------------------------------------ */
+
+export interface MeOut {
+  userId: string;
+  email: string;
+  displayName: string;
+}
+
+export interface ForgotPasswordResult {
+  ok: boolean;
+  /** Only ever populated in dev-preview mode (no real email provider
+   * configured yet) and only when the account exists. Never populated
+   * once real email delivery is wired up. */
+  previewUrl?: string | null;
+}
+
+export type MembershipStatus = "active" | "inactive";
+export type InvitationStatus = "pending" | "accepted" | "revoked" | "expired";
+
+export interface MembershipOut {
+  membershipId: string;
+  userId: string;
+  email: string;
+  displayName: string;
+  status: MembershipStatus;
+  roles: CompanyRole[];
+  domainIds: string[];
+}
+
+export interface InvitationOut {
+  id: string;
+  email: string;
+  roles: CompanyRole[];
+  domainIds: string[];
+  status: InvitationStatus;
+  createdAt: string;
+  expiresAt: string;
+  invitedByDisplayName: string;
+  /** Only present immediately after creation/resend, and only in
+   * dev-preview mode — see ForgotPasswordResult's own comment. */
+  previewUrl?: string | null;
+}
+
+export interface CompanyUsersOut {
+  members: MembershipOut[];
+  invitations: InvitationOut[];
+}
+
+export interface InviteInput {
+  email: string;
+  roles: CompanyRole[];
+  domainIds: string[];
+}
+
+export interface UpdateMembershipInput {
+  roles: CompanyRole[];
+  domainIds: string[];
+}
+
+export interface AcceptInvitationInput {
+  token: string;
+  /** Required only for a brand-new account (no existing user with
+   * this email) -- see InvitationPreview.requiresPassword. */
+  password?: string;
+  displayName?: string;
+}
+
+export interface InvitationPreview {
+  email: string;
+  companyName: string;
+  roles: CompanyRole[];
+  requiresPassword: boolean;
+  valid: boolean;
+  reason?: string | null;
 }
 
 /** Status only — NEVER a credential. One AIS connection today, shared by every customer. */

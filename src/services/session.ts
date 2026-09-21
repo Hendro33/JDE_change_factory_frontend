@@ -1,4 +1,6 @@
-import type { Customer, IdentitySummary, Session } from "../types/domain";
+import type { CompanyRole, Customer, IdentitySummary, Session } from "../types/domain";
+
+const ALL_ROLES: CompanyRole[] = ["admin", "domain_owner", "product_manager", "dashboard_viewer"];
 
 /**
  * Mock authentication and customer entitlement.
@@ -18,9 +20,9 @@ import type { Customer, IdentitySummary, Session } from "../types/domain";
  */
 
 export const CUSTOMERS: Customer[] = [
-  { id: "vdb", name: "Van den Berg Logistiek", shortName: "Van den Berg", toolsRelease: "9.2.7", environment: "DEV" },
-  { id: "nhd", name: "Noord-Holland Dairy", shortName: "NH Dairy", toolsRelease: "9.2.8", environment: "DEV" },
-  { id: "mrv", name: "Maasrivier Industrials", shortName: "Maasrivier", toolsRelease: "9.2.5", environment: "DEV" },
+  { id: "vdb", name: "Van den Berg Logistiek", shortName: "Van den Berg", toolsRelease: "9.2.7", environment: "DEV", roles: ALL_ROLES },
+  { id: "nhd", name: "Noord-Holland Dairy", shortName: "NH Dairy", toolsRelease: "9.2.8", environment: "DEV", roles: ALL_ROLES },
+  { id: "mrv", name: "Maasrivier Industrials", shortName: "Maasrivier", toolsRelease: "9.2.5", environment: "DEV", roles: ALL_ROLES },
 ];
 
 export type PersonaKey = "customer-user" | "consultant";
@@ -29,6 +31,7 @@ const PERSONAS: Record<PersonaKey, Omit<Session, "activeCustomerId">> = {
   "customer-user": {
     userId: "u-ellen",
     displayName: "Ellen Vos",
+    email: "ellen@example.com",
     role: "Application Manager",
     // Entitled to one engagement only — their own.
     customers: [CUSTOMERS[0]],
@@ -36,6 +39,7 @@ const PERSONAS: Record<PersonaKey, Omit<Session, "activeCustomerId">> = {
   consultant: {
     userId: "u-hendro",
     displayName: "Hendro",
+    email: "hendro@example.com",
     role: "ConsultIQ Consultant",
     customers: CUSTOMERS,
   },

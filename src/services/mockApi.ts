@@ -8,6 +8,7 @@ import type {
   BusinessDomainCreateInput,
   Change,
   ChangeType,
+  CompanyUsersOut,
   ConversationTurn,
   CustomerProfile,
   DeliveryQueueEntry,
@@ -19,6 +20,8 @@ import type {
   FactoryMetrics,
   FeedbackSummary,
   IntegrationStatus,
+  InvitationOut,
+  InviteInput,
   JiraConnectionStatus,
   JiraCredentialsUpdateInput,
   JiraIntegrationConfig,
@@ -28,7 +31,9 @@ import type {
   JiraTestConnectionInput,
   JiraTestConnectionResult,
   LifecycleState,
+  MembershipOut,
   StoryVersion,
+  UpdateMembershipInput,
   UserStory,
 } from "../types/domain";
 import type { Session } from "../types/domain";
@@ -132,6 +137,30 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
    * nothing new once the first has moved everything past the
    * configured pickup status. */
   private jiraMockIssues = new Map<string, MockJiraIssue[]>();
+  /** Per-customer company member list -- lazily seeded on first read
+   * from the two demo personas (session.ts), then mutable via the
+   * Admin > Users methods below, same "derived once, then a real
+   * mutable store for the rest of the session" pattern jiraConfigs
+   * already follows. */
+  private companyMembers = new Map<string, MembershipOut[]>();
+  private invitations = new Map<string, InvitationOut[]>();
+
+  private ensureCompanyMembers(customerId: string): MembershipOut[] {
+    let members = this.companyMembers.get(customerId);
+    if (!members) {
+      members = identitiesForCustomer(customerId).map((identity) => ({
+        membershipId: `mem-${identity.id}`,
+        userId: identity.id,
+        email: `${identity.id.replace(/^u-/, "")}@example.com`,
+        displayName: identity.displayName,
+        status: "active",
+        roles: ["admin", "domain_owner", "product_manager", "dashboard_viewer"],
+        domainIds: [],
+      }));
+      this.companyMembers.set(customerId, members);
+    }
+    return members;
+  }
 
   private recordAgentRun(agentName: string, storyId: string, stage: AgentRunSummary["stage"] = "done"): void {
     const runs = this.agentRuns.get(agentName) ?? [];
@@ -1142,6 +1171,100 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     }
 
     return delay({ considered: picked.length, imported, updatedInJira, errors }, 400);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Admin > Users -- company members and invitations. The mock has no */
+  /* real per-user login (see session.ts's persona picker), so "who    */
+  /* invited this" is always the active persona's own display name.   */
+  /* ---------------------------------------------------------------- */
+
+  async listCompanyUsers(): Promise<CompanyUsersOut> {
+    return delay({
+      members: this.ensureCompanyMembers(this.scope),
+      invitations: this.invitations.get(this.scope) ?? [],
+    });
+  }
+
+  async inviteUser(input: InviteInput): Promise<InvitationOut> {
+    const session = getMockSession();
+    const nowIso = new Date().toISOString();
+    const invitation: InvitationOut = {
+      id: `inv-${Math.random().toString(16).slice(2, 10)}`,
+      email: input.email,
+      roles: input.roles,
+      domainIds: input.domainIds,
+      status: "pending",
+      createdAt: nowIso,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      invitedByDisplayName: session.displayName,
+      previewUrl: `${window.location.origin}${window.location.pathname}?acceptInvitation=mock-${Math.random().toString(16).slice(2, 10)}`,
+    };
+    const list = this.invitations.get(this.scope) ?? [];
+    this.invitations.set(this.scope, [invitation, ...list]);
+    return delay(invitation);
+  }
+
+  private findInvitation(invitationId: string): InvitationOut {
+    const list = this.invitations.get(this.scope) ?? [];
+    const invitation = list.find((i) => i.id === invitationId);
+    if (!invitation) throw new Error(`No such invitation: ${invitationId}`);
+    return invitation;
+  }
+
+  async resendInvitation(invitationId: string): Promise<InvitationOut> {
+    const invitation = this.findInvitation(invitationId);
+    invitation.status = "pending";
+    invitation.expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    invitation.previewUrl = `${window.location.origin}${window.location.pathname}?acceptInvitation=mock-${Math.random().toString(16).slice(2, 10)}`;
+    return delay(invitation);
+  }
+
+  async revokeInvitation(invitationId: string): Promise<InvitationOut> {
+    const invitation = this.findInvitation(invitationId);
+    invitation.status = "revoked";
+    invitation.previewUrl = null;
+    return delay(invitation);
+  }
+
+  private findMembership(membershipId: string): MembershipOut {
+    const members = this.ensureCompanyMembers(this.scope);
+    const member = members.find((m) => m.membershipId === membershipId);
+    if (!member) throw new Error(`No such company member: ${membershipId}`);
+    return member;
+  }
+
+  private assertNotLastActiveAdmin(members: MembershipOut[], membershipId: string): void {
+    const otherActiveAdmins = members.some(
+      (m) => m.membershipId !== membershipId && m.status === "active" && m.roles.includes("admin")
+    );
+    const target = members.find((m) => m.membershipId === membershipId);
+    if (target?.roles.includes("admin") && target.status === "active" && !otherActiveAdmins) {
+      throw new Error("Cannot remove the last active Admin from a company.");
+    }
+  }
+
+  async updateMembershipRoles(membershipId: string, input: UpdateMembershipInput): Promise<MembershipOut> {
+    const members = this.ensureCompanyMembers(this.scope);
+    if (!input.roles.includes("admin")) this.assertNotLastActiveAdmin(members, membershipId);
+    const member = this.findMembership(membershipId);
+    member.roles = input.roles;
+    member.domainIds = input.domainIds;
+    return delay(member);
+  }
+
+  async deactivateMembership(membershipId: string): Promise<MembershipOut> {
+    const members = this.ensureCompanyMembers(this.scope);
+    this.assertNotLastActiveAdmin(members, membershipId);
+    const member = this.findMembership(membershipId);
+    member.status = "inactive";
+    return delay(member);
+  }
+
+  async reactivateMembership(membershipId: string): Promise<MembershipOut> {
+    const member = this.findMembership(membershipId);
+    member.status = "active";
+    return delay(member);
   }
 }
 

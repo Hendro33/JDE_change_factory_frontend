@@ -1,4 +1,5 @@
 import type {
+  AcceptInvitationInput,
   ActivityEntry,
   AgentDefinition,
   AgentHealth,
@@ -6,6 +7,7 @@ import type {
   BusinessDomain,
   BusinessDomainCreateInput,
   Change,
+  CompanyUsersOut,
   CustomerProfile,
   DeliveryQueueEntry,
   DomainReview,
@@ -13,7 +15,11 @@ import type {
   EngagementScopeUpdateInput,
   ErpLandscape,
   FactoryMetrics,
+  ForgotPasswordResult,
   IntegrationStatus,
+  InvitationOut,
+  InvitationPreview,
+  InviteInput,
   JiraConnectionStatus,
   JiraCredentialsUpdateInput,
   JiraIntegrationConfig,
@@ -21,45 +27,39 @@ import type {
   JiraSyncResult,
   JiraTestConnectionInput,
   JiraTestConnectionResult,
+  MembershipOut,
+  MeOut,
   Session,
+  UpdateMembershipInput,
   UserStory,
 } from "../types/domain";
 import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
-import { getMockPersona, type PersonaKey } from "./session";
 
 /**
- * Real implementation of ChangeFactoryApi, talking to the Phase 1
- * FastAPI backend (api_service/).
+ * Real implementation of ChangeFactoryApi, talking to the FastAPI
+ * backend (api_service/).
  *
  * Read endpoints, direct-entry intake, Receive/Improve/Check, the full
  * Domain Owner / Application Manager governance flow, Architecture
  * Review, and the Administration area (Customer Setup, ERP Landscape,
- * Agents, Business Domains write path, Integrations) are all backed by
- * real endpoints. A handful of older, superseded methods
+ * Agents, Business Domains write path, Integrations, Users) are all
+ * backed by real endpoints. A handful of older, superseded methods
  * (sendStoryBack, approveStoryForBacklog, approveChange, rejectChange
  * -- the pre-domain-governance story-level decision flow) still have
  * no backend route and throw a clear "not implemented yet" error
  * rather than silently doing nothing; use the mock service for those
  * specific flows until a later phase adds them.
  *
- * SECURITY NOTE: the X-Customer-Id and X-Demo-User-Id headers sent
- * below are assertions, exactly like the comment on
- * CUSTOMER_SCOPE_HEADER in api.ts already says -- the backend is what
- * actually enforces entitlement (dependencies.py's
- * require_customer_access), never this client. Nothing here should be
- * read as "the frontend decides access."
+ * SECURITY NOTE: identity comes from a real, httponly session cookie
+ * (see auth.ts's login()/logout()) -- this client never asserts who is
+ * calling. X-Customer-Id IS still an assertion, exactly like the
+ * comment on CUSTOMER_SCOPE_HEADER in api.ts already says -- the
+ * backend is what actually enforces both entitlement and role
+ * (dependencies.py's require_customer_access/require_role), never this
+ * client. Nothing here should be read as "the frontend decides access."
  */
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-
-// Mirrors session.ts's persona concept (Phase 1 has no real auth yet --
-// see design doc Section 15.10). Reusing the SAME localStorage key
-// session.ts already defines means the existing PersonaSwitch control
-// drives identity for both the mock and the real API without any
-// change to CustomerScope.tsx.
-function demoUserIdFor(persona: PersonaKey): string {
-  return persona === "customer-user" ? "u-ellen" : "u-hendro";
-}
 
 const ACTIVE_CUSTOMER_KEY = "ciq_http_active_customer";
 
@@ -69,41 +69,6 @@ function rememberActiveCustomer(customerId: string): void {
 
 function readRememberedActiveCustomer(): string | null {
   return localStorage.getItem(ACTIVE_CUSTOMER_KEY);
-}
-
-const ADMIN_KEY_STORAGE_KEY = "ciq_admin_key";
-
-/**
- * Sent as X-Admin-Key on Jira configuration/credential calls only
- * (mirrors dependencies.require_admin_key's exact scope on the
- * backend) -- a per-tab-session shared passphrase a human enters once
- * via Integrations.tsx, NEVER baked into the build: this is a public
- * static site, so the secret it's checked against on the server must
- * never ship in frontend code or an env var read at build time.
- * sessionStorage (not localStorage) is deliberate -- it clears when
- * the tab closes, matching "a person re-enters a shared passphrase
- * each session" rather than "remembered forever on this device."
- * Empty/never entered is fine when the deployment doesn't require one
- * (JDE_ADMIN_API_KEY unset server-side) -- see require_admin_key's own
- * comment for why an absent header is then a no-op.
- */
-export function getStoredAdminKey(): string {
-  try {
-    return sessionStorage.getItem(ADMIN_KEY_STORAGE_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-export function setStoredAdminKey(key: string): void {
-  try {
-    if (key) sessionStorage.setItem(ADMIN_KEY_STORAGE_KEY, key);
-    else sessionStorage.removeItem(ADMIN_KEY_STORAGE_KEY);
-  } catch {
-    // sessionStorage unavailable (e.g. private browsing) -- the key
-    // just won't be remembered across calls in this tab; a resulting
-    // 401 is handled the same way as a wrong key by every call site.
-  }
 }
 
 function messageFromErrorBody(status: number, body: string): string {
@@ -120,29 +85,27 @@ function messageFromErrorBody(status: number, body: string): string {
   return `HTTP ${status}: ${body}`;
 }
 
-class HttpError extends Error {
+export class HttpError extends Error {
   constructor(public status: number, public body: string) {
     super(messageFromErrorBody(status, body));
   }
 }
 
-async function request<T>(
+export async function request<T>(
   path: string,
-  options: { method?: string; body?: unknown; customerId?: string; adminKey?: boolean } = {}
+  options: { method?: string; body?: unknown; customerId?: string } = {}
 ): Promise<T> {
-  const headers: Record<string, string> = {
-    "X-Demo-User-Id": demoUserIdFor(getMockPersona()),
-  };
+  const headers: Record<string, string> = {};
   if (options.customerId) headers["X-Customer-Id"] = options.customerId;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
-  if (options.adminKey) {
-    const key = getStoredAdminKey();
-    if (key) headers["X-Admin-Key"] = key;
-  }
 
   const res = await fetch(`${BASE_URL}${path}`, {
     method: options.method ?? "GET",
     headers,
+    // The session cookie is httponly, set by /auth/login -- this is
+    // what actually sends it (and is required for it to be sent
+    // cross-origin, see config.py's cookie_samesite comment).
+    credentials: "include",
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
 
@@ -497,35 +460,38 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
 
   async getJiraIntegration(): Promise<JiraIntegrationConfig> {
     const customerId = await this.activeCustomerId();
-    return request<JiraIntegrationConfig>("/admin/jira-integration", { customerId, adminKey: true });
+    // Requires the Admin role on this company -- enforced server-side
+    // (require_role("admin")); a non-admin gets a 403 here, same as
+    // every other call, with no special header needed on this end.
+    return request<JiraIntegrationConfig>("/admin/jira-integration", { customerId });
   }
 
   async updateJiraIntegration(input: JiraIntegrationConfigUpdateInput): Promise<JiraIntegrationConfig> {
     const customerId = await this.activeCustomerId();
-    return request<JiraIntegrationConfig>("/admin/jira-integration", { method: "PUT", customerId, body: input, adminKey: true });
+    return request<JiraIntegrationConfig>("/admin/jira-integration", { method: "PUT", customerId, body: input });
   }
 
   async getJiraIntegrationStatus(): Promise<JiraConnectionStatus> {
     const customerId = await this.activeCustomerId();
-    // Deliberately no adminKey -- Demand > Requests reads this too, see
-    // dependencies.require_admin_key's own comment on this route.
+    // Open to any active company member, including Dashboard Viewer --
+    // Demand > Requests reads this too.
     return request<JiraConnectionStatus>("/admin/jira-integration/status", { customerId });
   }
 
   async updateJiraCredentials(input: JiraCredentialsUpdateInput): Promise<JiraConnectionStatus> {
     const customerId = await this.activeCustomerId();
-    return request<JiraConnectionStatus>("/admin/jira-credentials", { method: "PUT", customerId, body: input, adminKey: true });
+    return request<JiraConnectionStatus>("/admin/jira-credentials", { method: "PUT", customerId, body: input });
   }
 
   async disconnectJiraCredentials(): Promise<JiraConnectionStatus> {
     const customerId = await this.activeCustomerId();
-    return request<JiraConnectionStatus>("/admin/jira-credentials", { method: "DELETE", customerId, adminKey: true });
+    return request<JiraConnectionStatus>("/admin/jira-credentials", { method: "DELETE", customerId });
   }
 
   async testJiraConnection(input: JiraTestConnectionInput): Promise<JiraTestConnectionResult> {
     const customerId = await this.activeCustomerId();
     return request<JiraTestConnectionResult>("/admin/jira-integration/test-connection", {
-      method: "POST", customerId, body: input, adminKey: true,
+      method: "POST", customerId, body: input,
     });
   }
 
@@ -533,4 +499,84 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     const customerId = await this.activeCustomerId();
     return request<JiraSyncResult>("/admin/jira-integration/sync", { method: "POST", customerId });
   }
+
+  async listCompanyUsers(): Promise<CompanyUsersOut> {
+    const customerId = await this.activeCustomerId();
+    return request<CompanyUsersOut>("/admin/users", { customerId });
+  }
+
+  async inviteUser(input: InviteInput): Promise<InvitationOut> {
+    const customerId = await this.activeCustomerId();
+    return request<InvitationOut>("/admin/users/invite", { method: "POST", customerId, body: input });
+  }
+
+  async resendInvitation(invitationId: string): Promise<InvitationOut> {
+    const customerId = await this.activeCustomerId();
+    return request<InvitationOut>(`/admin/users/invitations/${encodeURIComponent(invitationId)}/resend`, {
+      method: "POST", customerId,
+    });
+  }
+
+  async revokeInvitation(invitationId: string): Promise<InvitationOut> {
+    const customerId = await this.activeCustomerId();
+    return request<InvitationOut>(`/admin/users/invitations/${encodeURIComponent(invitationId)}/revoke`, {
+      method: "POST", customerId,
+    });
+  }
+
+  async updateMembershipRoles(membershipId: string, input: UpdateMembershipInput): Promise<MembershipOut> {
+    const customerId = await this.activeCustomerId();
+    return request<MembershipOut>(`/admin/users/${encodeURIComponent(membershipId)}/roles`, {
+      method: "PUT", customerId, body: input,
+    });
+  }
+
+  async deactivateMembership(membershipId: string): Promise<MembershipOut> {
+    const customerId = await this.activeCustomerId();
+    return request<MembershipOut>(`/admin/users/${encodeURIComponent(membershipId)}/deactivate`, {
+      method: "POST", customerId,
+    });
+  }
+
+  async reactivateMembership(membershipId: string): Promise<MembershipOut> {
+    const customerId = await this.activeCustomerId();
+    return request<MembershipOut>(`/admin/users/${encodeURIComponent(membershipId)}/reactivate`, {
+      method: "POST", customerId,
+    });
+  }
 }
+
+// ---------------------------------------------------------------------
+// Auth -- login/logout/password reset/invitation acceptance. Standalone
+// (not part of ChangeFactoryApi) since the mock service has no real
+// login: its existing persona picker (session.ts) is unaffected by any
+// of this, and stays the way to demo the app without a backend.
+// ---------------------------------------------------------------------
+export const authApi = {
+  async me(): Promise<MeOut> {
+    return request<MeOut>("/auth/me");
+  },
+  async login(email: string, password: string): Promise<MeOut> {
+    return request<MeOut>("/auth/login", { method: "POST", body: { email, password } });
+  },
+  async logout(): Promise<void> {
+    await request<{ ok: boolean }>("/auth/logout", { method: "POST" });
+  },
+  async forgotPassword(email: string): Promise<ForgotPasswordResult> {
+    return request<ForgotPasswordResult>("/auth/forgot-password", { method: "POST", body: { email } });
+  },
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    await request<{ ok: boolean }>("/auth/reset-password", {
+      method: "POST", body: { token, newPassword },
+    });
+  },
+  async previewInvitation(token: string): Promise<InvitationPreview> {
+    return request<InvitationPreview>(`/auth/invitation/${encodeURIComponent(token)}/preview`);
+  },
+  async acceptInvitation(input: AcceptInvitationInput): Promise<MeOut> {
+    return request<MeOut>("/auth/accept-invitation", { method: "POST", body: input });
+  },
+  async acceptInvitationAsExistingUser(token: string): Promise<MeOut> {
+    return request<MeOut>("/auth/accept-invitation/existing-user", { method: "POST", body: { token } });
+  },
+};

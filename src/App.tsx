@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "./services/api";
+import { api, IS_MOCK_MODE } from "./services/api";
+import { authApi } from "./services/httpApi";
 import type { Session } from "./types/domain";
 import type { NavFilter, NavTarget, Page } from "./types/nav";
 import { CustomerScope, PersonaSwitch } from "./components/CustomerScope";
@@ -16,6 +17,10 @@ import { CustomerSetup } from "./pages/admin/CustomerSetup";
 import { ErpLandscape } from "./pages/admin/ErpLandscape";
 import { Agents } from "./pages/admin/Agents";
 import { Integrations } from "./pages/admin/Integrations";
+import { Users } from "./pages/admin/Users";
+import { Login } from "./pages/auth/Login";
+import { ResetPassword } from "./pages/auth/ResetPassword";
+import { AcceptInvitation } from "./pages/auth/AcceptInvitation";
 
 interface NavItem { key: Page; label: string; filter?: NavFilter }
 interface NavGroup { label: string; items: NavItem[]; align?: "right" }
@@ -63,6 +68,7 @@ const ADMIN_GROUP: NavGroup = {
     { key: "admin-agents", label: "Agents" },
     { key: "domains", label: "Business Domains" },
     { key: "admin-integrations", label: "Integrations" },
+    { key: "admin-users", label: "Users" },
   ],
 };
 
@@ -134,7 +140,7 @@ function sameFilter(a: NavFilter | undefined, b: NavFilter | undefined): boolean
   return ak.length === bk.length && ak.every((k) => a[k] === b[k]);
 }
 
-export default function App() {
+function MainApp({ onSignedOut }: { onSignedOut?: () => void }) {
   const [page, setPage] = useState<Page>("dashboard");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -189,6 +195,17 @@ export default function App() {
             {session?.displayName ?? "…"}
             {session && <span className="role">{session.role}</span>}
           </span>
+          {onSignedOut && (
+            <button
+              className="btn"
+              onClick={async () => {
+                await authApi.logout();
+                onSignedOut();
+              }}
+            >
+              Sign out
+            </button>
+          )}
         </div>
       </header>
 
@@ -225,6 +242,8 @@ export default function App() {
           <Agents />
         ) : page === "admin-integrations" ? (
           <Integrations />
+        ) : page === "admin-users" ? (
+          <Users />
         ) : (
           <Pipeline onOpenChange={setDetailId} {...navTarget} />
         )}
@@ -234,10 +253,85 @@ export default function App() {
         <span className="logo">consult<b>IQ</b></span>
         <span>An AI delivery team for enterprise change</span>
         <span style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          <PersonaSwitch onChange={reloadSession} />
-          <span>Jade · v0.1 prototype · front-end only, mock data</span>
+          {IS_MOCK_MODE ? (
+            <>
+              <PersonaSwitch onChange={reloadSession} />
+              <span>Jade · v0.1 prototype · front-end only, mock data</span>
+            </>
+          ) : (
+            <span>Jade · v0.1 prototype · connected to the real backend</span>
+          )}
         </span>
       </footer>
     </div>
   );
+}
+
+/**
+ * Top-level dispatcher. In mock mode this is just MainApp -- the mock
+ * service has no real login, only its own persona picker. In real
+ * mode: password-reset and invitation-acceptance links (query params
+ * on the root path -- this app has no client-side router, see
+ * ResetPassword's own comment) take priority over everything else,
+ * then a real session check gates the rest of the app behind Login.
+ */
+export default function App() {
+  const params = new URLSearchParams(window.location.search);
+  const resetToken = params.get("resetToken");
+  const acceptToken = params.get("acceptInvitation");
+
+  const [authState, setAuthState] = useState<"checking" | "signed-in" | "signed-out">(
+    IS_MOCK_MODE ? "signed-in" : "checking"
+  );
+
+  useEffect(() => {
+    if (IS_MOCK_MODE || resetToken || acceptToken) return;
+    authApi
+      .me()
+      .then(() => setAuthState("signed-in"))
+      .catch(() => setAuthState("signed-out"));
+    // Intentionally run once: resetToken/acceptToken don't change
+    // during this component's lifetime (no client-side navigation).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function clearAuthLinkParams() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("resetToken");
+    url.searchParams.delete("acceptInvitation");
+    window.history.replaceState({}, "", url.toString());
+  }
+
+  if (!IS_MOCK_MODE && resetToken) {
+    return (
+      <ResetPassword
+        token={resetToken}
+        onDone={() => {
+          clearAuthLinkParams();
+          setAuthState("signed-out");
+        }}
+      />
+    );
+  }
+
+  if (!IS_MOCK_MODE && acceptToken) {
+    return (
+      <AcceptInvitation
+        token={acceptToken}
+        onAccepted={() => {
+          clearAuthLinkParams();
+          setAuthState("signed-in");
+        }}
+        onGoToLogin={() => {
+          clearAuthLinkParams();
+          setAuthState("signed-out");
+        }}
+      />
+    );
+  }
+
+  if (authState === "checking") return null;
+  if (authState === "signed-out") return <Login onSignedIn={() => setAuthState("signed-in")} />;
+
+  return <MainApp onSignedOut={IS_MOCK_MODE ? undefined : () => setAuthState("signed-out")} />;
 }
