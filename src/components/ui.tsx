@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import type { FeedbackReasonCode, LifecycleState } from "../types/domain";
+import type { CapabilityStatus, FeedbackReasonCode, LifecycleState } from "../types/domain";
 
 export const REASON_CODE_LABEL: Record<FeedbackReasonCode, string> = {
   missing_information: "Missing information",
@@ -86,6 +86,33 @@ export const DOMAIN_STAGE_LABEL: Record<string, string> = {
 export function PriorityBadge({ priority }: { priority: "High" | "Medium" | "Low" }) {
   const tone = priority === "High" ? "stop" : priority === "Medium" ? "warn" : "ok";
   return <span className={`badge ${tone}`}>{priority}</span>;
+}
+
+/**
+ * Functional Agent design update — a capability's status (whether it
+ * is allowed to execute, distinct from whether a human has approved
+ * any particular operation). Shared between Admin > Agents' catalogue
+ * view and ChangeDetail's exact-change panel so both read the same
+ * labels/tones.
+ */
+export const CAPABILITY_STATUS_LABEL: Record<CapabilityStatus, string> = {
+  validated: "Validated",
+  needs_spike: "Needs spike",
+  restricted: "Restricted",
+  human_implementation: "Human Implementation",
+  suspended: "Suspended",
+};
+
+const CAPABILITY_STATUS_TONE: Record<CapabilityStatus, string> = {
+  validated: "ok",
+  needs_spike: "warn",
+  restricted: "stop",
+  human_implementation: "grey",
+  suspended: "stop",
+};
+
+export function CapabilityStatusBadge({ status }: { status: CapabilityStatus }) {
+  return <span className={`badge ${CAPABILITY_STATUS_TONE[status]}`}>{CAPABILITY_STATUS_LABEL[status]}</span>;
 }
 
 /* ------------------------------------------------------------------ */

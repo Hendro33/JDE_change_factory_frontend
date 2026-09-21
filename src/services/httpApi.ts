@@ -6,6 +6,7 @@ import type {
   ArchitectureReviewRun,
   BusinessDomain,
   BusinessDomainCreateInput,
+  CapabilityCatalog,
   Change,
   CompanyUsersOut,
   CustomerProfile,
@@ -453,6 +454,11 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
   async listAgents(): Promise<AgentDefinition[]> {
     const customerId = await this.activeCustomerId();
     return request<AgentDefinition[]>("/admin/agents", { customerId });
+  }
+
+  async listCapabilities(): Promise<CapabilityCatalog> {
+    const customerId = await this.activeCustomerId();
+    return request<CapabilityCatalog>("/admin/capabilities", { customerId });
   }
 
   async getAgentHealth(agentName: string): Promise<AgentHealth> {

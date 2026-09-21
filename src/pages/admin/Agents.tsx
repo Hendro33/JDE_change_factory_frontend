@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import type { SVGProps } from "react";
 import { api } from "../../services/api";
-import type { AgentDefinition, AgentHealth } from "../../types/domain";
-import { Loading, NotStated } from "../../components/ui";
+import type { AgentDefinition, AgentHealth, Capability } from "../../types/domain";
+import { ApiNote, CapabilityStatusBadge, Loading, NotStated } from "../../components/ui";
 import {
   ArchitectIcon,
   DevelopmentIcon,
@@ -78,6 +78,8 @@ const STATUS_NOTE: Record<AgentStatus, string> = {
   Planned: "Not yet enabled. No .claude/agents definition exists for this role today.",
 };
 
+const capabilityName = (c: Capability) => String(c.identity["description"] ?? c.capabilityId);
+
 function statusFor(entry: RosterEntry, byName: Map<string, AgentDefinition>): AgentStatus {
   if (!entry.internalName) return "Planned";
   const agent = byName.get(entry.internalName);
@@ -89,6 +91,7 @@ export function Agents() {
   const [agents, setAgents] = useState<AgentDefinition[] | null>(null);
   const [healthByAgent, setHealthByAgent] = useState<Record<string, AgentHealth>>({});
   const [selected, setSelected] = useState<string>(ROSTER[0].key);
+  const [capabilities, setCapabilities] = useState<Capability[] | null>(null);
 
   useEffect(() => {
     api.listAgents().then(async (list) => {
@@ -99,6 +102,7 @@ export function Agents() {
       const pairs = await Promise.all(list.map(async (a) => [a.name, await api.getAgentHealth(a.name)] as const));
       setHealthByAgent(Object.fromEntries(pairs));
     });
+    api.listCapabilities().then((c) => setCapabilities([...c.capabilities].sort((a, b) => a.priority - b.priority)));
   }, []);
 
   const byName = new Map((agents ?? []).map((a) => [a.name, a]));
@@ -281,6 +285,42 @@ export function Agents() {
               )}
             </section>
           </div>
+
+          {openEntry.key === "functional" && (
+            <section className="panel">
+              <h2>Capability catalogue <span className="qualifier">— prioritised validation backlog</span></h2>
+              <p className="sub" style={{ marginTop: -6, marginBottom: 14 }}>
+                The Functional Agent's broad remit (any standard JDE setup application) is not the same as
+                what it may actually execute — that's capability-specific, and every capability here starts
+                at Needs spike until a designated functional owner and technical validator promote it.
+                Additional approval on a single change never does that on its own.
+              </p>
+              {!capabilities ? (
+                <Loading what="the capability catalogue" />
+              ) : (
+                <table className="data">
+                  <thead>
+                    <tr><th>#</th><th>Capability</th><th>Status</th><th>Technical validation</th><th>Policy restriction</th></tr>
+                  </thead>
+                  <tbody>
+                    {capabilities.map((c) => (
+                      <tr key={c.capabilityId}>
+                        <td className="mono">{c.priority}</td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{capabilityName(c)}</div>
+                          <div className="mono sub">{c.capabilityId} · rev {c.revision}</div>
+                        </td>
+                        <td><CapabilityStatusBadge status={c.validation.status} /></td>
+                        <td style={{ fontSize: 13 }}>{c.validation.technicalValidation || <NotStated />}</td>
+                        <td style={{ fontSize: 13 }}>{c.validation.policyRestriction || <NotStated />}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <ApiNote endpoint="GET /admin/capabilities" />
+            </section>
+          )}
         </div>
       )}
     </>

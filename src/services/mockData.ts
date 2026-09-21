@@ -1,4 +1,4 @@
-import type { AgentDefinition, BusinessDomain, Change, EvidenceRecord } from "../types/domain";
+import type { AgentDefinition, BusinessDomain, Capability, CapabilityCatalog, Change, EvidenceRecord } from "../types/domain";
 
 /**
  * Mock records standing in for the backend.
@@ -162,6 +162,115 @@ export const MOCK_AGENTS: AgentDefinition[] = [
   },
 ];
 
+/**
+ * Mirrors the real capability_catalog.json (repo root) -- a condensed
+ * but faithful snapshot: same capability_ids, priorities, families and
+ * statuses, and a representative excerpt of the field groups rather
+ * than every one verbatim (same "static snapshot, not a live parse"
+ * convention as MOCK_AGENTS above -- there is no filesystem to read in
+ * the browser). Every entry is Needs spike here too, on purpose: mock
+ * mode must not imply anything is Validated that the real catalogue
+ * doesn't say is Validated.
+ */
+const _needsSpike = (technicalValidation: string, policyRestriction = "None beyond universal exclusions"): Capability["validation"] => ({
+  status: "needs_spike",
+  technicalValidation,
+  policyRestriction,
+  evidenceReferences: [],
+  validationDate: null,
+  approver: null,
+  revalidationTriggers: ["initial feasibility spike completed"],
+});
+
+export const MOCK_CAPABILITY_CATALOG: CapabilityCatalog = {
+  catalogRevision: "mock-2026-09-21.1",
+  capabilities: [
+    {
+      capabilityId: "processing_option_update",
+      revision: "r1",
+      priority: 1,
+      identity: { description: "Update specific, approved processing-option fields on an existing customer-owned version, to a value from an explicit allowed set." },
+      target: { applicationForm: "Processing Option Revisions form" },
+      compatibility: {},
+      execution: { mechanism: "AIS Form Service Request" },
+      scope: { environmentConstraint: "DEV only" },
+      risk: { riskClassification: "Low, when restricted to non-financial, non-tax fields" },
+      preconditions: {},
+      verification: {},
+      recovery: {},
+      delivery: { classification: "Configuration-data change" },
+      validation: _needsSpike(
+        "The gating logic (story approval, exact-change hash binding, Oracle-owned-version rule, engagement scope, evidence chain) is real and proven in prove_the_gate.py. The actual JDE write (AIS Form Service Request payload) is not implemented yet."
+      ),
+    },
+    {
+      capabilityId: "batch_version_data_selection",
+      revision: "r1",
+      priority: 2,
+      identity: { description: "Replace the complete data-selection expression on one approved, non-posting batch/report version." },
+      target: {}, compatibility: {}, execution: {}, scope: {}, risk: {}, preconditions: {}, verification: {}, recovery: {},
+      delivery: { classification: "Configuration-data change" },
+      validation: _needsSpike("No implementation exists."),
+    },
+    {
+      capabilityId: "batch_version_data_sequencing",
+      revision: "r1",
+      priority: 3,
+      identity: { description: "Replace the complete data-sequencing (ordered fields, direction, grouping behaviour) on one approved report version." },
+      target: {}, compatibility: {}, execution: {}, scope: {}, risk: {}, preconditions: {}, verification: {}, recovery: {},
+      delivery: { classification: "Configuration-data change" },
+      validation: _needsSpike("No implementation exists."),
+    },
+    {
+      capabilityId: "udc_value_maintenance",
+      revision: "r1",
+      priority: 4,
+      identity: { description: "Add or update customer-maintained values/descriptions in an explicitly permitted UDC list." },
+      target: {}, compatibility: {}, execution: {}, scope: {}, risk: {}, preconditions: {}, verification: {}, recovery: {},
+      delivery: { classification: "Configuration-data change" },
+      validation: _needsSpike("No implementation exists.", "Deletion and special-handling changes are excluded from this capability's remit entirely"),
+    },
+    {
+      capabilityId: "constants_and_setup_master_data",
+      revision: "r1",
+      priority: 5,
+      identity: { description: "Update one concrete, low-risk constants or setup-master field on an explicit allowlist, chosen from the pilot." },
+      target: {}, compatibility: {}, execution: {}, scope: {}, risk: {}, preconditions: {}, verification: {}, recovery: {},
+      delivery: { classification: "Configuration-data change (presumed)" },
+      validation: _needsSpike("No implementation exists, and no concrete field allowlist has been chosen yet.", "Blanket constants/master-data access is excluded from any future promotion"),
+    },
+    {
+      capabilityId: "document_type_definition",
+      revision: "r1",
+      priority: 6,
+      family: "customer_defined_document_and_line_types",
+      identity: { description: "Create a customer-defined document type from an approved template." },
+      target: {}, compatibility: {}, execution: {}, scope: {}, risk: {}, preconditions: {}, verification: {}, recovery: {},
+      delivery: { classification: "Configuration-data change (setup record)" },
+      validation: _needsSpike("No implementation exists."),
+    },
+    {
+      capabilityId: "line_type_definition",
+      revision: "r1",
+      priority: 6,
+      family: "customer_defined_document_and_line_types",
+      identity: { description: "Create a customer-defined line type from an approved template." },
+      target: {}, compatibility: {}, execution: {}, scope: {}, risk: {}, preconditions: {}, verification: {}, recovery: {},
+      delivery: { classification: "Configuration-data change (setup record)" },
+      validation: _needsSpike("No implementation exists.", "Unsafe variants (GL-posting or inventory-updating line types) remain Restricted even after any future spike"),
+    },
+    {
+      capabilityId: "order_activity_status_rules",
+      revision: "r1",
+      priority: 7,
+      identity: { description: "Configure order activity/status rules for one isolated document-type/line-type combination." },
+      target: {}, compatibility: {}, execution: {}, scope: {}, risk: { riskClassification: "High" }, preconditions: {}, verification: {}, recovery: {},
+      delivery: { classification: "Configuration-data change (setup record)" },
+      validation: _needsSpike("No implementation exists. Highest-scrutiny entry in the catalogue by design.", "Any combination with existing dependent transactions remains permanently out of remit"),
+    },
+  ],
+};
+
 export const MOCK_CHANGES: Change[] = [
   {
     id: "CHG-1042",
@@ -289,6 +398,12 @@ export const MOCK_CHANGES: Change[] = [
       proposedValue: "1 (on)",
       environment: "DEV",
       testOrchestration: "ORCH_VERIFY_CREDIT_HOLD",
+      // Illustrates the design update's "approved does not mean
+      // executable" distinction -- this exact change is approved, but
+      // the capability itself is still Needs spike.
+      capabilityId: "processing_option_update",
+      capabilityStatus: "needs_spike",
+      capabilityExecutable: false,
     },
     changeApproval: {
       approvalId: "AP-1041-C",
@@ -407,6 +522,12 @@ export const MOCK_CHANGES: Change[] = [
       proposedValue: "0",
       environment: "DEV",
       testOrchestration: "ORCH_VERIFY_BACKORDER",
+      // Illustrates the promoted/executed end state -- once a capability
+      // is Validated (or an explicitly approved spike experiment covers
+      // this exact target), the same approval actually executes.
+      capabilityId: "processing_option_update",
+      capabilityStatus: "validated",
+      capabilityExecutable: true,
     },
     changeApproval: { approvalId: "AP-1039-C", kind: "change", status: "approved", changeHash: "4b81de...2c90", approvedBy: "Hendro", approvedAt: "2026-09-18T15:00:00Z", note: "" },
     testSpecification: { mode: "JDE automated", orchestrationName: "ORCH_VERIFY_BACKORDER", steps: [{ id: "T1", action: "Release a backorder", expected: "One step, no second prompt" }] },

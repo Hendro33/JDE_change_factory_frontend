@@ -225,6 +225,57 @@ export interface ExactChange {
   proposedValue: string;
   environment: string;
   testOrchestration: string;
+  /**
+   * Functional Agent design update -- what capability this operation
+   * executes under, and whether it is currently ALLOWED to execute at
+   * all, independent of whether a human has approved this specific
+   * operation. Undefined means this change predates the capability
+   * catalogue.
+   */
+  capabilityId?: string;
+  capabilityStatus?: CapabilityStatus;
+  capabilityExecutable?: boolean;
+}
+
+export type CapabilityStatus = "validated" | "needs_spike" | "restricted" | "human_implementation" | "suspended";
+
+/**
+ * One entry in the Functional Agent Capability Catalogue -- a bounded,
+ * repeatable operation the agent may (once Validated) be authorised to
+ * execute, distinct from its broader functional remit. Read-only: the
+ * agent cannot promote its own capabilities, and neither can this UI.
+ */
+export interface CapabilityValidation {
+  status: CapabilityStatus;
+  technicalValidation: string;
+  policyRestriction: string;
+  evidenceReferences: string[];
+  validationDate?: string | null;
+  approver?: string | null;
+  revalidationTriggers: string[];
+}
+
+export interface Capability {
+  capabilityId: string;
+  revision: string;
+  priority: number;
+  family?: string | null;
+  identity: Record<string, unknown>;
+  target: Record<string, unknown>;
+  compatibility: Record<string, unknown>;
+  execution: Record<string, unknown>;
+  scope: Record<string, unknown>;
+  risk: Record<string, unknown>;
+  preconditions: Record<string, unknown>;
+  verification: Record<string, unknown>;
+  recovery: Record<string, unknown>;
+  delivery: Record<string, unknown>;
+  validation: CapabilityValidation;
+}
+
+export interface CapabilityCatalog {
+  catalogRevision: string;
+  capabilities: Capability[];
 }
 
 /**

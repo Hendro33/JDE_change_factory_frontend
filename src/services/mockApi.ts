@@ -6,6 +6,7 @@ import type {
   ArchitectureReviewRun,
   BusinessDomain,
   BusinessDomainCreateInput,
+  CapabilityCatalog,
   Change,
   ChangeType,
   CompanyUsersOut,
@@ -39,7 +40,7 @@ import type {
 import type { Session } from "../types/domain";
 import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
 import { CUSTOMERS, getMockSession, identitiesForCustomer, setMockActiveCustomer } from "./session";
-import { MOCK_AGENTS, MOCK_BUSINESS_DOMAINS, MOCK_CHANGES } from "./mockData";
+import { MOCK_AGENTS, MOCK_BUSINESS_DOMAINS, MOCK_CAPABILITY_CATALOG, MOCK_CHANGES } from "./mockData";
 
 /** Simulates network latency so loading states are real, not decorative. */
 const delay = <T,>(value: T, ms = 220): Promise<T> =>
@@ -988,6 +989,10 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
 
   async listAgents(): Promise<AgentDefinition[]> {
     return delay(MOCK_AGENTS);
+  }
+
+  async listCapabilities(): Promise<CapabilityCatalog> {
+    return delay(MOCK_CAPABILITY_CATALOG);
   }
 
   async getAgentHealth(agentName: string): Promise<AgentHealth> {

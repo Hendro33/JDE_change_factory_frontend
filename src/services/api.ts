@@ -14,6 +14,7 @@ import type {
   AgentHealth,
   BusinessDomain,
   BusinessDomainCreateInput,
+  CapabilityCatalog,
   Change,
   ArchitectureReviewRun,
   ChangeSource,
@@ -105,6 +106,7 @@ export const API_ENDPOINTS = {
   listAgents: "GET /admin/agents",
   getAgent: "GET /admin/agents/{name}",
   getAgentHealth: "GET /admin/agents/{name}/health",
+  listCapabilities: "GET /admin/capabilities",
   createBusinessDomain: "POST /admin/business-domains",
   updateBusinessDomainStatus: "PUT /admin/business-domains/{id}/status",
   listIntegrations: "GET /admin/integrations",
@@ -304,6 +306,9 @@ export interface ChangeFactoryApi {
   /** The five subagent definitions, parsed live from .claude/agents/*.md. */
   listAgents(): Promise<AgentDefinition[]>;
   getAgentHealth(agentName: string): Promise<AgentHealth>;
+
+  /** The Functional Agent Capability Catalogue -- read-only, never editable from this API. */
+  listCapabilities(): Promise<CapabilityCatalog>;
 
   createBusinessDomain(input: BusinessDomainCreateInput): Promise<BusinessDomain>;
   updateBusinessDomainStatus(domainId: string, status: BusinessDomain["status"]): Promise<BusinessDomain>;
