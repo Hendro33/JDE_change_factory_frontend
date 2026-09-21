@@ -27,6 +27,16 @@ jobs:
 
       - run: npm ci
       - run: npm run build
+        env:
+          # Switches to the real api_service automatically once a
+          # hosted backend exists and its URL is set as the
+          # VITE_API_BASE_URL repository variable (Settings > Secrets
+          # and variables > Actions > Variables) -- until then this is
+          # empty, so the build stays on the mock API exactly as
+          # today. Never a secret: this is just a public HTTPS URL,
+          # baked into a public static site either way.
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_USE_MOCK_API: ${{ vars.VITE_API_BASE_URL != '' && 'false' || 'true' }}
 
       - uses: actions/configure-pages@v5
 

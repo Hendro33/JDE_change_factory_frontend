@@ -107,6 +107,7 @@ export const API_ENDPOINTS = {
   updateJiraIntegration: "PUT /admin/jira-integration",
   getJiraIntegrationStatus: "GET /admin/jira-integration/status",
   updateJiraCredentials: "PUT /admin/jira-credentials",
+  disconnectJiraCredentials: "DELETE /admin/jira-credentials",
   testJiraConnection: "POST /admin/jira-integration/test-connection",
   syncJiraIntegration: "POST /admin/jira-integration/sync",
 } as const;
@@ -311,6 +312,13 @@ export interface ChangeFactoryApi {
    * is status only, same as getJiraIntegrationStatus.
    */
   updateJiraCredentials(input: JiraCredentialsUpdateInput): Promise<JiraConnectionStatus>;
+  /**
+   * "Disconnect" — removes this customer's stored Jira credential
+   * entirely (not just blanking it). The connector falls back to mock
+   * immediately; site/project/status configuration is left untouched,
+   * so reconnecting later doesn't mean re-entering all of it.
+   */
+  disconnectJiraCredentials(): Promise<JiraConnectionStatus>;
   /**
    * "Test Connection" — checks whatever is currently typed in the form
    * (site URL, project key, email, API token), whether or not it has

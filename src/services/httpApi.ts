@@ -71,6 +71,41 @@ function readRememberedActiveCustomer(): string | null {
   return localStorage.getItem(ACTIVE_CUSTOMER_KEY);
 }
 
+const ADMIN_KEY_STORAGE_KEY = "ciq_admin_key";
+
+/**
+ * Sent as X-Admin-Key on Jira configuration/credential calls only
+ * (mirrors dependencies.require_admin_key's exact scope on the
+ * backend) -- a per-tab-session shared passphrase a human enters once
+ * via Integrations.tsx, NEVER baked into the build: this is a public
+ * static site, so the secret it's checked against on the server must
+ * never ship in frontend code or an env var read at build time.
+ * sessionStorage (not localStorage) is deliberate -- it clears when
+ * the tab closes, matching "a person re-enters a shared passphrase
+ * each session" rather than "remembered forever on this device."
+ * Empty/never entered is fine when the deployment doesn't require one
+ * (JDE_ADMIN_API_KEY unset server-side) -- see require_admin_key's own
+ * comment for why an absent header is then a no-op.
+ */
+export function getStoredAdminKey(): string {
+  try {
+    return sessionStorage.getItem(ADMIN_KEY_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function setStoredAdminKey(key: string): void {
+  try {
+    if (key) sessionStorage.setItem(ADMIN_KEY_STORAGE_KEY, key);
+    else sessionStorage.removeItem(ADMIN_KEY_STORAGE_KEY);
+  } catch {
+    // sessionStorage unavailable (e.g. private browsing) -- the key
+    // just won't be remembered across calls in this tab; a resulting
+    // 401 is handled the same way as a wrong key by every call site.
+  }
+}
+
 function messageFromErrorBody(status: number, body: string): string {
   // FastAPI's default error shape is {"detail": "..."} -- surface that
   // directly rather than the raw JSON when present, so a caller that
@@ -93,13 +128,17 @@ class HttpError extends Error {
 
 async function request<T>(
   path: string,
-  options: { method?: string; body?: unknown; customerId?: string } = {}
+  options: { method?: string; body?: unknown; customerId?: string; adminKey?: boolean } = {}
 ): Promise<T> {
   const headers: Record<string, string> = {
     "X-Demo-User-Id": demoUserIdFor(getMockPersona()),
   };
   if (options.customerId) headers["X-Customer-Id"] = options.customerId;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
+  if (options.adminKey) {
+    const key = getStoredAdminKey();
+    if (key) headers["X-Admin-Key"] = key;
+  }
 
   const res = await fetch(`${BASE_URL}${path}`, {
     method: options.method ?? "GET",
@@ -458,28 +497,35 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
 
   async getJiraIntegration(): Promise<JiraIntegrationConfig> {
     const customerId = await this.activeCustomerId();
-    return request<JiraIntegrationConfig>("/admin/jira-integration", { customerId });
+    return request<JiraIntegrationConfig>("/admin/jira-integration", { customerId, adminKey: true });
   }
 
   async updateJiraIntegration(input: JiraIntegrationConfigUpdateInput): Promise<JiraIntegrationConfig> {
     const customerId = await this.activeCustomerId();
-    return request<JiraIntegrationConfig>("/admin/jira-integration", { method: "PUT", customerId, body: input });
+    return request<JiraIntegrationConfig>("/admin/jira-integration", { method: "PUT", customerId, body: input, adminKey: true });
   }
 
   async getJiraIntegrationStatus(): Promise<JiraConnectionStatus> {
     const customerId = await this.activeCustomerId();
+    // Deliberately no adminKey -- Demand > Requests reads this too, see
+    // dependencies.require_admin_key's own comment on this route.
     return request<JiraConnectionStatus>("/admin/jira-integration/status", { customerId });
   }
 
   async updateJiraCredentials(input: JiraCredentialsUpdateInput): Promise<JiraConnectionStatus> {
     const customerId = await this.activeCustomerId();
-    return request<JiraConnectionStatus>("/admin/jira-credentials", { method: "PUT", customerId, body: input });
+    return request<JiraConnectionStatus>("/admin/jira-credentials", { method: "PUT", customerId, body: input, adminKey: true });
+  }
+
+  async disconnectJiraCredentials(): Promise<JiraConnectionStatus> {
+    const customerId = await this.activeCustomerId();
+    return request<JiraConnectionStatus>("/admin/jira-credentials", { method: "DELETE", customerId, adminKey: true });
   }
 
   async testJiraConnection(input: JiraTestConnectionInput): Promise<JiraTestConnectionResult> {
     const customerId = await this.activeCustomerId();
     return request<JiraTestConnectionResult>("/admin/jira-integration/test-connection", {
-      method: "POST", customerId, body: input,
+      method: "POST", customerId, body: input, adminKey: true,
     });
   }
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
+import { getStoredAdminKey, setStoredAdminKey } from "../../services/httpApi";
 import type { IntegrationStatus, JiraConnectionStatus, JiraIntegrationConfig, JiraSyncResult, JiraTestConnectionResult } from "../../types/domain";
 import { ApiNote, Loading } from "../../components/ui";
 
@@ -38,6 +39,13 @@ export function Integrations() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<JiraSyncResult | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
+
+  // Only sent when this deployment actually requires one
+  // (JDE_ADMIN_API_KEY) -- see httpApi.ts's own comment. Kept in
+  // sessionStorage, never in the build, never in source control.
+  const [adminKey, setAdminKey] = useState(() => getStoredAdminKey());
 
   // Form state, only meaningful while editing.
   const [baseUrl, setBaseUrl] = useState("");
@@ -128,6 +136,19 @@ export function Integrations() {
     }
   }
 
+  async function disconnect() {
+    setDisconnecting(true);
+    setDisconnectError(null);
+    try {
+      await api.disconnectJiraCredentials();
+      load();
+    } catch (e) {
+      setDisconnectError(e instanceof Error ? e.message : "Could not disconnect.");
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
   const configured = !!jiraConfig && !!(jiraConfig.baseUrl && jiraConfig.projectKey && jiraConfig.pickupStatus && jiraConfig.postPickupStatus && jiraConfig.jadeIdField);
   const baseUrlError = baseUrlIssue(baseUrl);
   const canTest = !testing && !!baseUrl.trim() && !baseUrlError && !!email.trim() && !!apiToken.trim();
@@ -165,8 +186,23 @@ export function Integrations() {
       <section className="panel">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
           <h2 style={{ margin: 0 }}>Jira</h2>
-          {!editing && <button className="btn" onClick={() => setEditing(true)}>{configured ? "Edit" : "Configure"}</button>}
+          {!editing && (
+            <div className="btnrow" style={{ margin: 0 }}>
+              <button className="btn" onClick={() => setEditing(true)}>{configured ? "Edit" : "Configure"}</button>
+              {jiraStatus?.credentialsConfigured && (
+                <button className="btn danger" disabled={disconnecting} onClick={disconnect}>
+                  {disconnecting ? "Disconnecting…" : "Disconnect"}
+                </button>
+              )}
+            </div>
+          )}
         </div>
+        {disconnectError && (
+          <div className="callout" style={{ marginBottom: 16, borderColor: "var(--stop)" }}>
+            <strong>Could not disconnect</strong>
+            {disconnectError}
+          </div>
+        )}
         <div className="sub" style={{ marginBottom: 12 }}>
           Jira/ITSM remains responsible for intake and triage — Jade only ever picks up a ticket a human has
           already moved to the configured pickup status below, and never decides that on Jira's behalf. This
@@ -190,6 +226,22 @@ export function Integrations() {
           and never appears anywhere in this UI after you leave this form. Production use would move this
           behind a real secrets provider — not built in this pilot.
         </div>
+
+        {editing && (
+          <div className="field">
+            <label htmlFor="jiraAdminKey">Admin key <span className="hint">(only if this deployment requires one)</span></label>
+            <input
+              id="jiraAdminKey" type="password" autoComplete="off" value={adminKey}
+              onChange={(e) => { setAdminKey(e.target.value); setStoredAdminKey(e.target.value); }}
+              placeholder="Leave blank unless you were given one"
+            />
+            <span className="hint">
+              Remembered only for this browser tab, never saved to this device or sent anywhere except this server.
+              Required to save, test or disconnect Jira here only when the deployment sets JDE_ADMIN_API_KEY —
+              local/dev instances don't need one.
+            </span>
+          </div>
+        )}
 
         {!jiraConfig ? null : !editing ? (
           <dl className="facts">

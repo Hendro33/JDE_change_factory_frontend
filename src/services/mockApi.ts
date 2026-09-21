@@ -1063,6 +1063,11 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     return this.getJiraIntegrationStatus();
   }
 
+  async disconnectJiraCredentials(): Promise<JiraConnectionStatus> {
+    this.jiraCredentials.delete(this.scope);
+    return this.getJiraIntegrationStatus();
+  }
+
   /**
    * Mock stand-in for jira_gateway.test_live_connection -- there is no
    * real Jira site to call here, so this is a representative check
