@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { api } from "../services/api";
-import type { BusinessDomain, Change, ChangeSource } from "../types/domain";
+import type { BusinessDomain, Change, ChangeSource, JiraConnectionStatus, JiraSyncResult } from "../types/domain";
 import type { NavTarget } from "../types/nav";
 import {
   ChangeGrid,
@@ -69,8 +69,37 @@ export function UserStories({ onOpenChange, navFilter, navToken }: { onOpenChang
   const [statusFilter, setStatusFilter] = useState("");
   const [allDomains, setAllDomains] = useState<BusinessDomain[]>([]);
 
+  // "Retrieve new requests" (Demand > Requests) -- the operational pull
+  // action, reusing the SAME Jira sync service Admin > Integrations'
+  // "Sync now" already calls. Configuration/credentials/testing stay on
+  // Admin > Integrations; this is only the day-to-day "go get new demand"
+  // button, manual for now (no polling/scheduling/webhooks).
+  const [jiraStatus, setJiraStatus] = useState<JiraConnectionStatus | null>(null);
+  const [retrieving, setRetrieving] = useState(false);
+  const [retrieveResult, setRetrieveResult] = useState<JiraSyncResult | null>(null);
+  const [retrieveError, setRetrieveError] = useState<string | null>(null);
+
   const reload = () => api.listChanges().then(setChanges);
-  useEffect(() => { reload(); api.listBusinessDomains().then(setAllDomains); }, []);
+  useEffect(() => {
+    reload();
+    api.listBusinessDomains().then(setAllDomains);
+    api.getJiraIntegrationStatus().then(setJiraStatus);
+  }, []);
+
+  async function retrieveNewRequests() {
+    setRetrieving(true);
+    setRetrieveError(null);
+    try {
+      const result = await api.syncJiraIntegration();
+      setRetrieveResult(result);
+      await reload();
+    } catch (e) {
+      setRetrieveResult(null);
+      setRetrieveError(e instanceof Error ? e.message : "Could not retrieve new requests.");
+    } finally {
+      setRetrieving(false);
+    }
+  }
 
   // Dashboard / nav items arrive here with a preset view, and "Create
   // Request" arrives with action: "create" to open the form directly —
@@ -165,7 +194,44 @@ export function UserStories({ onOpenChange, navFilter, navToken }: { onOpenChang
           <h1>{copy.title}</h1>
           <div className="sub">{copy.sub}</div>
         </div>
+        {view === "requests" && (
+          <div style={{ textAlign: "right" }}>
+            <button className="btn primary" disabled={retrieving} onClick={retrieveNewRequests}>
+              {retrieving ? "Retrieving…" : "Retrieve new requests"}
+            </button>
+            {jiraStatus && !jiraStatus.configConfigured && (
+              <div className="hint" style={{ marginTop: 6 }}>
+                Jira isn't configured for this customer yet — set it up under Admin &gt; Integrations first.
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {view === "requests" && (retrieveResult || retrieveError) && (
+        <section className="panel" style={{ marginBottom: 16 }}>
+          {retrieveError ? (
+            <div className="callout" style={{ borderColor: "var(--stop)" }}>
+              <strong>Could not retrieve new requests</strong>
+              {retrieveError}
+            </div>
+          ) : retrieveResult && (
+            <div className="callout">
+              <strong>
+                {retrieveResult.imported.length} new request{retrieveResult.imported.length === 1 ? "" : "s"} imported
+              </strong>
+              {retrieveResult.considered} ticket{retrieveResult.considered === 1 ? "" : "s"} found in Jira's configured pickup status.
+              {retrieveResult.errors.length > 0 && (
+                <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                  {retrieveResult.errors.map((e, i) => (
+                    <li key={i}><span className="mono">{e.issueKey}</span>: {e.message}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       {creating && (
         <section className="panel" style={{ marginBottom: 16 }}>

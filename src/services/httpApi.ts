@@ -71,9 +71,23 @@ function readRememberedActiveCustomer(): string | null {
   return localStorage.getItem(ACTIVE_CUSTOMER_KEY);
 }
 
+function messageFromErrorBody(status: number, body: string): string {
+  // FastAPI's default error shape is {"detail": "..."} -- surface that
+  // directly rather than the raw JSON when present, so a caller that
+  // just does `e.message` (e.g. Integrations.tsx's save() error
+  // handling) shows the actual validation reason, not `{"detail":...}`.
+  try {
+    const parsed = JSON.parse(body);
+    if (parsed && typeof parsed.detail === "string") return parsed.detail;
+  } catch {
+    // not JSON -- fall through to the raw body
+  }
+  return `HTTP ${status}: ${body}`;
+}
+
 class HttpError extends Error {
   constructor(public status: number, public body: string) {
-    super(`HTTP ${status}: ${body}`);
+    super(messageFromErrorBody(status, body));
   }
 }
 
