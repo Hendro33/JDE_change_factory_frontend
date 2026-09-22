@@ -181,12 +181,9 @@ function MainApp({ onSignedOut }: { onSignedOut?: () => void }) {
   return (
     <div className="app">
       <header className="masthead">
-        <div className="brandmark">
-          <span className="logo">consult<b>IQ</b></span>
-          <span className="product">
-            <strong>Jade</strong>
-            <span>An AI delivery team for enterprise change</span>
-          </span>
+        <div className="masthead-brand">
+          <img src="/jade-wordmark-emerald-charcoal.png" alt="Jade" className="jade-wordmark" />
+          <span className="masthead-tagline">An AI delivery team for enterprise change</span>
         </div>
         <div className="who">
           {session && <CustomerScope session={session} onSwitch={switchCustomer} />}
@@ -250,8 +247,10 @@ function MainApp({ onSignedOut }: { onSignedOut?: () => void }) {
       </main>
 
       <footer className="sitefoot">
-        <span className="logo">consult<b>IQ</b></span>
-        <span>An AI delivery team for enterprise change</span>
+        <div className="footer-brand">
+          <span className="logo">consult<b>IQ</b></span>
+          <span className="footer-tagline">Jade — a ConsultIQ product</span>
+        </div>
         <span style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           {IS_MOCK_MODE ? (
             <>
