@@ -62,7 +62,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .masthead {
   background: var(--brand);
   padding: 16px 32px;
-  min-height: 93px; /* ~30% taller than the previous 71px, for a Jade wordmark with real visual presence */
+  min-height: 93px; /* floor from the original ~30% header-height increase; actual height now follows the larger wordmark below it */
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -74,7 +74,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
    masthead's own increased padding above. No ConsultIQ branding here;
    that lives in the footer as the supporting parent brand. */
 .masthead-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-.masthead-brand .jade-wordmark { display: block; height: 40px; width: auto; }
+.masthead-brand .jade-wordmark { display: block; height: 52px; width: auto; } /* +30% over the previous 40px */
 .masthead-brand .masthead-tagline { font-size: 13.5px; line-height: 1.2; font-weight: 600; color: rgba(25,25,25,.78); }
 .brandmark { display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap; }
 .brandmark .logo {
@@ -221,7 +221,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .grid.kpis { grid-template-columns: repeat(2, 1fr); }
   .page { padding: 20px 16px 32px; }
   .masthead, .mainnav, .sitefoot { padding-left: 16px; padding-right: 16px; }
-  .masthead-brand .jade-wordmark { height: 32px; }
+  .masthead-brand .jade-wordmark { height: 42px; } /* +30% over the previous 32px */
 }
 
 /* ---------- KPI ---------- */
