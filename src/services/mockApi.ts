@@ -1024,8 +1024,10 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     return delay({
       customerId: this.scope,
       toolsRelease: "",
-      functionalAgent: { approvedVersions: [], spikeExperiments: [], neverTouchCategories: [], approvers: [] },
+      functionalAgent: { approvedVersions: [], spikeExperiments: [], neverTouchCategories: [], neverTouchNotes: [], approvers: [] },
       technicalAgent: { authorizedObjectTypes: [], reservedProductCode: "", namingPrefix: "", approvers: [] },
+      mechanismsAllowed: [],
+      testScope: { approvedTests: [] },
       revision: 0,
     });
   }
@@ -1049,6 +1051,8 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       },
       technicalAgent: input.technicalAgent,
       approvalPolicy: input.approvalPolicy ?? null,
+      mechanismsAllowed: input.mechanismsAllowed ?? [],
+      testScope: input.testScope ?? { approvedTests: [] },
       revision,
       updatedAt: stamp,
       updatedBy: actor,

@@ -6,7 +6,10 @@ import type {
   EngagementScope,
   EnvironmentBinding,
   ErpLandscape as ErpLandscapeData,
+  Mechanism,
   SpikeExperiment,
+  TestScope,
+  TestSideEffect,
 } from "../../types/domain";
 import { ApiNote, Loading } from "../../components/ui";
 import { saveErrorMessage } from "../../services/saveErrors";
@@ -23,26 +26,54 @@ const APPROVER_ROLES: { role: ApproverRole; label: string }[] = [
   { role: "domain_owner", label: "Domain Owner" },
 ];
 
+const MECHANISMS: { mechanism: Mechanism; label: string }[] = [
+  { mechanism: "ais_form_service_request", label: "AIS form service request (processing-option write)" },
+  { mechanism: "ais_orchestration", label: "AIS orchestration (post-change test)" },
+];
+
+/**
+ * Mirrors the option categories in capability_catalog.json's enforcement
+ * contract for processing_option_update. The server is authoritative: it
+ * refuses an unknown category, and the gate never writes a protected one.
+ */
+const OPTION_CATEGORIES: { category: string; label: string; protected: boolean }[] = [
+  { category: "defaults_and_display", label: "Defaults and display", protected: false },
+  { category: "document_and_order_types", label: "Document and order types", protected: false },
+  { category: "workflow_and_status", label: "Workflow and status", protected: false },
+  { category: "pricing", label: "Pricing", protected: true },
+  { category: "tax", label: "Tax", protected: true },
+  { category: "gl_posting_and_aai", label: "GL posting and AAIs", protected: true },
+  { category: "security_and_authorisation", label: "Security and authorisation", protected: true },
+  { category: "payments_and_banking", label: "Payments and banking", protected: true },
+  { category: "outbound_integration", label: "Outbound integration", protected: true },
+];
+const categoryInfo = (c: string) => OPTION_CATEGORIES.find((x) => x.category === c);
+
+const PERMITTED_TEST_EFFECTS: TestSideEffect[] = ["none", "creates_dev_transaction"];
+
 function approvedVersionsToText(v: ApprovedVersion[]): string {
   return v
-    .map((a) => `${a.capabilityId ?? ""}|${a.application}|${a.version}|${a.options.join(",")}|${a.allowedValues.join(",")}|${a.notes}`)
+    .map((a) => `${a.capabilityId ?? ""}|${a.optionCategory ?? ""}|${a.application}|${a.version}|${a.options.join(",")}|${a.allowedValues.join(",")}|${a.notes}`)
     .join("\n");
 }
 
 /**
- * One line per entry: capability|application|version|options|allowedValues|notes.
- * A five-field line (the older format, without the capability) keeps the
- * capability of the saved row with the same application|version.
+ * One line per entry: capability|category|application|version|options|allowedValues|notes.
+ * Older lines are still read: six fields (no category) leave the category
+ * empty, which blocks execution until it is classified; five fields (no
+ * capability either) keep the capability of the saved row with the same
+ * application|version.
  */
 function approvedVersionsFromText(text: string, previous: ApprovedVersion[]): ApprovedVersion[] {
   const key = (a: string, v: string) => `${a.trim().toUpperCase()}|${v.trim().toUpperCase()}`;
   const capabilityByKey = new Map(previous.map((p) => [key(p.application, p.version), p.capabilityId]));
   return lines(text).map((line) => {
     const parts = line.split("|");
-    const [capability, application = "", version = "", options = "", allowedValues = "", notes = ""] =
-      parts.length >= 6 ? parts : [undefined, ...parts];
+    const [capability, category = "", application = "", version = "", options = "", allowedValues = "", notes = ""] =
+      parts.length >= 7 ? parts : parts.length === 6 ? [parts[0], "", ...parts.slice(1)] : [undefined, "", ...parts];
     return {
       capabilityId: capability !== undefined ? capability.trim() : capabilityByKey.get(key(application, version)) ?? "",
+      optionCategory: category.trim(),
       application: application.trim(),
       version: version.trim(),
       options: options.split(",").map((s) => s.trim()).filter(Boolean),
@@ -76,6 +107,24 @@ function spikesFromText(text: string): SpikeExperiment[] {
   });
 }
 
+function testsToText(t: TestScope | undefined): string {
+  return (t?.approvedTests ?? []).map((x) => `${x.orchestration}|${x.sideEffects.join(",")}|${x.note}`).join("\n");
+}
+
+/** One line per test: orchestration|sideEffect,sideEffect|note. */
+function testsFromText(text: string): TestScope {
+  return {
+    approvedTests: lines(text).map((line) => {
+      const [orchestration = "", effects = "", note = ""] = line.split("|");
+      return {
+        orchestration: orchestration.trim(),
+        sideEffects: effects.split(",").map((s) => s.trim()).filter(Boolean) as TestSideEffect[],
+        note: note.trim(),
+      };
+    }),
+  };
+}
+
 const isExpired = (iso: string) => !(Date.parse(iso) > Date.now());
 
 export function ErpLandscape() {
@@ -89,7 +138,10 @@ export function ErpLandscape() {
   // Form state, only meaningful while editing.
   const [toolsRelease, setToolsRelease] = useState("");
   const [approvedVersionsText, setApprovedVersionsText] = useState("");
-  const [neverTouchText, setNeverTouchText] = useState("");
+  const [neverTouch, setNeverTouch] = useState<string[]>([]);
+  const [neverTouchNotesText, setNeverTouchNotesText] = useState("");
+  const [mechanisms, setMechanisms] = useState<Mechanism[]>([]);
+  const [testsText, setTestsText] = useState("");
   const [functionalApproversText, setFunctionalApproversText] = useState("");
   const [objectTypesText, setObjectTypesText] = useState("");
   const [reservedProductCode, setReservedProductCode] = useState("");
@@ -108,7 +160,10 @@ export function ErpLandscape() {
       setScope(s);
       setToolsRelease(s.toolsRelease);
       setApprovedVersionsText(approvedVersionsToText(s.functionalAgent.approvedVersions));
-      setNeverTouchText(s.functionalAgent.neverTouchCategories.join("\n"));
+      setNeverTouch(s.functionalAgent.neverTouchCategories);
+      setNeverTouchNotesText((s.functionalAgent.neverTouchNotes ?? []).join("\n"));
+      setMechanisms(s.mechanismsAllowed ?? []);
+      setTestsText(testsToText(s.testScope));
       setFunctionalApproversText(s.functionalAgent.approvers.join("\n"));
       setObjectTypesText(s.technicalAgent.authorizedObjectTypes.join("\n"));
       setReservedProductCode(s.technicalAgent.reservedProductCode);
@@ -134,7 +189,8 @@ export function ErpLandscape() {
         functionalAgent: {
           approvedVersions: approvedVersionsFromText(approvedVersionsText, scope.functionalAgent.approvedVersions),
           spikeExperiments: spikesFromText(spikesText),
-          neverTouchCategories: lines(neverTouchText),
+          neverTouchCategories: neverTouch,
+          neverTouchNotes: lines(neverTouchNotesText),
           approvers: lines(functionalApproversText),
         },
         technicalAgent: {
@@ -147,6 +203,8 @@ export function ErpLandscape() {
         approvalPolicy: policyRoles.length
           ? { policyVersion: 1, exactChangeApproverRoles: policyRoles, approvalValidHours: policyHours }
           : null,
+        mechanismsAllowed: mechanisms,
+        testScope: testsFromText(testsText),
         expectedRevision: scope.revision,
       });
       setEditing(false);
@@ -258,16 +316,52 @@ export function ErpLandscape() {
                     <p className="notstated">None configured</p>
                   ) : (
                     <table className="data">
-                      <thead><tr><th>Capability</th><th>Application</th><th>Version</th><th>Options</th><th>Allowed values</th><th>Notes</th></tr></thead>
+                      <thead><tr><th>Capability</th><th>Category</th><th>Application</th><th>Version</th><th>Options</th><th>Allowed values</th><th>Notes</th></tr></thead>
                       <tbody>
                         {scope.functionalAgent.approvedVersions.map((v, i) => (
                           <tr key={i}>
                             <td className="mono">{v.capabilityId || <span className="badge warn">none — cannot run</span>}</td>
+                            <td><CategoryBadge category={v.optionCategory} neverTouch={scope.functionalAgent.neverTouchCategories} /></td>
                             <td className="mono">{v.application}</td>
                             <td className="mono">{v.version}</td>
                             <td>{v.options.join(", ")}</td>
                             <td>{v.allowedValues.join(", ") || <span className="notstated">any</span>}</td>
                             <td>{v.notes}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+                <div>
+                  <strong>Mechanisms allowed</strong>
+                  <p style={{ margin: "4px 0 0" }}>
+                    {(scope.mechanismsAllowed ?? []).length === 0 ? (
+                      <><span className="badge warn">None</span> no write or test can run</>
+                    ) : (
+                      (scope.mechanismsAllowed ?? []).map((m) => MECHANISMS.find((x) => x.mechanism === m)?.label ?? m).join("; ")
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <strong>Approved tests</strong>
+                  {(scope.testScope?.approvedTests ?? []).length === 0 ? (
+                    <p className="notstated">None — no post-change test can run</p>
+                  ) : (
+                    <table className="data">
+                      <thead><tr><th>Orchestration</th><th>Declared side effects</th><th>Note</th></tr></thead>
+                      <tbody>
+                        {(scope.testScope?.approvedTests ?? []).map((t, i) => (
+                          <tr key={i}>
+                            <td className="mono">{t.orchestration}</td>
+                            <td>
+                              {t.sideEffects.map((e) => (
+                                <span key={e} className={`badge ${PERMITTED_TEST_EFFECTS.includes(e) ? "grey" : "warn"}`} style={{ marginRight: 4 }}>
+                                  {e}{PERMITTED_TEST_EFFECTS.includes(e) ? "" : " — refused"}
+                                </span>
+                              ))}
+                            </td>
+                            <td>{t.note}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -299,8 +393,13 @@ export function ErpLandscape() {
                   )}
                 </div>
                 <dl className="facts">
-                  <dt>Never-touch categories <span className="hint">(reference only)</span></dt>
-                  <dd>{scope.functionalAgent.neverTouchCategories.join(", ") || <span className="notstated">none listed</span>}</dd>
+                  <dt>Never-touch categories <span className="hint">(enforced)</span></dt>
+                  <dd>
+                    {scope.functionalAgent.neverTouchCategories.map((c) => categoryInfo(c)?.label ?? c).join(", ") || <span className="notstated">none</span>}
+                    <span className="hint"> — in addition to the always-protected categories</span>
+                  </dd>
+                  <dt>Never-touch notes <span className="hint">(reference only, not enforced)</span></dt>
+                  <dd>{(scope.functionalAgent.neverTouchNotes ?? []).join("; ") || <span className="notstated">none</span>}</dd>
                   <dt>Functional approvers <span className="hint">(reference only)</span></dt>
                   <dd>{scope.functionalAgent.approvers.join(", ") || <span className="notstated">none listed</span>}</dd>
                   <dt>Authorized object types</dt>
@@ -360,11 +459,33 @@ export function ErpLandscape() {
                   <label htmlFor="isolationEvidence">How isolation was checked</label>
                   <textarea id="isolationEvidence" value={environment.isolationEvidence} onChange={(e) => setEnvironment({ ...environment, isolationEvidence: e.target.value })} />
                 </fieldset>
+                <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+                  <legend style={{ fontWeight: 700, marginBottom: 6 }}>Mechanisms allowed <span className="hint">(enforced)</span></legend>
+                  <span className="hint">A write or test whose mechanism is not ticked is refused.</span>
+                  <div style={{ display: "flex", gap: 16, flexWrap: "wrap", margin: "6px 0" }}>
+                    {MECHANISMS.map(({ mechanism, label }) => (
+                      <label key={mechanism} style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 400 }}>
+                        <input
+                          type="checkbox"
+                          checked={mechanisms.includes(mechanism)}
+                          onChange={() => setMechanisms((m) => (m.includes(mechanism) ? m.filter((x) => x !== mechanism) : [...m, mechanism]))}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
                 <div className="field">
                   <label htmlFor="approvedVersions">
-                    Functional Agent — approved versions <span className="hint">(one per line: capability|application|version|options,comma|allowedValues,comma|notes)</span>
+                    Functional Agent — approved versions <span className="hint">(one per line: capability|category|application|version|options,comma|allowedValues,comma|notes — category is one of: {OPTION_CATEGORIES.filter((c) => !c.protected).map((c) => c.category).join(", ")}; protected categories are refused)</span>
                   </label>
-                  <textarea id="approvedVersions" value={approvedVersionsText} onChange={(e) => setApprovedVersionsText(e.target.value)} placeholder="processing_option_update|P4210|CIQ0001|PDOCTYPE|SO,SV|Default document type on a named sales order version" />
+                  <textarea id="approvedVersions" value={approvedVersionsText} onChange={(e) => setApprovedVersionsText(e.target.value)} placeholder="processing_option_update|document_and_order_types|P4210|CIQ0001|PDOCTYPE|SO,SV|Default document type on a named sales order version" />
+                </div>
+                <div className="field">
+                  <label htmlFor="approvedTests">
+                    Approved tests <span className="hint">(enforced; one per line: orchestration|sideEffect,sideEffect|note — side effects: none, creates_dev_transaction; posting, payment, outbound_integration and batch_run are refused)</span>
+                  </label>
+                  <textarea id="approvedTests" value={testsText} onChange={(e) => setTestsText(e.target.value)} placeholder="ORCH_CREATE_TEST_SO|creates_dev_transaction|Creates one DEV sales order" />
                 </div>
                 <div className="field">
                   <label htmlFor="spikeExperiments">
@@ -372,9 +493,26 @@ export function ErpLandscape() {
                   </label>
                   <textarea id="spikeExperiments" value={spikesText} onChange={(e) => setSpikesText(e.target.value)} placeholder="processing_option_update|r1|P4210|CIQ0001|PDOCTYPE|2026-10-31T17:00:00+01:00|Experiment A" />
                 </div>
+                <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+                  <legend style={{ fontWeight: 700, marginBottom: 6 }}>Never-touch categories <span className="hint">(enforced)</span></legend>
+                  <span className="hint">Protected categories are always refused and cannot be unticked.</span>
+                  <div style={{ display: "flex", gap: 16, flexWrap: "wrap", margin: "6px 0" }}>
+                    {OPTION_CATEGORIES.map(({ category, label, protected: prot }) => (
+                      <label key={category} style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 400 }}>
+                        <input
+                          type="checkbox"
+                          disabled={prot}
+                          checked={prot || neverTouch.includes(category)}
+                          onChange={() => setNeverTouch((n) => (n.includes(category) ? n.filter((x) => x !== category) : [...n, category]))}
+                        />
+                        {label}{prot && <span className="hint"> (protected)</span>}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
                 <div className="field">
-                  <label htmlFor="neverTouch">Never-touch categories <span className="hint">(one per line; reference only, not enforced)</span></label>
-                  <textarea id="neverTouch" value={neverTouchText} onChange={(e) => setNeverTouchText(e.target.value)} placeholder="Tax calculation processing options" />
+                  <label htmlFor="neverTouchNotes">Never-touch notes <span className="hint">(one per line; reference only — a note is not enforcement)</span></label>
+                  <textarea id="neverTouchNotes" value={neverTouchNotesText} onChange={(e) => setNeverTouchNotesText(e.target.value)} placeholder="Ask Finance before touching credit-check options" />
                 </div>
                 <div className="field">
                   <label htmlFor="functionalApprovers">Functional approvers <span className="hint">(one per line; reference only — authority comes from the approval policy)</span></label>
@@ -439,18 +577,20 @@ function GateCoverage() {
             <li>The story is approved, and linked to this company</li>
             <li>The exact change is approved by a role this company's approval policy allows, and has not expired</li>
             <li>The operation is byte-for-byte the one approved</li>
-            <li>The capability has an execution adapter, and is validated or inside a current spike window</li>
+            <li>The capability has a complete enforcement contract (only processing-option update does), and is validated or inside a current spike window</li>
+            <li>The target is approved for this capability, through a mechanism this company allows</li>
+            <li>The option's category is declared, not protected (pricing, tax, GL/AAI, security, payments, outbound integration) and not never-touch</li>
             <li>DEV isolation is confirmed, and the JDE connection points at the bound DEV environment</li>
             <li>The target is an approved version and option, the value is allowed, and the version is not XJDE/ZJDE</li>
             <li>No earlier attempt is in flight, already applied, or of unknown outcome</li>
-            <li>A test runs only after its write is applied, and only the test named in the approval</li>
+            <li>A test runs only after its write is applied, only the test named in the approval, only if it is an approved test, and only if its declared side effects are none or a DEV transaction</li>
           </ul>
         </div>
         <div>
           <strong>Recorded here but not enforced</strong>
           <ul style={{ fontSize: 13.5, paddingLeft: 18 }}>
-            <li>Never-touch categories and the free-text approver lists (reference only)</li>
-            <li>Protected scope, mechanisms and test scope (proposed; not stored)</li>
+            <li>Never-touch notes and the free-text approver lists (reference only)</li>
+            <li>Whether a test's declared side effects are true: they are declared by a person, not observed</li>
             <li>Technical Agent object types, product code and naming prefix: no technical write tool exists</li>
           </ul>
           <strong>Not available yet</strong>
@@ -464,6 +604,15 @@ function GateCoverage() {
       </div>
     </section>
   );
+}
+
+function CategoryBadge({ category, neverTouch }: { category?: string; neverTouch: string[] }) {
+  if (!category) return <span className="badge warn">not classified — cannot run</span>;
+  const info = categoryInfo(category);
+  if (!info) return <span className="badge warn">{category} — unknown</span>;
+  if (info.protected) return <span className="badge warn">{info.label} — protected, refused</span>;
+  if (neverTouch.includes(category)) return <span className="badge warn">{info.label} — never-touch, refused</span>;
+  return <span className="badge grey">{info.label}</span>;
 }
 
 function NotStatedInline() {

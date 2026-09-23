@@ -737,11 +737,40 @@ export interface ErpLandscape {
 export interface ApprovedVersion {
   /** Catalogue capability this approval is bound to; empty on older records. */
   capabilityId?: string;
+  /**
+   * Enforced, required before anything can run: one of the capability's
+   * option categories (OPTION_CATEGORIES). Protected categories are never
+   * written; empty means "not classified" and blocks execution.
+   */
+  optionCategory?: string;
   application: string;
   version: string;
   options: string[];
   allowedValues: string[];
   notes: string;
+}
+
+/** The JDE access mechanisms a company may allow (closed list, enforced). */
+export type Mechanism = "ais_form_service_request" | "ais_orchestration";
+
+/** Declared side effects of a post-change test (closed list, enforced). */
+export type TestSideEffect =
+  | "none"
+  | "creates_dev_transaction"
+  | "posting"
+  | "payment"
+  | "outbound_integration"
+  | "batch_run";
+
+/** An orchestration the company allows Jade to run as a post-change test. */
+export interface ApprovedTest {
+  orchestration: string;
+  sideEffects: TestSideEffect[];
+  note: string;
+}
+
+export interface TestScope {
+  approvedTests: ApprovedTest[];
 }
 
 /**
@@ -767,8 +796,10 @@ export interface SpikeExperiment {
 export interface FunctionalAgentScope {
   approvedVersions: ApprovedVersion[];
   spikeExperiments?: SpikeExperiment[];
-  /** Reference only -- not read by the execution gate. */
+  /** Enforced: option categories (closed list) this company never lets Jade write. */
   neverTouchCategories: string[];
+  /** Reference only -- free-text guidance, never read by the execution gate. */
+  neverTouchNotes?: string[];
   /** Reference only -- approval authority comes from roles and the approval policy. */
   approvers: string[];
 }
@@ -812,6 +843,10 @@ export interface EngagementScope {
   functionalAgent: FunctionalAgentScope;
   technicalAgent: TechnicalAgentScope;
   approvalPolicy?: ApprovalPolicy | null;
+  /** Enforced: mechanisms this company allows. Empty means nothing can run. */
+  mechanismsAllowed?: Mechanism[];
+  /** Enforced: the only tests Jade may run, with their declared side effects. */
+  testScope?: TestScope;
   /** 0 means never saved. */
   revision: number;
   /** Absent means "never configured" — distinct from an explicitly empty, saved scope. */
@@ -826,6 +861,10 @@ export interface EngagementScopeUpdateInput {
   functionalAgent: FunctionalAgentScope;
   technicalAgent: TechnicalAgentScope;
   approvalPolicy?: ApprovalPolicy | null;
+  /** Enforced: mechanisms this company allows. Empty means nothing can run. */
+  mechanismsAllowed?: Mechanism[];
+  /** Enforced: the only tests Jade may run, with their declared side effects. */
+  testScope?: TestScope;
   /** The revision this edit was based on (0 when creating). */
   expectedRevision: number;
 }
