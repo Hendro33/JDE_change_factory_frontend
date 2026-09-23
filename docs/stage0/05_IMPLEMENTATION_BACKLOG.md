@@ -15,6 +15,15 @@
 - API = backend `api_service/jde_api_service/`
 - MCP = backend `mcp_server/jde_mcp_server/`
 
+> **Stage 1 status (23 September).** Stage 1 is now delivered as four increments (`docs/stage1/01_STAGE1_INCREMENTS.md`):
+>
+> - **S1-1** saved setup and identity: B-2 (most), B-3, and part of B-6;
+> - **S1-2** execution safeguards: B-4 (gate part), B-5 (company level), and parts of B-6 and B-7;
+> - **S1-3** shared-backend proposal: new; hosting was Stage 6 before;
+> - **S1-4** JDE experiment plans: A and E. B-9 is its first executed step.
+>
+> S1-1 and S1-2 are implemented on review branches, not merged. The mapping of the 26 / 44 / 74 person-day estimate onto those increments and later expansion is in that document. The items below are kept as written for traceability.
+
 ---
 
 ## Stage 1 — common foundation (starting with persistence)

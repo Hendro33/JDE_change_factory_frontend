@@ -4,6 +4,13 @@
 **Purpose:** give an independent reviewer (Codex) the exact code, state and instructions needed to review the same Jade build this baseline describes.
 **Evidence labels used in all Stage 0 documents:** *vendor-documented* · *implemented* (code exists) · *locally tested* (automated or manual test in a dev environment) · *customer-DEV validated* · *reported but unverified* · *proposed*.
 
+> **Stage 1 update (23 September).** This hand-off describes the Stage 0 baseline and is kept unchanged as that record, apart from §6 (V11 is now the confirmed baseline). The Stage 1 work sits on review branches and is described in `docs/stage1/01_STAGE1_INCREMENTS.md`:
+>
+> - frontend `claude/focused-gates-gtay96`;
+> - backend `claude/stage1-setup-and-safeguards`.
+>
+> From Stage 1 on, the gate reads per-company scope, not `scope.json`. The Stage 1 document explains how to run it.
+
 ## 1. Code under review
 
 | | Frontend | Backend |
@@ -116,9 +123,8 @@ CI derives both from the repository variable `VITE_API_BASE_URL`, which is curre
 
 | Version | Location | Status |
 |---|---|---|
-| **V11** | backend `docs/JDE_AI_Driven_Change_Factory_Design_Document_v11.docx`. Content last changed in `fb1e05a` (2026-09-20); the title page reads "Design Document — Version 11". It includes the 19–20 September increments (§1.3 "What's new since v11", §19 Administration Area, §19.7 credential handling). | **The latest design document on GitHub** (only two repositories exist under the account; all refs and all history were searched on 23 September). |
-| **V12** | Referenced by the owner's assessment, with generator `build_jade_v12.py` | **Not available to this session.** It is not in either repository or this environment. |
-| V13 draft | `docs/stage0/04_JADE_DESIGN_V13_DRAFT.md` (this branch) | Consolidates V11 with the 21 and 23 September assessment and brief. **It must be reconciled with V12 before it becomes authoritative.** |
+| **V11** | backend `docs/JDE_AI_Driven_Change_Factory_Design_Document_v11.docx`. Content last changed in `fb1e05a` (2026-09-20); the title page reads "Design Document — Version 11". It includes the 19–20 September increments (§1.3 "What's new since v11", §19 Administration Area, §19.7 credential handling). | **The authoritative baseline.** Confirmed by the owner on 23 September: V11 as maintained through 20 September. |
+| Design update draft | `docs/stage0/04_JADE_DESIGN_V13_DRAFT.md` (this branch) | Proposes changes to V11 from the 21 and 23 September assessment and brief, and records what Stage 1 implemented. V11 stays authoritative until the owner accepts it. |
 
 The owner-supplied inputs (`JADE_Full_Product_Architecture_Assessment.md` including its 23 September section 17, `JADE_Staged_Delivery_Plan.md` and `JADE_Claude_Design_Update_Brief.md`) were read from session uploads. They are not committed to either repository.
 

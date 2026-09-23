@@ -1,13 +1,13 @@
 # Jade — AI-Driven JDE Change Factory
-## Design Document V13 (DRAFT for review)
+## Design update to V11 (DRAFT for review; working title "V13")
 
 | | |
 |---|---|
-| Status | **Draft. Not authoritative.** |
-| Based on | V11 (backend `docs/JDE_AI_Driven_Change_Factory_Design_Document_v11.docx`, the latest version in either repository); the Full Product Architecture Assessment (21 September 2026, including the 23 September §17); the Staged Delivery Plan; the Design Update Brief; the Stage 0 repository audit (`01`–`03` in this folder) |
-| Missing input | **V12 and `build_jade_v12.py` were not available.** Before this draft becomes authoritative, the owner or Codex must diff it against V12 and carry over any accepted V12 changes that are absent here. |
-| Code baseline | frontend `d109e9c`, backend `20574b7` (23 September 2026) |
-| Format | Markdown so it can be reviewed and diffed. Render to Word only after V12 reconciliation, then check tables, contents and links. |
+| Status | **Draft update, not yet accepted.** V11 remains the authoritative design until the owner accepts this update. |
+| Authoritative baseline | **V11**, maintained through 20 September 2026: backend `docs/JDE_AI_Driven_Change_Factory_Design_Document_v11.docx`, last changed in `fb1e05a`. The owner confirmed on 23 September that V11 is the baseline; no other version is to be reconciled. |
+| Also based on | The Full Product Architecture Assessment (21 September 2026, including the 23 September §17); the Staged Delivery Plan; the Design Update Brief; the Stage 0 repository audit (`01`–`03` in this folder) |
+| Code baseline | Audited: frontend `d109e9c`, backend `20574b7` (23 September 2026). Stage 1 work since then is on review branches (frontend `claude/focused-gates-gtay96`, backend `claude/stage1-setup-and-safeguards`). See `docs/stage1/`. Statements marked *implemented (Stage 1 branch)* are not merged or deployed. |
+| Format | Markdown so it can be reviewed and diffed. Render to Word once accepted, then check tables, contents and links. |
 
 > **We are designing the full product, validating it incrementally, and testing its difficult assumptions early.** Neither a one-case MVP success nor an untested capability list proves broad automation coverage.
 
@@ -114,8 +114,8 @@ A restriction can change only through a reviewed change to a specific capability
 |---|---|---|
 | **Domain Owner** | Approves the business requirement for their assigned domains | Unchanged. Assignment is explicit (`domain_assignments`), never inferred from an APQC code. |
 | **Product Manager** | Delivery authorisation: Gate 1, admission to the Delivery Queue. **This role carries V11's "Application Manager" responsibilities.** | The code already requires `product_manager` (`domain_governance.py:367`). The UI label should read "Product Manager". |
-| **Exact-change approver** | Approves one specific operation | **Proposed:** a policy record per company, domain and action type, defaulting to Product Manager. Today any writer can approve (defect P-8). |
-| **Admin** | Company users, invitations, settings, integrations | **Never** an implicit business or execution approver. |
+| **Exact-change approver** | Approves one specific operation | ***Implemented (Stage 1 branch):*** each company's approval policy names the roles allowed to approve (Admin, Product Manager and/or Domain Owner) and how long an approval stays valid. There is no default. With no policy, nobody can approve and nothing executes. The approver's roles come from the session and are re-checked against the current policy before execution. **Still proposed:** policy per domain and action type. |
+| **Admin** | Company users, invitations, settings, integrations, the company's approval policy | **Never** an implicit business or execution approver. An Admin approves exact changes only if the company's policy explicitly lists the Admin role. |
 | **Dashboard Viewer** | Read only | Unchanged |
 | **CNC (external)** | Package build and deploy, promotion, configuration-row migration between environments | Unchanged. Jade waits for CNC and never promotes. |
 
@@ -181,6 +181,8 @@ The engine distinguishes these states, which are mapped onto the UI states above
 - verification pending
 - technically verified
 - business accepted
+
+***Implemented (Stage 1 branch):*** at startup, any Receive/Improve/Check, Architect or agent run still marked in progress is set to failed with "interrupted by a backend restart; retry". A run can no longer look as if it is running forever, and the retry endpoints accept it. Runs are **not** resumed automatically; resuming is part of the durable engine (§6.5).
 
 ---
 
@@ -372,17 +374,27 @@ CompanyCapabilityEnablement (company, capability revision, targets, limits, rest
 
 ### 7.1 Scope contract: from global file to per-company records
 
-`scope.json` today is enforced **only** in these parts:
+***Implemented (Stage 1 branch):*** the global `scope.json` is no longer read. The execution gate:
 
-- `environment`
-- `functional_agent.approved_versions[]`, including `capability_id` and `allowed_values`
-- `functional_agent.spike_experiments[]` (**`expires_at` not enforced**)
-- `technical_agent.authorized_object_types`
-- `scope_revision`
+- takes the story's company from its intake link, never from the caller;
+- reads that company's Admin-saved engagement scope, which is revisioned and attributed;
+- enforces these sections:
+  - `environment`, including an explicit isolation confirmation;
+  - `approved_versions`, with capability binding and allowed values;
+  - `spike_experiments`, each bound to a capability revision and valid only before its `expires_at`;
+  - `approval_policy`.
 
-The sections `protected_scope`, `mechanisms`, `governance`, `test_scope`, `never_touch_categories` and `approvers` are documented but unenforced.
+`technical_agent.authorized_object_types` has a check (`scope.check_technical_scope`), but nothing calls it yet, because Jade has no technical write tool.
 
-**Target:** `CompanyCapabilityEnablement` and policy records in the database, holding:
+A missing link, a missing scope or a missing or unrecognised policy blocks execution. `scope.example.json` documents the stored format.
+
+The following remain documented but unenforced, and are labelled so in the UI and the example file:
+
+- `protected_scope`, `mechanisms` and `test_scope` (listed under `_proposed_not_enforced` in `scope.example.json`);
+- `never_touch_categories`;
+- the free-text `approvers` lists.
+
+**Target:** the same records in the database as `CompanyCapabilityEnablement` and policy records, holding:
 
 - environment identity;
 - permitted capabilities, targets and fields;
@@ -393,7 +405,7 @@ The sections `protected_scope`, `mechanisms`, `governance`, `test_scope`, `never
 - governance (approver authority, validity);
 - test scope.
 
-Each is revisioned and audited. The gate reads these records. A missing or conflicting scope fails closed. `scope.json` remains only as an import format.
+The Stage 1 file format is the contract to migrate from.
 
 ---
 
@@ -452,9 +464,9 @@ The database owns: companies, domains, APQC selections, maps, environment profil
 - Repository defaults and templates are allowed. **Active settings resolve to an audited backend revision.**
 - Browser storage is limited to preferences, temporary input and caches.
 - Secrets go to protected server-side secret storage.
-- Saves carry the **authenticated** identity and a revision. A stale revision gets 409.
-- Saves **fail visibly** when the backend is unavailable, with no browser fallback.
-- Existing browser setup is migrated only by a previewable, authenticated import that never overwrites a newer server value.
+- Saves carry the **authenticated** identity and a revision. A stale revision gets 409. *Implemented (Stage 1 branch)* for engagement scope, Jira configuration, business-domain status and dashboard thresholds. A save of an existing record with no revision gets 428.
+- Saves **fail visibly** when the backend is unavailable, with no browser fallback. *Implemented (Stage 1 branch)* on Customer Setup, ERP / JDE Landscape, Integrations, Business Domains and exact-change decisions.
+- Existing browser setup is migrated only by a previewable, authenticated import that never overwrites a newer server value. *Implemented (Stage 1 branch)* for dashboard thresholds, the only browser-stored setting found by the audit.
 - The acceptance tests are those in `02_STORAGE_AUDIT.md` §4.
 
 ---
@@ -463,18 +475,32 @@ The database owns: companies, domains, APQC selections, maps, environment profil
 
 ### 9.1 Exact-change record
 
-**Implemented:** story ID, operation hash, environment, `capability_id` and revision, catalogue and scope revisions, approver, expiry.
+**Implemented:**
+
+- story ID;
+- operation hash;
+- environment;
+- `capability_id` and revision;
+- catalogue and scope revisions;
+- approver and expiry.
+
+***Implemented (Stage 1 branch):***
+
+- the company (from the story's intake link);
+- the approver's authority (the roles that matched, the policy version and the scope revision);
+- an expiry set by the company's policy.
+
+A missing expiry now refuses, as does a past one; test runs are included. Records are written atomically.
 
 **To add:**
 
-- company and data-source identity;
+- data-source identity;
 - story and specification revision;
 - typed before-state and exact after-state, or a patch hash;
 - affected keys and objects;
 - dependency fingerprint;
 - toolchain revision;
-- test manifest;
-- approver **authority** (policy record).
+- test manifest.
 
 ### 9.2 No unreviewed generation after approval
 
@@ -487,6 +513,8 @@ A single operation is one bounded semantic change, which may involve several for
 ### 9.4 Concurrency
 
 A read-before-write check reduces risk but **is not atomic protection.** Use leases, locks or fencing where JDE supports them. Otherwise block, or require a controlled human maintenance window.
+
+Jade's own setup records are a separate matter. They use optimistic revisions (*implemented, Stage 1 branch*), with atomic file writes under a per-directory lock and SQLite `BEGIN IMMEDIATE`. That is safe for **one** backend process. More than one process needs the relational database (D-7).
 
 ### 9.5 Test writes
 
@@ -573,11 +601,15 @@ Not authorised by this document. Each needs its own approved DEV scope, observab
 
 For each experiment, record effort split into: vendor-native, Jade platform code, reusable capability code, customer setup, and bespoke request work.
 
+Exact prerequisites and bounded test plans for A and E, the two experiments to run first and in parallel, are in `docs/stage1/03_JDE_DEV_EXPERIMENT_PLANS.md`.
+
 ---
 
 ## 14. Hosting topology
 
-**Parked, and unchanged by this draft.** No purchase or migration is implied.
+**The Azure / full-hosting migration stays parked.** No purchase or migration is implied.
+
+A separate, minimal proposal covers one shared backend for the pilot, using the existing application unchanged: `docs/stage1/02_SHARED_BACKEND_DEPLOYMENT_PROPOSAL.md`. It gives recurring costs within the EUR 100/month infrastructure target (AI excluded), storage, backups, secrets, login/session and email limits. It is a proposal only. Nothing has been purchased or deployed.
 
 | Scale | Topology |
 |---|---|
@@ -629,7 +661,7 @@ Retries that double token volume double these figures. Real technical tasks can 
 
 ### 15.4 Infrastructure
 
-- **Pilot control application:** a sub-EUR 100/month target **to be quoted**, not promised. The EUR 40–90 figure is an unquoted planning allowance.
+- **Pilot control application:** a sub-EUR 100/month target. The Stage 1 proposal (`docs/stage1/02_…`) prices a minimal shared backend from published list prices, which have not been quoted to us. The EUR 40–90 figure is superseded for that scope.
 - **Runner:** at an *assumed* EUR 0.20/hour, 80 hours cost EUR 16 and 730 hours cost EUR 146. Disks, network, licences and maintenance come on top. This is not a quote.
 
 ### 15.5 Controls
@@ -665,12 +697,12 @@ Stage 1 packages are estimated in the backlog from repository inspection (low/ba
 
 | # | Decision / unknown | Owner | Needed by |
 |---|---|---|---|
-| D-1 | Reconcile this draft with V12; confirm the authoritative location (backend `docs/`) | Owner | Before V13 is final |
+| D-1 | ~~Reconcile with V12~~. **Resolved 23 September:** V11 (through 20 September) is the authoritative baseline. Remaining: accept or amend this update, then render it next to V11 in backend `docs/`. | Owner | Before this update is final |
 | D-2 | Connect the live UI to a backend (requires hosting), or restrict it to a labelled demo until Stage 6 | Owner | Stage 1 |
 | D-3 | Approved JDE DEV access, service accounts, CNC isolation confirmation | Owner / customer / CNC | Experiments A–E |
 | D-4 | Representative request sample (30–50, including technical and fault work) | Owner / customer | Stage 0–2 |
 | D-5 | APQC framework/edition and licence for product use | Owner | Stage 1 data model; Stage 4 import |
-| D-6 | Exact-change approver policy defaults per company | Owner | Stage 1 |
+| D-6 | Exact-change approver policy per company. **Implemented without a default (Stage 1 branch):** each company's Admin must choose explicitly. Open: whether new companies should get a proposed default (e.g. Product Manager, 24 h) that still needs explicit confirmation. | Owner | Stage 1 review |
 | D-7 | Relational DB choice for the shared pilot (PostgreSQL candidate) | Owner, at the hosting decision | Stage 6 |
 | D-8 | Windows runner feasibility (customer workstation vs. VM) | After Experiment E | Stage 5 |
 | D-9 | Secret store for Jira/AIS credentials | Owner | Before shared hosting |
@@ -707,7 +739,8 @@ Stage 1 packages are estimated in the backlog from repository inspection (low/ba
 | 19 Administration area | 8.4, storage audit | Setup authoritative on the backend; defects P-1 to P-12 |
 | — (new) | 8.1–8.3 | APQC and process maps; defect reproduction; backlog integrity |
 | — (new) | 6.5–6.7, 15 | Durable engine, runner, cost ledger, economics |
-| Appendices B–E | retained by reference | To be carried over verbatim into the rendered V13 after V12 reconciliation |
+| Appendices B–E | retained by reference | To be carried over verbatim into the rendered update once accepted |
+| 19 Administration area (Stage 1) | 1.4, 3.3, 7.1, 8.4, 9.1, 9.4 | Approval policy; per-company scope enforced; revisions and visible save errors; restart recovery. See `docs/stage1/` |
 
 ## Appendix B — Sources
 
