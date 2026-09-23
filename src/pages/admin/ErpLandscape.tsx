@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type { ApprovedVersion, EngagementScope, ErpLandscape as ErpLandscapeData } from "../../types/domain";
 import { ApiNote, Loading } from "../../components/ui";
+import { saveErrorMessage } from "../../services/saveErrors";
 
 const lines = (v: string) => v.split("\n").map((l) => l.trim()).filter(Boolean);
 
@@ -11,10 +12,18 @@ function approvedVersionsToText(v: ApprovedVersion[]): string {
     .join("\n");
 }
 
-function approvedVersionsFromText(text: string): ApprovedVersion[] {
+/**
+ * `previous` carries the capability binding across an edit: the text
+ * format has no column for it, so a line keeps the capabilityId of the
+ * saved row with the same application|version.
+ */
+function approvedVersionsFromText(text: string, previous: ApprovedVersion[]): ApprovedVersion[] {
+  const key = (a: string, v: string) => `${a.trim().toUpperCase()}|${v.trim().toUpperCase()}`;
+  const capabilityByKey = new Map(previous.map((p) => [key(p.application, p.version), p.capabilityId]));
   return lines(text).map((line) => {
     const [application = "", version = "", options = "", allowedValues = "", notes = ""] = line.split("|");
     return {
+      capabilityId: capabilityByKey.get(key(application, version)) ?? "",
       application: application.trim(),
       version: version.trim(),
       options: options.split(",").map((s) => s.trim()).filter(Boolean),
@@ -29,6 +38,8 @@ export function ErpLandscape() {
   const [scope, setScope] = useState<EngagementScope | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Form state, only meaningful while editing.
   const [toolsRelease, setToolsRelease] = useState("");
@@ -39,10 +50,11 @@ export function ErpLandscape() {
   const [reservedProductCode, setReservedProductCode] = useState("");
   const [namingPrefix, setNamingPrefix] = useState("");
   const [technicalApproversText, setTechnicalApproversText] = useState("");
-  const [updatedBy, setUpdatedBy] = useState(() => localStorage.getItem("ciq_approver") ?? "");
 
   const load = () => {
-    api.getErpLandscape().then(setLandscape);
+    setLoadError(null);
+    const onLoadError = (e: unknown) => setLoadError(saveErrorMessage(e, "Could not load the ERP landscape."));
+    api.getErpLandscape().then(setLandscape).catch(onLoadError);
     api.getEngagementScope().then((s) => {
       setScope(s);
       setToolsRelease(s.toolsRelease);
@@ -53,32 +65,42 @@ export function ErpLandscape() {
       setReservedProductCode(s.technicalAgent.reservedProductCode);
       setNamingPrefix(s.technicalAgent.namingPrefix);
       setTechnicalApproversText(s.technicalAgent.approvers.join("\n"));
-    });
+    }).catch(onLoadError);
   };
 
   useEffect(load, []);
 
   async function save() {
+    if (!scope) return;
     setSaving(true);
-    localStorage.setItem("ciq_approver", updatedBy.trim());
-    await api.updateEngagementScope({
-      toolsRelease,
-      functionalAgent: {
-        approvedVersions: approvedVersionsFromText(approvedVersionsText),
-        neverTouchCategories: lines(neverTouchText),
-        approvers: lines(functionalApproversText),
-      },
-      technicalAgent: {
-        authorizedObjectTypes: lines(objectTypesText),
-        reservedProductCode,
-        namingPrefix,
-        approvers: lines(technicalApproversText),
-      },
-      updatedBy: updatedBy.trim(),
-    });
-    setSaving(false);
-    setEditing(false);
-    load();
+    setSaveError(null);
+    try {
+      await api.updateEngagementScope({
+        toolsRelease,
+        // Not edited on this form -- sent back unchanged so a save here never clears them.
+        environment: scope.environment,
+        functionalAgent: {
+          approvedVersions: approvedVersionsFromText(approvedVersionsText, scope.functionalAgent.approvedVersions),
+          spikeExperiments: scope.functionalAgent.spikeExperiments ?? [],
+          neverTouchCategories: lines(neverTouchText),
+          approvers: lines(functionalApproversText),
+        },
+        technicalAgent: {
+          authorizedObjectTypes: lines(objectTypesText),
+          reservedProductCode,
+          namingPrefix,
+          approvers: lines(technicalApproversText),
+        },
+        expectedRevision: scope.revision,
+      });
+      setEditing(false);
+      load();
+    } catch (e) {
+      // Stay in edit mode with the typed values intact.
+      setSaveError(saveErrorMessage(e, "Could not save the engagement scope."));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -90,8 +112,15 @@ export function ErpLandscape() {
         </div>
       </div>
 
+      {loadError && (
+        <div className="callout" style={{ borderColor: "var(--stop)", marginBottom: 16 }}>
+          <strong>Could not load</strong>
+          {loadError}
+        </div>
+      )}
+
       {!landscape || !scope ? (
-        <Loading what="the ERP landscape" />
+        loadError ? null : <Loading what="the ERP landscape" />
       ) : (
         <div className="stack">
           <section className="panel">
@@ -202,15 +231,20 @@ export function ErpLandscape() {
                   <label htmlFor="technicalApprovers">Technical approvers <span className="hint">(one per line)</span></label>
                   <textarea id="technicalApprovers" value={technicalApproversText} onChange={(e) => setTechnicalApproversText(e.target.value)} />
                 </div>
-                <div className="field">
-                  <label htmlFor="updatedBy">Your name</label>
-                  <input id="updatedBy" type="text" value={updatedBy} onChange={(e) => setUpdatedBy(e.target.value)} placeholder="Every change is recorded against a person" />
-                </div>
+                <p className="hint">Saved under your signed-in name.</p>
+                {saveError && (
+                  <div className="callout" style={{ borderColor: "var(--stop)" }}>
+                    <strong>Could not save</strong>
+                    {saveError}
+                  </div>
+                )}
                 <div className="btnrow">
-                  <button className="btn primary" disabled={saving || !updatedBy.trim()} onClick={save}>
+                  <button className="btn primary" disabled={saving} onClick={save}>
                     {saving ? "Saving…" : "Save engagement scope"}
                   </button>
-                  <button className="btn" onClick={() => { setEditing(false); load(); }}>Cancel</button>
+                  <button className="btn" onClick={() => { setEditing(false); setSaveError(null); load(); }}>
+                    {saveError ? "Discard my edits and reload" : "Cancel"}
+                  </button>
                 </div>
               </div>
             )}

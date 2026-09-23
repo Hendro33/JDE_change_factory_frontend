@@ -12,6 +12,8 @@ import type {
   CustomerProfile,
   DeliveryQueueEntry,
   DomainReview,
+  DashboardThresholds,
+  DashboardThresholdsUpdateInput,
   EngagementScope,
   EngagementScopeUpdateInput,
   ErpLandscape,
@@ -35,6 +37,7 @@ import type {
   UserStory,
 } from "../types/domain";
 import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
+import { RevisionConflictError } from "./saveErrors";
 
 /**
  * Real implementation of ChangeFactoryApi, talking to the FastAPI
@@ -133,6 +136,19 @@ export async function request<T>(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    if (res.status === 409 || res.status === 428) {
+      // A revisioned save that lost a race (see saveErrors.ts). Other
+      // 409s (e.g. a lifecycle-state conflict) carry no currentRevision
+      // and stay ordinary HttpErrors.
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed.currentRevision === "number") {
+          throw new RevisionConflictError(res.status, parsed.currentRevision);
+        }
+      } catch (e) {
+        if (e instanceof RevisionConflictError) throw e;
+      }
+    }
     throw new HttpError(res.status, text);
   }
   if (res.status === 204) return undefined as T;
@@ -451,6 +467,16 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<EngagementScope>("/admin/engagement-scope", { method: "PUT", customerId, body: input });
   }
 
+  async getDashboardThresholds(): Promise<DashboardThresholds> {
+    const customerId = await this.activeCustomerId();
+    return request<DashboardThresholds>("/admin/dashboard-thresholds", { customerId });
+  }
+
+  async updateDashboardThresholds(input: DashboardThresholdsUpdateInput): Promise<DashboardThresholds> {
+    const customerId = await this.activeCustomerId();
+    return request<DashboardThresholds>("/admin/dashboard-thresholds", { method: "PUT", customerId, body: input });
+  }
+
   async listAgents(): Promise<AgentDefinition[]> {
     const customerId = await this.activeCustomerId();
     return request<AgentDefinition[]>("/admin/agents", { customerId });
@@ -471,12 +497,16 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<BusinessDomain>("/admin/business-domains", { method: "POST", customerId, body: input });
   }
 
-  async updateBusinessDomainStatus(domainId: string, status: BusinessDomain["status"]): Promise<BusinessDomain> {
+  async updateBusinessDomainStatus(
+    domainId: string,
+    status: BusinessDomain["status"],
+    expectedRevision: number
+  ): Promise<BusinessDomain> {
     const customerId = await this.activeCustomerId();
     return request<BusinessDomain>(`/admin/business-domains/${encodeURIComponent(domainId)}/status`, {
       method: "PUT",
       customerId,
-      body: { status },
+      body: { status, expectedRevision },
     });
   }
 

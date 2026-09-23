@@ -15,6 +15,8 @@ import type {
   DeliveryQueueEntry,
   DomainReview,
   DomainReviewStage,
+  DashboardThresholds,
+  DashboardThresholdsUpdateInput,
   EngagementScope,
   EngagementScopeUpdateInput,
   ErpLandscape,
@@ -39,6 +41,8 @@ import type {
 } from "../types/domain";
 import type { Session } from "../types/domain";
 import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
+import { DEFAULT_DASHBOARD_THRESHOLDS } from "./dashboardThresholds";
+import { nextRevision } from "./saveErrors";
 import { CUSTOMERS, getMockSession, identitiesForCustomer, setMockActiveCustomer } from "./session";
 import { MOCK_AGENTS, MOCK_BUSINESS_DOMAINS, MOCK_CAPABILITY_CATALOG, MOCK_CHANGES } from "./mockData";
 
@@ -121,6 +125,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
   private deliveryQueue: DeliveryQueueEntry[] = [];
   private businessDomains: BusinessDomain[] = JSON.parse(JSON.stringify(MOCK_BUSINESS_DOMAINS));
   private engagementScopes = new Map<string, EngagementScope>();
+  private dashboardThresholds = new Map<string, DashboardThresholds>();
   /** Keyed by agent name -- grows as the mock's own flows run, so Admin
    * > Agents' health view reflects what this session actually did,
    * same "derived, not hard-coded" rule as everything else here. */
@@ -969,22 +974,54 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     return delay({
       customerId: this.scope,
       toolsRelease: "",
-      functionalAgent: { approvedVersions: [], neverTouchCategories: [], approvers: [] },
+      functionalAgent: { approvedVersions: [], spikeExperiments: [], neverTouchCategories: [], approvers: [] },
       technicalAgent: { authorizedObjectTypes: [], reservedProductCode: "", namingPrefix: "", approvers: [] },
+      revision: 0,
     });
   }
 
   async updateEngagementScope(input: EngagementScopeUpdateInput): Promise<EngagementScope> {
+    const existing = this.engagementScopes.get(this.scope);
+    const revision = nextRevision(existing?.revision, input.expectedRevision);
+    const actor = getMockSession().displayName;
+    const stamp = now();
     const scope: EngagementScope = {
       customerId: this.scope,
       toolsRelease: input.toolsRelease,
-      functionalAgent: input.functionalAgent,
+      environment: input.environment,
+      functionalAgent: {
+        ...input.functionalAgent,
+        spikeExperiments: (input.functionalAgent.spikeExperiments ?? []).map((s) => ({
+          ...s,
+          approvedBy: s.approvedBy ?? actor,
+          approvedAt: s.approvedAt ?? stamp,
+        })),
+      },
       technicalAgent: input.technicalAgent,
-      updatedAt: now(),
-      updatedBy: input.updatedBy,
+      revision,
+      updatedAt: stamp,
+      updatedBy: actor,
     };
     this.engagementScopes.set(this.scope, scope);
     return delay(scope);
+  }
+
+  async getDashboardThresholds(): Promise<DashboardThresholds> {
+    return delay(this.dashboardThresholds.get(this.scope) ?? { ...DEFAULT_DASHBOARD_THRESHOLDS });
+  }
+
+  async updateDashboardThresholds(input: DashboardThresholdsUpdateInput): Promise<DashboardThresholds> {
+    const existing = this.dashboardThresholds.get(this.scope);
+    const thresholds: DashboardThresholds = {
+      warnAt: input.warnAt,
+      criticalAt: input.criticalAt,
+      configured: true,
+      revision: nextRevision(existing?.revision, input.expectedRevision),
+      updatedAt: now(),
+      updatedBy: getMockSession().displayName,
+    };
+    this.dashboardThresholds.set(this.scope, thresholds);
+    return delay(thresholds);
   }
 
   async listAgents(): Promise<AgentDefinition[]> {
@@ -1028,15 +1065,25 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       description: input.description ?? "",
       domainOwner: input.domainOwner ?? "",
       status: "active",
+      revision: 1,
+      updatedAt: now(),
+      updatedBy: getMockSession().displayName,
     };
     this.businessDomains = [...this.businessDomains, domain];
     return delay(domain);
   }
 
-  async updateBusinessDomainStatus(domainId: string, status: BusinessDomain["status"]): Promise<BusinessDomain> {
+  async updateBusinessDomainStatus(
+    domainId: string,
+    status: BusinessDomain["status"],
+    expectedRevision: number
+  ): Promise<BusinessDomain> {
     const domain = this.businessDomains.find((d) => d.id === domainId && d.customerId === this.scope);
     if (!domain) throw new Error(`No such business domain: ${domainId}`);
+    domain.revision = nextRevision(domain.revision, expectedRevision);
     domain.status = status;
+    domain.updatedAt = now();
+    domain.updatedBy = getMockSession().displayName;
     return delay(domain);
   }
 
@@ -1062,11 +1109,12 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     if (existing) return delay(existing);
     return delay({
       customerId: this.scope, baseUrl: "", projectKey: "", pickupStatus: "", postPickupStatus: "",
-      jadeIdField: "", requestTypeField: "",
+      jadeIdField: "", requestTypeField: "", revision: 0,
     });
   }
 
   async updateJiraIntegration(input: JiraIntegrationConfigUpdateInput): Promise<JiraIntegrationConfig> {
+    const revision = nextRevision(this.jiraConfigs.get(this.scope)?.revision, input.expectedRevision);
     const config: JiraIntegrationConfig = {
       customerId: this.scope,
       baseUrl: normalizeJiraBaseUrl(input.baseUrl),
@@ -1075,8 +1123,9 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       postPickupStatus: input.postPickupStatus,
       jadeIdField: input.jadeIdField,
       requestTypeField: input.requestTypeField,
+      revision,
       updatedAt: now(),
-      updatedBy: input.updatedBy,
+      updatedBy: getMockSession().displayName,
     };
     this.jiraConfigs.set(this.scope, config);
     return delay(config);

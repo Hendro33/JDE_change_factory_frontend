@@ -2,27 +2,82 @@ import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import {
   DEFAULT_DASHBOARD_THRESHOLDS,
-  getDashboardThresholds,
-  setDashboardThresholds,
-  type DashboardThresholds,
+  clearLegacyLocalThresholds,
+  readLegacyLocalThresholds,
 } from "../../services/dashboardThresholds";
-import type { CustomerProfile } from "../../types/domain";
+import { saveErrorMessage } from "../../services/saveErrors";
+import type { CustomerProfile, DashboardThresholds } from "../../types/domain";
 import { ApiNote, Loading } from "../../components/ui";
 
 export function CustomerSetup() {
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
-  const [thresholds, setThresholds] = useState<DashboardThresholds>(getDashboardThresholds);
+  const [isAdmin, setIsAdmin] = useState(false);
+  // What the server holds (null until loaded) and the form's working copy.
+  const [stored, setStored] = useState<DashboardThresholds | null>(null);
+  const [warnAt, setWarnAt] = useState(DEFAULT_DASHBOARD_THRESHOLDS.warnAt);
+  const [criticalAt, setCriticalAt] = useState(DEFAULT_DASHBOARD_THRESHOLDS.criticalAt);
+  const [thresholdsError, setThresholdsError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [legacy, setLegacy] = useState(readLegacyLocalThresholds);
+
+  function applyStored(t: DashboardThresholds) {
+    setStored(t);
+    setWarnAt(t.warnAt);
+    setCriticalAt(t.criticalAt);
+  }
+
+  function loadThresholds() {
+    api
+      .getDashboardThresholds()
+      .then((t) => { applyStored(t); setThresholdsError(null); })
+      .catch((e) => setThresholdsError(saveErrorMessage(e, "Could not load the dashboard thresholds.")));
+  }
 
   useEffect(() => {
     api.getCustomerProfile().then(setProfile);
+    api.getSession().then((s) => {
+      const active = s.customers.find((c) => c.id === s.activeCustomerId);
+      setIsAdmin(!!active?.roles?.includes("admin"));
+    });
+    loadThresholds();
   }, []);
 
-  function saveThresholds() {
-    setDashboardThresholds(thresholds);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  async function saveThresholds(values: { warnAt: number; criticalAt: number }) {
+    if (!stored) return;
+    setSaving(true);
+    setThresholdsError(null);
+    try {
+      applyStored(await api.updateDashboardThresholds({ ...values, expectedRevision: stored.revision }));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      return true;
+    } catch (e) {
+      setThresholdsError(saveErrorMessage(e, "Could not save the dashboard thresholds."));
+      return false;
+    } finally {
+      setSaving(false);
+    }
   }
+
+  async function importLegacy() {
+    if (!legacy) return;
+    // Only offered while nothing is saved on the server; expectedRevision 0
+    // means a value someone saved in the meantime is refused, not overwritten.
+    if (await saveThresholds(legacy)) {
+      clearLegacyLocalThresholds();
+      setLegacy(null);
+    }
+  }
+
+  function discardLegacy() {
+    clearLegacyLocalThresholds();
+    setLegacy(null);
+  }
+
+  const invalid = warnAt < 0 || criticalAt < 0 || criticalAt < warnAt;
+  const dirty = !!stored && (warnAt !== stored.warnAt || criticalAt !== stored.criticalAt);
+  const showLegacyImport = isAdmin && !!legacy && !!stored && !stored.configured;
 
   return (
     <>
@@ -75,38 +130,78 @@ export function CustomerSetup() {
             <h2>Dashboard alert thresholds</h2>
             <div className="sub" style={{ marginBottom: 12 }}>
               When a KPI count on the Jade Dashboard should draw attention — a count above the
-              first value turns orange, above the second turns red. Stored in this browser only for
-              now, not yet a shared per-customer backend setting.
+              first value turns orange, above the second turns red. Saved for this company and shared
+              by everyone who uses it; only an Admin can change them.
             </div>
+            {showLegacyImport && legacy && (
+              <div className="callout" style={{ marginBottom: 16 }}>
+                <strong>Thresholds found in this browser</strong>
+                An earlier version kept thresholds in this browser only: orange from {legacy.warnAt}, red
+                from {legacy.criticalAt}. Nothing is saved for this company yet — import them to share them
+                with everyone, or discard them.
+                <div className="btnrow" style={{ marginTop: 8 }}>
+                  <button className="btn" disabled={saving} onClick={importLegacy}>Import these values</button>
+                  <button className="btn" disabled={saving} onClick={discardLegacy}>Discard</button>
+                </div>
+              </div>
+            )}
             <div className="grid halves">
               <div className="field">
                 <label htmlFor="warnAt">Orange from</label>
                 <input
-                  id="warnAt" type="number" min={0}
-                  value={thresholds.warnAt}
-                  onChange={(e) => setThresholds((t) => ({ ...t, warnAt: Number(e.target.value) }))}
+                  id="warnAt" type="number" min={0} disabled={!isAdmin || !stored}
+                  value={warnAt}
+                  onChange={(e) => setWarnAt(Number(e.target.value))}
                 />
               </div>
               <div className="field">
                 <label htmlFor="criticalAt">Red from</label>
                 <input
-                  id="criticalAt" type="number" min={0}
-                  value={thresholds.criticalAt}
-                  onChange={(e) => setThresholds((t) => ({ ...t, criticalAt: Number(e.target.value) }))}
+                  id="criticalAt" type="number" min={0} disabled={!isAdmin || !stored}
+                  value={criticalAt}
+                  onChange={(e) => setCriticalAt(Number(e.target.value))}
                 />
               </div>
             </div>
-            <div className="btnrow">
-              <button className="btn primary" onClick={saveThresholds}>
-                {saved ? "Saved" : "Save thresholds"}
-              </button>
-              <button
-                className="btn"
-                onClick={() => { setThresholds(DEFAULT_DASHBOARD_THRESHOLDS); setDashboardThresholds(DEFAULT_DASHBOARD_THRESHOLDS); }}
-              >
-                Reset to defaults
-              </button>
-            </div>
+            {invalid && (
+              <span className="hint" style={{ color: "var(--stop)" }}>
+                Values must not be negative, and red must be at least orange.
+              </span>
+            )}
+            {thresholdsError && (
+              <div className="callout" style={{ borderColor: "var(--stop)", marginTop: 8 }}>
+                <strong>Could not save</strong>
+                {thresholdsError}
+                <div className="btnrow" style={{ marginTop: 8 }}>
+                  <button className="btn" onClick={loadThresholds}>Reload</button>
+                </div>
+              </div>
+            )}
+            <dl className="facts" style={{ marginTop: 8 }}>
+              <dt>Last saved</dt>
+              <dd>
+                {stored?.configured && stored.updatedAt
+                  ? `${new Date(stored.updatedAt).toLocaleString("en-GB")} by ${stored.updatedBy}`
+                  : <span className="notstated">never — defaults in use</span>}
+              </dd>
+            </dl>
+            {isAdmin ? (
+              <div className="btnrow">
+                <button className="btn primary" disabled={saving || invalid || !dirty} onClick={() => saveThresholds({ warnAt, criticalAt })}>
+                  {saving ? "Saving…" : saved ? "Saved" : "Save thresholds"}
+                </button>
+                <button
+                  className="btn"
+                  disabled={saving}
+                  onClick={() => { setWarnAt(DEFAULT_DASHBOARD_THRESHOLDS.warnAt); setCriticalAt(DEFAULT_DASHBOARD_THRESHOLDS.criticalAt); }}
+                >
+                  Reset form to defaults
+                </button>
+              </div>
+            ) : (
+              <p className="notstated">Only a company Admin can change these.</p>
+            )}
+            <ApiNote endpoint="GET/PUT /admin/dashboard-thresholds" />
           </section>
         </div>
       )}

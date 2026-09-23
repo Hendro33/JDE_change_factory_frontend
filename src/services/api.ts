@@ -22,6 +22,8 @@ import type {
   CustomerProfile,
   DeliveryQueueEntry,
   DomainReview,
+  DashboardThresholds,
+  DashboardThresholdsUpdateInput,
   EngagementScope,
   EngagementScopeUpdateInput,
   ErpLandscape,
@@ -101,6 +103,8 @@ export const API_ENDPOINTS = {
 
   getCustomerProfile: "GET /admin/customer-profile",
   getErpLandscape: "GET /admin/erp-landscape",
+  getDashboardThresholds: "GET /admin/dashboard-thresholds",
+  updateDashboardThresholds: "PUT /admin/dashboard-thresholds",
   getEngagementScope: "GET /admin/engagement-scope",
   updateEngagementScope: "PUT /admin/engagement-scope",
   listAgents: "GET /admin/agents",
@@ -303,6 +307,10 @@ export interface ChangeFactoryApi {
   getEngagementScope(): Promise<EngagementScope>;
   updateEngagementScope(input: EngagementScopeUpdateInput): Promise<EngagementScope>;
 
+  /** Dashboard KPI alert colours for the active company -- any member reads, Admin saves. */
+  getDashboardThresholds(): Promise<DashboardThresholds>;
+  updateDashboardThresholds(input: DashboardThresholdsUpdateInput): Promise<DashboardThresholds>;
+
   /** The five subagent definitions, parsed live from .claude/agents/*.md. */
   listAgents(): Promise<AgentDefinition[]>;
   getAgentHealth(agentName: string): Promise<AgentHealth>;
@@ -311,7 +319,12 @@ export interface ChangeFactoryApi {
   listCapabilities(): Promise<CapabilityCatalog>;
 
   createBusinessDomain(input: BusinessDomainCreateInput): Promise<BusinessDomain>;
-  updateBusinessDomainStatus(domainId: string, status: BusinessDomain["status"]): Promise<BusinessDomain>;
+  /** expectedRevision is the domain's revision as loaded; a stale one is refused (saveErrors.ts). */
+  updateBusinessDomainStatus(
+    domainId: string,
+    status: BusinessDomain["status"],
+    expectedRevision: number
+  ): Promise<BusinessDomain>;
 
   listIntegrations(): Promise<IntegrationStatus[]>;
 

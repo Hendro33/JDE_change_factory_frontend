@@ -367,6 +367,10 @@ export interface BusinessDomain {
   description: string;
   domainOwner: string;
   status: "active" | "proposed" | "retired";
+  /** Sent back as expectedRevision on a status change -- see services/saveErrors.ts. */
+  revision: number;
+  updatedAt?: string;
+  updatedBy?: string;
 }
 
 export type DomainReviewStage =
@@ -686,6 +690,8 @@ export interface ErpLandscape {
  * Appendix D.2/E.2 describes (mcp_server/jde_mcp_server/scope.py).
  */
 export interface ApprovedVersion {
+  /** Catalogue capability this approval is bound to; empty on older records. */
+  capabilityId?: string;
   application: string;
   version: string;
   options: string[];
@@ -693,10 +699,44 @@ export interface ApprovedVersion {
   notes: string;
 }
 
+/**
+ * A dated, explicitly approved experiment allowing a capability that
+ * is not yet customer-DEV validated to run once in DEV. Enforced by the
+ * execution gate: an expired or undated experiment allows nothing.
+ * approvedBy/approvedAt are stamped by the server, never typed.
+ */
+export interface SpikeExperiment {
+  capabilityId: string;
+  capabilityRevision: string;
+  application: string;
+  version: string;
+  option: string;
+  environment: string;
+  /** ISO-8601 with timezone. */
+  expiresAt: string;
+  note: string;
+  approvedBy?: string;
+  approvedAt?: string;
+}
+
 export interface FunctionalAgentScope {
   approvedVersions: ApprovedVersion[];
+  spikeExperiments?: SpikeExperiment[];
+  /** Reference only -- not read by the execution gate. */
   neverTouchCategories: string[];
+  /** Reference only -- approval authority comes from roles and the approval policy. */
   approvers: string[];
+}
+
+/** Which JDE DEV environment this company's writes are bound to. */
+export interface EnvironmentBinding {
+  devEnvironmentId: string;
+  devPathCode: string;
+  aisDataSourceName: string;
+  isolationConfirmed: boolean;
+  isolationEvidence: string;
+  isolationConfirmedBy?: string;
+  isolationConfirmedAt?: string;
 }
 
 export interface TechnicalAgentScope {
@@ -709,18 +749,46 @@ export interface TechnicalAgentScope {
 export interface EngagementScope {
   customerId: string;
   toolsRelease: string;
+  environment?: EnvironmentBinding;
   functionalAgent: FunctionalAgentScope;
   technicalAgent: TechnicalAgentScope;
+  /** 0 means never saved. */
+  revision: number;
   /** Absent means "never configured" — distinct from an explicitly empty, saved scope. */
   updatedAt?: string;
+  /** The signed-in user who saved it -- set by the server. */
   updatedBy?: string;
 }
 
 export interface EngagementScopeUpdateInput {
   toolsRelease: string;
+  environment?: EnvironmentBinding;
   functionalAgent: FunctionalAgentScope;
   technicalAgent: TechnicalAgentScope;
-  updatedBy: string;
+  /** The revision this edit was based on (0 when creating). */
+  expectedRevision: number;
+}
+
+/**
+ * Dashboard KPI alert colours, shared by every user of the company and
+ * saved on the server (Admin only). configured=false means the defaults
+ * are in use and nothing has been saved yet.
+ */
+export interface DashboardThresholds {
+  /** A KPI count strictly above this turns orange. */
+  warnAt: number;
+  /** A KPI count strictly above this turns red (takes precedence over warnAt). */
+  criticalAt: number;
+  configured: boolean;
+  revision: number;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export interface DashboardThresholdsUpdateInput {
+  warnAt: number;
+  criticalAt: number;
+  expectedRevision: number;
 }
 
 /** One .claude/agents/*.md subagent's declared definition + the driver that invokes it, if any. */
@@ -805,6 +873,8 @@ export interface JiraIntegrationConfig {
   jadeIdField: string;
   /** Optional Jira custom field id for JSM's own Request Type, imported into sourceMetadata for display only. */
   requestTypeField: string;
+  /** 0 means never saved. */
+  revision: number;
   updatedAt?: string;
   updatedBy?: string;
 }
@@ -816,7 +886,7 @@ export interface JiraIntegrationConfigUpdateInput {
   postPickupStatus: string;
   jadeIdField: string;
   requestTypeField: string;
-  updatedBy: string;
+  expectedRevision: number;
 }
 
 /**
@@ -829,7 +899,6 @@ export interface JiraIntegrationConfigUpdateInput {
 export interface JiraCredentialsUpdateInput {
   email: string;
   apiToken: string;
-  updatedBy: string;
 }
 
 /**

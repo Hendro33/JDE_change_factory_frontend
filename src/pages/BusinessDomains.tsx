@@ -3,6 +3,7 @@ import { api } from "../services/api";
 import type { BusinessDomain } from "../types/domain";
 import type { Navigate } from "../types/nav";
 import { ApiNote, Loading, NotStated } from "../components/ui";
+import { saveErrorMessage } from "../services/saveErrors";
 
 const STATUS_OPTIONS: BusinessDomain["status"][] = ["active", "proposed", "retired"];
 
@@ -23,24 +24,41 @@ export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
   const [level, setLevel] = useState("");
   const [description, setDescription] = useState("");
   const [domainOwner, setDomainOwner] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
 
-  const load = () => { api.listBusinessDomains().then(setDomains); };
+  const load = () => {
+    api
+      .listBusinessDomains()
+      .then(setDomains)
+      .catch((e) => setListError(saveErrorMessage(e, "Could not load business domains.")));
+  };
   useEffect(load, []);
 
   async function createDomain() {
     setSaving(true);
+    setCreateError(null);
     try {
       await api.createBusinessDomain({ apqcCode, name, level, description, domainOwner });
       setApqcCode(""); setName(""); setLevel(""); setDescription(""); setDomainOwner("");
       setShowNew(false);
       load();
+    } catch (e) {
+      setCreateError(saveErrorMessage(e, "Could not create the business domain."));
     } finally {
       setSaving(false);
     }
   }
 
-  async function changeStatus(domainId: string, status: BusinessDomain["status"]) {
-    await api.updateBusinessDomainStatus(domainId, status);
+  async function changeStatus(domain: BusinessDomain, status: BusinessDomain["status"]) {
+    setListError(null);
+    try {
+      await api.updateBusinessDomainStatus(domain.id, status, domain.revision);
+    } catch (e) {
+      setListError(`${domain.name}: ${saveErrorMessage(e, "Could not change the status.")}`);
+    }
+    // Reload either way: on success to show the saved state, on failure so
+    // the selector falls back to what is actually stored.
     load();
   }
 
@@ -87,6 +105,12 @@ export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
             <label htmlFor="domainOwner">Domain Owner <span className="hint">(optional — a name for record-keeping, not access control)</span></label>
             <input id="domainOwner" type="text" value={domainOwner} onChange={(e) => setDomainOwner(e.target.value)} />
           </div>
+          {createError && (
+            <div className="callout" style={{ borderColor: "var(--stop)", marginBottom: 12 }}>
+              <strong>Could not create</strong>
+              {createError}
+            </div>
+          )}
           <button className="btn primary" disabled={saving || !apqcCode.trim() || !name.trim() || !level.trim()} onClick={createDomain}>
             {saving ? "Creating…" : "Create domain"}
           </button>
@@ -94,7 +118,14 @@ export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
         </section>
       )}
 
-      {!domains ? <Loading what="business domains" /> : domains.length === 0 ? (
+      {listError && (
+        <div className="callout" style={{ borderColor: "var(--stop)", marginBottom: 16 }}>
+          <strong>Not saved</strong>
+          {listError}
+        </div>
+      )}
+
+      {!domains ? (listError ? null : <Loading what="business domains" />) : domains.length === 0 ? (
         <div className="empty">No business domains defined for this customer yet.</div>
       ) : (
         <section className="panel">
@@ -115,7 +146,7 @@ export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
                   <td onClick={(e) => e.stopPropagation()}>
                     <select
                       value={d.status}
-                      onChange={(e) => changeStatus(d.id, e.target.value as BusinessDomain["status"])}
+                      onChange={(e) => changeStatus(d, e.target.value as BusinessDomain["status"])}
                       className={`badge ${d.status === "active" ? "ok" : "grey"}`}
                       style={{ cursor: "pointer" }}
                     >

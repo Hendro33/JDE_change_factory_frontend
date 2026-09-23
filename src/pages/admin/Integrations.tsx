@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type { IntegrationStatus, JiraConnectionStatus, JiraIntegrationConfig, JiraSyncResult, JiraTestConnectionResult } from "../../types/domain";
 import { ApiNote, Loading } from "../../components/ui";
+import { saveErrorMessage } from "../../services/saveErrors";
 
 /**
  * Client-side mirror of the backend's own check (jira_gateway.
@@ -54,7 +55,6 @@ export function Integrations() {
   const [postPickupStatus, setPostPickupStatus] = useState("");
   const [jadeIdField, setJadeIdField] = useState("");
   const [requestTypeField, setRequestTypeField] = useState("");
-  const [updatedBy, setUpdatedBy] = useState(() => localStorage.getItem("ciq_approver") ?? "");
 
   const load = () => {
     api.listIntegrations().then(setIntegrations);
@@ -89,25 +89,27 @@ export function Integrations() {
     setSaving(true);
     setSaveError(null);
     try {
-      localStorage.setItem("ciq_approver", updatedBy.trim());
-      await api.updateJiraIntegration({
+      const savedConfig = await api.updateJiraIntegration({
         baseUrl: baseUrl.trim(),
         projectKey: projectKey.trim(),
         pickupStatus: pickupStatus.trim(),
         postPickupStatus: postPickupStatus.trim(),
         jadeIdField: jadeIdField.trim(),
         requestTypeField: requestTypeField.trim(),
-        updatedBy: updatedBy.trim(),
+        expectedRevision: jiraConfig?.revision ?? 0,
       });
+      // Keep the new revision even if the credential step below fails, so a
+      // retry is not refused as stale.
+      setJiraConfig(savedConfig);
       if (email.trim() && apiToken.trim()) {
-        await api.updateJiraCredentials({ email: email.trim(), apiToken: apiToken.trim(), updatedBy: updatedBy.trim() });
+        await api.updateJiraCredentials({ email: email.trim(), apiToken: apiToken.trim() });
       }
       setEditing(false);
       setSyncResult(null);
       setSyncError(null);
       load();
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Could not save the Jira configuration.");
+      setSaveError(saveErrorMessage(e, "Could not save the Jira configuration."));
     } finally {
       setSaving(false);
     }
@@ -159,7 +161,7 @@ export function Integrations() {
   const configured = !!jiraConfig && !!(jiraConfig.baseUrl && jiraConfig.projectKey && jiraConfig.pickupStatus && jiraConfig.postPickupStatus && jiraConfig.jadeIdField);
   const baseUrlError = baseUrlIssue(baseUrl);
   const canTest = !testing && !!baseUrl.trim() && !baseUrlError && !!email.trim() && !!apiToken.trim();
-  const canSave = !saving && !!updatedBy.trim() && !baseUrlError;
+  const canSave = !saving && !baseUrlError;
 
   return (
     <>
@@ -316,10 +318,7 @@ export function Integrations() {
               <input id="jiraRequestTypeField" type="text" value={requestTypeField} onChange={(e) => setRequestTypeField(e.target.value)} placeholder="customfield_10010" />
               <span className="hint">If set, JSM's own Request Type is imported as source context alongside Work Type and Priority — never used to decide pickup.</span>
             </div>
-            <div className="field">
-              <label htmlFor="jiraUpdatedBy">Your name</label>
-              <input id="jiraUpdatedBy" type="text" value={updatedBy} onChange={(e) => setUpdatedBy(e.target.value)} placeholder="Every change is recorded against a person" />
-            </div>
+            <p className="hint">Saved under your signed-in name.</p>
             {saveError && (
               <div className="callout" style={{ borderColor: "var(--stop)" }}>
                 <strong>Could not save</strong>

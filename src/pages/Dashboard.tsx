@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
-import { getDashboardThresholds, toneForValue } from "../services/dashboardThresholds";
+import { DEFAULT_DASHBOARD_THRESHOLDS, toneForValue } from "../services/dashboardThresholds";
 import type { ActivityEntry, Change, FactoryMetrics } from "../types/domain";
 import type { Navigate, NavFilter, Page } from "../types/nav";
 import {
@@ -39,9 +39,11 @@ export function Dashboard({ onOpenChange, onNavigate }: {
   const [metrics, setMetrics] = useState<FactoryMetrics | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [attention, setAttention] = useState<Change[]>([]);
-  const thresholds = getDashboardThresholds();
+  const [thresholds, setThresholds] = useState(DEFAULT_DASHBOARD_THRESHOLDS);
 
   useEffect(() => {
+    // Company-wide colours; the defaults stay in place if they can't be read.
+    api.getDashboardThresholds().then(setThresholds).catch(() => undefined);
     api.getMetrics().then(setMetrics);
     api.getActivity().then(setActivity);
     api.listChanges().then((all) =>
