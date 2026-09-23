@@ -13,7 +13,7 @@ Stage 1 is split into four increments. Each one can be demonstrated on its own.
 |---|---|---|
 | **S1-1** Reliable saved setup and user identity | Code and tests | **Implemented on branch**, demonstrated locally |
 | **S1-2** Execution safeguards | Code and tests | **Implemented on branch**, demonstrated locally |
-| **S1-3** Minimal shared-backend deployment | Proposal (`02_SHARED_BACKEND_DEPLOYMENT_PROPOSAL.md`) | **Proposal only.** One security fix blocks go-live (R-1); two more are needed before external users or real Jira tokens (R-2, R-3). |
+| **S1-3** Minimal shared-backend deployment | Proposal (`02_SHARED_BACKEND_DEPLOYMENT_PROPOSAL.md`) | **Proposal only.** Its code prerequisites R-1 to R-3 are implemented on the branch (review pass, `04_REVIEW_PACK.md` §5). |
 | **S1-4** First JDE DEV experiments | Prerequisites and bounded test plans (`03_JDE_DEV_EXPERIMENT_PLANS.md`) | **Plan only.** Waiting on DEV access (D-3). |
 
 Recommended order: S1-4's access requests go out **now**, because their lead time is the longest. S1-1 and S1-2 are ready for review. S1-3 needs owner decisions and fix R-1. The Experiment E technical session is planned in parallel with Experiment A, not after it.
@@ -211,16 +211,16 @@ These are estimates for one engineer who knows the codebase. They exclude review
 | P-6 Silent or stuck saves | **Fixed on branch** (S1-1, plus S1-2 for exact-change decisions) |
 | P-7 Unenforced sections; spike expiry | Spike expiry **fixed**. Unenforced sections **labelled**; enforcing or removing them is the B-4 remainder. |
 | P-8 Any writer approves | **Fixed on branch** (S1-2) |
-| P-9 Domain owner held twice | Open (the B-2 remainder); the field is now commented as display-only |
-| P-10 Jira token plaintext | Open. A precondition for real tokens on the shared host (see the proposal, R-3). |
-| P-11 Runs lost on restart | **Partly fixed**: runs no longer stay "running". Resume is the B-7 remainder. |
+| P-9 Domain owner held twice | **Fixed on branch** (review pass). It also exposed two approval-authority gaps, fixed too; see `04_REVIEW_PACK.md` §6. |
+| P-10 Jira token plaintext | **Fixed on branch** (review pass): tokens encrypted, key only in the environment |
+| P-11 Runs lost on restart | **Partly fixed**: agent runs no longer stay "running". JDE writes and test runs caught mid-flight are recorded as **unknown** and block any retry until reconciled (review pass). Resume is the B-7 remainder. |
 | P-12 Only Jira had restart tests | **Fixed on branch** for thresholds and engagement scope. Other records are covered via the shared store tests. |
 
 ## Review references
 
 | Repo | Branch | Commits (oldest first) |
 |---|---|---|
-| backend `Hendro33/jde_change_factory_backend` | `claude/stage1-setup-and-safeguards` | `4184721` S1-1 · `679710d` S1-2 · `4600736` demo seed script |
+| backend `Hendro33/jde_change_factory_backend` | `claude/stage1-setup-and-safeguards` | `4184721` S1-1 · `679710d` S1-2 · `4600736` demo seed script · review pass: `1a7b822`, `90c9225`, `e38f710`, `972e22d` (see `04_REVIEW_PACK.md` §1.1) |
 | frontend `Hendro33/JDE_change_factory_frontend` | `claude/focused-gates-gtay96` | `1c9fc89` S1-1 · `2c5e9dc` S1-2 · `6a941b2` browser demonstrations · this document set |
 
 The stale backend branch `claude/focused-gates-gtay96` (`a4f711b`) was not touched.

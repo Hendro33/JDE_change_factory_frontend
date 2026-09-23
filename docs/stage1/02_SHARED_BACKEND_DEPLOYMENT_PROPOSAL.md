@@ -77,7 +77,7 @@ Everything durable lives under the one mounted disk, as in `docs/OPERATIONS.md`:
 
 - **One instance only.** Render cannot scale a service with a disk beyond one instance. Stage 1 concurrency safety (per-directory locks, SQLite `BEGIN IMMEDIATE`) assumes a single process.
 - **A few seconds of downtime per deploy.** Render stops the old instance before starting the new one when a disk is attached, so there are no zero-downtime deploys.
-- **Deploys interrupt agent runs.** S1-2 now marks an interrupted run as failed with "retry" on startup, instead of leaving it looking like it is still running. Deploy outside working sessions.
+- **Deploys interrupt agent runs.** An interrupted agent run is marked failed with "retry" on startup, instead of looking like it is still running. A JDE write or test run caught mid-flight is recorded as **unknown** and blocks any retry until reconciled (review pass). Deploy outside working sessions.
 - **Scaling beyond one instance is Stage 6 work** (PostgreSQL, a worker process, object storage), not a setting.
 
 ## 4. Backups and restore
@@ -85,9 +85,9 @@ Everything durable lives under the one mounted disk, as in `docs/OPERATIONS.md`:
 | Layer | What | Cadence | Retention |
 |---|---|---|---|
 | Platform snapshot | Render's automatic snapshot of the whole disk, encrypted at rest | Daily | ≥ 7 days (platform) |
-| Off-platform copy | `tar` of `/data`, **encrypted before download** (e.g. `age` or `gpg`), stored outside Render | Weekly, and before every schema-changing deploy | 8 weekly + 3 monthly (proposed) |
+| Off-platform copy | A consistent SQLite copy (SQLite's own backup) plus a `tar` of the rest of `/data`, **encrypted before download** (e.g. `age` or `gpg`), stored outside Render | Weekly, and before every schema-changing deploy | 8 weekly + 3 monthly (proposed) |
 
-- **Why encrypt the off-platform copy:** the archive contains password hashes, session hashes and Jira API tokens (see R-3).
+- **Why encrypt the off-platform copy:** the archive contains password hashes and session hashes. Jira tokens in it are already encrypted (R-3); the key is not in the archive and is needed for a restore.
 - **How:** the procedure is `docs/OPERATIONS.md` §Backup/Restore, plus the encryption step. It starts manual; scripting it is a small follow-up if the cadence holds.
 - **Restore drill (required before real customer data):** restore the latest off-platform copy into a *fresh* service, start it, log in, and check a known engagement scope and approval record. Record the time taken; that is the recovery-time evidence.
 - **Moving off Render later:** restore the same archive onto any host.
@@ -96,13 +96,13 @@ Everything durable lives under the one mounted disk, as in `docs/OPERATIONS.md`:
 
 | # | Change | Kind | Blocking? | Effort (d) |
 |---|---|---|---|---|
-| **R-1** | **The anonymous forgot-password endpoint returns a working reset link in dev-preview mode.** `JDE_EMAIL_DEV_PREVIEW` defaults to true, and `render.yaml` does not change it, so on a public host anyone who knows a user's email could reset that user's password. Fix: the anonymous endpoint never returns a link. Without an email provider, an Admin issues a reset link from Users (a new Admin-only endpoint) and hands it over out of band, as invitation links are today. | Code + test | **Yes** | 0.5 / 1 / 1.5 |
-| R-2 | Login has no rate limiting or lockout. Add a per-account and per-IP attempt limit with a short cool-down. | Code + test | Yes before any external user is invited; optional for owner-only use | 0.5 / 0.5 / 1 |
-| R-3 | Jira API tokens are stored in plaintext in SQLite (P-10). The disk and snapshots are encrypted at rest by the platform, but tokens are readable by anyone with shell access and appear in backups. Recommended: encrypt the token column with a key held only in the platform's secret environment (`JDE_SECRET_KEY`), with rotation by re-entry. Alternative: accept for the pilot, with no production Jira token stored. | Code or decision | Yes before a real customer's Jira token is entered | 0.5 / 1 / 2 |
+| **R-1** *(implemented on branch, `e38f710`)* | **The anonymous forgot-password endpoint returns a working reset link in dev-preview mode.** `JDE_EMAIL_DEV_PREVIEW` defaults to true, and `render.yaml` does not change it, so on a public host anyone who knows a user's email could reset that user's password. Fix: the anonymous endpoint never returns a link. Without an email provider, an Admin issues a reset link from Users (a new Admin-only endpoint) and hands it over out of band, as invitation links are today. | Code + test | **Yes** | 0.5 / 1 / 1.5 |
+| R-2 *(implemented on branch, `e38f710`)* | Login has no rate limiting or lockout. Add a per-account and per-IP attempt limit with a short cool-down. | Code + test | Yes before any external user is invited; optional for owner-only use | 0.5 / 0.5 / 1 |
+| R-3 *(implemented on branch, `e38f710`; the key variable is `JDE_CREDENTIAL_KEY`)* | Jira API tokens are stored in plaintext in SQLite (P-10). The disk and snapshots are encrypted at rest by the platform, but tokens are readable by anyone with shell access and appear in backups. Recommended: encrypt the token column with a key held only in the platform's secret environment (`JDE_SECRET_KEY`), with rotation by re-entry. Alternative: accept for the pilot, with no production Jira token stored. | Code or decision | Yes before a real customer's Jira token is entered | 0.5 / 1 / 2 |
 | R-4 | Update `render.yaml`: plan `standard`, disk 5 GB, and the environment in §5.1. | Config | Yes | incl. below |
 | R-5 | Merge S1-1 and S1-2 first. The shared setup depends on revisions, the session actor and per-company gate records. | Review | Yes | — |
 | R-6 | Configure, deploy, verify the eight storage acceptance tests on the host (including a redeploy with the same disk), then run the restore drill. | Ops | Yes | 1 / 1.5 / 2.5 |
-| | **Total to carry out** | | | **2.5 / 4 / 7** (without R-2: 2 / 3.5 / 6) |
+| | **Total to carry out** | | | **2.5 / 4 / 7** (without R-2: 2 / 3.5 / 6). With R-1 to R-3 now implemented, R-4 to R-6 remain: 1 / 1.5 / 2.5 |
 
 ### 5.1 Configuration
 
@@ -116,10 +116,11 @@ Set in the Render dashboard. **Values marked secret are never committed, pasted 
 | `JDE_COOKIE_SAMESITE` | `lax` |
 | `JDE_COOKIE_SECURE` | `true` |
 | `JDE_MCP_MOCK_MODE` | `true`, explicitly: there is no JDE on this host |
-| `JDE_EMAIL_DEV_PREVIEW` | `true` only **after** R-1. It then only shows invitation and reset links to an Admin. Set it to `false` once a real email provider is added. |
+| `JDE_EMAIL_DEV_PREVIEW` | `true` (safe now that R-1 is fixed). It then only shows invitation and reset links to an Admin. Set it to `false` once a real email provider is added. |
 | `JDE_BOOTSTRAP_ADMIN_EMAIL`, `JDE_BOOTSTRAP_ADMIN_PASSWORD` *(secret)* | Set once. Remove the password after the first login (see `OPERATIONS.md`). |
 | `ANTHROPIC_API_KEY` *(secret)* | Only if agent runs are to happen on the host; the AI cost falls outside this budget. |
-| `JDE_SECRET_KEY` *(secret)* | If R-3 is implemented |
+| `JDE_CREDENTIAL_KEY` *(secret)* | Encrypts stored Jira tokens (R-3). Also kept in the password manager; see `docs/OPERATIONS.md` |
+| `JDE_TRUST_PROXY_HEADERS` | `true` behind Render, so sign-in limits see the real client address |
 
 Nothing else is needed for the gate. At startup the backend points `JDE_COMPANY_SCOPE_DIR` and `JDE_STORY_COMPANY_DIR` at its own data directory (S1-2).
 
