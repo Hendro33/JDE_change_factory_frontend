@@ -116,7 +116,7 @@ CI derives both from the repository variable `VITE_API_BASE_URL`, which is curre
 
 | Version | Location | Status |
 |---|---|---|
-| **V11** | backend `docs/JDE_AI_Driven_Change_Factory_Design_Document_v11.docx`, last changed in `d766f5a` (2026-09-21) | **The latest version in either repository.** |
+| **V11** | backend `docs/JDE_AI_Driven_Change_Factory_Design_Document_v11.docx`. Content last changed in `fb1e05a` (2026-09-20); the title page reads "Design Document — Version 11". It includes the 19–20 September increments (§1.3 "What's new since v11", §19 Administration Area, §19.7 credential handling). | **The latest design document on GitHub** (only two repositories exist under the account; all refs and all history were searched on 23 September). |
 | **V12** | Referenced by the owner's assessment, with generator `build_jade_v12.py` | **Not available to this session.** It is not in either repository or this environment. |
 | V13 draft | `docs/stage0/04_JADE_DESIGN_V13_DRAFT.md` (this branch) | Consolidates V11 with the 21 and 23 September assessment and brief. **It must be reconciled with V12 before it becomes authoritative.** |
 
