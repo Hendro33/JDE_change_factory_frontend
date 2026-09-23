@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
+import { saveErrorMessage } from "../services/saveErrors";
 import type { ArchitectureReviewRun, Change, DomainReview } from "../types/domain";
 import { AskJadePanel } from "../components/AskJade";
 import { ChangeGrid, FilterBar, useChangeListControls, type GridColumn } from "../components/WorkQueue";
@@ -16,6 +17,7 @@ export function ArchitectureReview() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<"approve" | "reject" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
   const [domainReview, setDomainReview] = useState<DomainReview | null>(null);
   const [run, setRun] = useState<ArchitectureReviewRun | null>(null);
   const [showAnalysisHistory, setShowAnalysisHistory] = useState(false);
@@ -271,14 +273,22 @@ export function ArchitectureReview() {
                   </Provenance>
                 </div>
               ) : (
-                <div className="btnrow" style={{ marginTop: 16 }}>
-                  <button className="btn primary" onClick={() => setDialog("approve")} disabled={busy}>
-                    Approve exact change
-                  </button>
-                  <button className="btn danger" onClick={() => setDialog("reject")} disabled={busy}>
-                    Reject exact change
-                  </button>
-                </div>
+                <>
+                  {decisionError && (
+                    <div className="callout" style={{ borderColor: "var(--stop)", marginTop: 16 }}>
+                      <strong>Not recorded</strong>
+                      {decisionError}
+                    </div>
+                  )}
+                  <div className="btnrow" style={{ marginTop: 16 }}>
+                    <button className="btn primary" onClick={() => setDialog("approve")} disabled={busy}>
+                      Approve exact change
+                    </button>
+                    <button className="btn danger" onClick={() => setDialog("reject")} disabled={busy}>
+                      Reject exact change
+                    </button>
+                  </div>
+                </>
               )}
             </section>
           )}
@@ -314,10 +324,17 @@ export function ArchitectureReview() {
           showReasonCode={dialog === "reject"}
           onCancel={() => setDialog(null)}
           onConfirm={async (note, reasonCode) => {
-            setDialog(null); setBusy(true);
-            if (dialog === "approve") await api.approveExactChange(open.id, { note });
-            else await api.rejectExactChange(open.id, { note, rejectionReason: reasonCode });
-            await reload(); setBusy(false);
+            const wasApprove = dialog === "approve";
+            setDialog(null); setBusy(true); setDecisionError(null);
+            try {
+              if (wasApprove) await api.approveExactChange(open.id, { note });
+              else await api.rejectExactChange(open.id, { note, rejectionReason: reasonCode });
+            } catch (e) {
+              // e.g. no approval policy for this company, or a role it does not allow.
+              setDecisionError(saveErrorMessage(e, "The decision could not be recorded."));
+            } finally {
+              await reload(); setBusy(false);
+            }
           }}
         />
       )}

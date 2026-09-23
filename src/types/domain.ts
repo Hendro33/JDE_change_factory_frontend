@@ -746,12 +746,27 @@ export interface TechnicalAgentScope {
   approvers: string[];
 }
 
+export type ApproverRole = "admin" | "product_manager" | "domain_owner";
+
+/**
+ * Who may approve an exact change for this company, and for how long
+ * the approval stays valid. Enforced at approval and again immediately
+ * before execution; absent means nobody can approve and nothing runs.
+ */
+export interface ApprovalPolicy {
+  policyVersion: 1;
+  exactChangeApproverRoles: ApproverRole[];
+  /** 1-168. */
+  approvalValidHours: number;
+}
+
 export interface EngagementScope {
   customerId: string;
   toolsRelease: string;
   environment?: EnvironmentBinding;
   functionalAgent: FunctionalAgentScope;
   technicalAgent: TechnicalAgentScope;
+  approvalPolicy?: ApprovalPolicy | null;
   /** 0 means never saved. */
   revision: number;
   /** Absent means "never configured" — distinct from an explicitly empty, saved scope. */
@@ -765,6 +780,7 @@ export interface EngagementScopeUpdateInput {
   environment?: EnvironmentBinding;
   functionalAgent: FunctionalAgentScope;
   technicalAgent: TechnicalAgentScope;
+  approvalPolicy?: ApprovalPolicy | null;
   /** The revision this edit was based on (0 when creating). */
   expectedRevision: number;
 }

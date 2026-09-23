@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
+import { saveErrorMessage } from "../services/saveErrors";
 import type { BusinessDomain, Change, DomainReview } from "../types/domain";
 import {
   ApiNote,
@@ -83,6 +84,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
   const [change, setChange] = useState<Change | null>(null);
   const [dialog, setDialog] = useState<"approve" | "reject" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
   const [domainReview, setDomainReview] = useState<DomainReview | null>(null);
   const [domains, setDomains] = useState<BusinessDomain[]>([]);
 
@@ -306,6 +308,12 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                     Approving the story was a decision about whether the work is worth doing.
                     This is a separate decision about whether this exact operation is the right one.
                   </div>
+                  {decisionError && (
+                    <div className="callout" style={{ borderColor: "var(--stop)", marginBottom: 14 }}>
+                      <strong>Not recorded</strong>
+                      {decisionError}
+                    </div>
+                  )}
                   <div className="btnrow">
                     <button className="btn primary" onClick={() => setDialog("approve")} disabled={busy}>
                       Approve this exact change
@@ -422,10 +430,16 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
           onCancel={() => setDialog(null)}
           onConfirm={async (note, reasonCode) => {
             const wasApprove = dialog === "approve";
-            setDialog(null); setBusy(true);
-            if (wasApprove) await api.approveExactChange(change.id, { note });
-            else await api.rejectExactChange(change.id, { note, rejectionReason: reasonCode });
-            await reload(); setBusy(false);
+            setDialog(null); setBusy(true); setDecisionError(null);
+            try {
+              if (wasApprove) await api.approveExactChange(change.id, { note });
+              else await api.rejectExactChange(change.id, { note, rejectionReason: reasonCode });
+            } catch (e) {
+              // e.g. no approval policy for this company, or a role it does not allow.
+              setDecisionError(saveErrorMessage(e, "The decision could not be recorded."));
+            } finally {
+              await reload(); setBusy(false);
+            }
           }}
         />
       )}

@@ -339,6 +339,23 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
   async approveExactChange(id: string, input: DecisionInput): Promise<Change> {
     const change = this.scoped().find((c) => c.id === id);
     if (!change) throw new Error(`No change ${id}`);
+    // Same rule as the real gate: the company's approval policy decides
+    // who may approve, and without one nobody can.
+    const policy = this.engagementScopes.get(this.scope)?.approvalPolicy;
+    if (!policy) {
+      throw new Error(
+        "This company has no approval policy, so nobody is authorised to approve an exact change. " +
+          "An Admin must set one under Admin > ERP / JDE Landscape."
+      );
+    }
+    const session = getMockSession();
+    const roles = session.customers.find((c) => c.id === this.scope)?.roles ?? [];
+    if (!roles.some((r) => (policy.exactChangeApproverRoles as string[]).includes(r))) {
+      throw new Error(
+        `${session.displayName} does not hold a role this company's approval policy allows ` +
+          `(allowed: ${policy.exactChangeApproverRoles.join(", ")}).`
+      );
+    }
     change.changeApproval = {
       approvalId: `AP-${id}-C`,
       kind: "change",
@@ -346,7 +363,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       changeHash: "mock-hash-" + Math.random().toString(16).slice(2, 10),
       approvedBy: getMockSession().displayName,
       approvedAt: now(),
-      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      expiresAt: new Date(Date.now() + policy.approvalValidHours * 3600000).toISOString(),
       note: input.note,
     };
     change.state = "CHANGE_APPROVED";
@@ -959,12 +976,10 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       ais: { mockMode: true, baseUrlConfigured: false },
       engagementScopeConfigured: configured,
       scopeGloballySharedNote:
-        "mcp_server's JDE (AIS) connection and its scope.json engagement file are still a single, global " +
-        "configuration shared by every customer in this deployment -- they are not yet customer-specific. The " +
-        "Engagement Scope below is this customer's own intended configuration; it is the source an operator " +
-        "would export into scope.json for this engagement, but it is not yet wired into mcp_server's live " +
-        "enforcement. Making the JDE connection and scope genuinely per-customer is a larger change, out of " +
-        "scope here.",
+        "The Engagement Scope below is this company's own and is what the execution gate enforces for its " +
+        "stories: approved versions, dated spike experiments, the DEV environment binding and the approval " +
+        "policy. The JDE (AIS) connection itself is still one deployment-wide setting shared by every company; " +
+        "making it per-company is a later step.",
     });
   }
 
@@ -998,6 +1013,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
         })),
       },
       technicalAgent: input.technicalAgent,
+      approvalPolicy: input.approvalPolicy ?? null,
       revision,
       updatedAt: stamp,
       updatedBy: actor,
