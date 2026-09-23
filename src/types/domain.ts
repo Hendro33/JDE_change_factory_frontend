@@ -246,13 +246,36 @@ export interface ExactChange {
  */
 export type ExecutionState = "ready" | "in_progress" | "applied" | "completed" | "unknown" | "diverged";
 
+/**
+ * One audited reconciliation: the exact target checked, what was observed
+ * there, who checked (user id and name), when, and the evidence reference.
+ * Also appended to the story's tamper-evident evidence chain.
+ */
 export interface Reconciliation {
+  kind: "write_reconciliation" | "test_reconciliation" | string;
   at: string;
+  actor: { userId?: string | null; displayName: string };
   verifiedBy: string;
   source: string;
   outcome: string;
+  /** company_id, story_id, change_id, capability, environment, jde_environment and the write target or orchestration. */
+  target: Record<string, string | null>;
+  /** Write: { value, before_value }; test: { ran }. */
+  observed: Record<string, unknown>;
   observedValue?: string | null;
+  evidenceReference: string;
+  evidenceEntryHash?: string | null;
+  settlesAttemptId?: string | null;
   note: string;
+}
+
+export interface ReconcileResult {
+  outcome: string;
+  observedValue?: string;
+  source?: string;
+  target: Record<string, string | null>;
+  evidenceReference: string;
+  evidenceEntryHash: string;
 }
 
 export interface ExecutionStatus {
@@ -262,7 +285,9 @@ export interface ExecutionStatus {
   lastAttemptAt?: string | null;
   lastDetail: string;
   beforeValue?: string | null;
-  reconciliations: Reconciliation[];
+  /** Kept apart: a write reconciliation settles whether the value is in JDE, a test one whether the test ran. */
+  writeReconciliations: Reconciliation[];
+  testReconciliations: Reconciliation[];
 }
 
 /** What the execution gate would decide right now, check by check. Nothing is executed. */

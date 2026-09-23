@@ -21,6 +21,7 @@ import type {
   EngagementScopeUpdateInput,
   PasswordResetLinkOut,
   PreflightResult,
+  ReconcileResult,
   ErpLandscape,
   FactoryMetrics,
   FeedbackSummary,
@@ -1011,11 +1012,11 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     });
   }
 
-  async reconcileExecution(): Promise<{ outcome: string; observedValue: string; source: string }> {
+  async reconcileExecution(): Promise<ReconcileResult> {
     throw new Error("Reconciliation needs the real backend; the demo never executes anything.");
   }
 
-  async reconcileTestRun(): Promise<{ outcome: string }> {
+  async reconcileTestRun(): Promise<ReconcileResult> {
     throw new Error("Reconciliation needs the real backend; the demo never executes anything.");
   }
 

@@ -28,6 +28,7 @@ import type {
   EngagementScopeUpdateInput,
   PasswordResetLinkOut,
   PreflightResult,
+  ReconcileResult,
   ErpLandscape,
   FactoryMetrics,
   FeedbackReasonCode,
@@ -319,9 +320,11 @@ export interface ChangeFactoryApi {
    */
   reconcileExecution(
     changeId: string,
-    input: { observedValue?: string; note: string }
-  ): Promise<{ outcome: string; observedValue: string; source: string }>;
-  reconcileTestRun(changeId: string, input: { ran: boolean; note: string }): Promise<{ outcome: string }>;
+    input: { observedValue?: string; note: string; evidenceReference?: string }
+  ): Promise<ReconcileResult>;
+  reconcileTestRun(
+    changeId: string, input: { ran: boolean; note: string; evidenceReference: string }
+  ): Promise<ReconcileResult>;
   getEngagementScope(): Promise<EngagementScope>;
   updateEngagementScope(input: EngagementScopeUpdateInput): Promise<EngagementScope>;
 

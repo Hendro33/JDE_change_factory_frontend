@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { saveErrorMessage } from "../services/saveErrors";
-import type { ExecutionState, ExecutionStatus, PreflightResult } from "../types/domain";
+import type { ExecutionState, ExecutionStatus, PreflightResult, Reconciliation } from "../types/domain";
 
 const STATE_LABEL: Record<ExecutionState, { text: string; tone: string }> = {
   ready: { text: "Not executed", tone: "grey" },
@@ -36,6 +36,7 @@ export function ExecutionPanel({
   const [preflightError, setPreflightError] = useState<string | null>(null);
   const [observedValue, setObservedValue] = useState("");
   const [note, setNote] = useState("");
+  const [evidenceReference, setEvidenceReference] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,8 +55,12 @@ export function ExecutionPanel({
   async function reconcileWrite() {
     setBusy(true); setError(null); setMessage(null);
     try {
-      const r = await api.reconcileExecution(changeId, live ? { observedValue, note } : { note });
-      setMessage(`Reconciled: ${r.outcome.replace("_", " ")} (target value ${r.observedValue}, ${r.source}).`);
+      const r = await api.reconcileExecution(changeId, live ? { observedValue, note, evidenceReference } : { note });
+      setMessage(
+        `Write reconciled: ${r.outcome.replace("_", " ")} (target value ${r.observedValue}, ${r.source}). ` +
+        "Recorded with the exact target and your name, and added to the evidence chain." +
+        (r.outcome === "not_applied" ? " A retry still needs a current, unexpired approval and passes every gate check again." : "")
+      );
       onChanged();
     } catch (e) {
       setError(saveErrorMessage(e, "Could not reconcile."));
@@ -67,8 +72,8 @@ export function ExecutionPanel({
   async function reconcileTest(ran: boolean) {
     setBusy(true); setError(null); setMessage(null);
     try {
-      const r = await api.reconcileTestRun(changeId, { ran, note });
-      setMessage(`Test run recorded as ${r.outcome.replace("_", " ")}.`);
+      const r = await api.reconcileTestRun(changeId, { ran, note, evidenceReference });
+      setMessage(`Test run reconciled as ${r.outcome.replace("_", " ")}; recorded and added to the evidence chain.`);
       onChanged();
     } catch (e) {
       setError(saveErrorMessage(e, "Could not reconcile the test run."));
@@ -114,16 +119,24 @@ export function ExecutionPanel({
               <label htmlFor={`recnote-${changeId}`}>What you checked{testUnknown || live ? "" : " (optional)"}</label>
               <textarea id={`recnote-${changeId}`} value={note} onChange={(e) => setNote(e.target.value)} />
             </div>
+            {(live || (!writeUnknown && testUnknown)) && (
+              <div className="field">
+                <label htmlFor={`recevidence-${changeId}`}>
+                  Evidence reference <span className="hint">(where this can be checked: screenshot, ticket or export)</span>
+                </label>
+                <input id={`recevidence-${changeId}`} type="text" value={evidenceReference} onChange={(e) => setEvidenceReference(e.target.value)} />
+              </div>
+            )}
             <div className="btnrow">
               {writeUnknown && (
-                <button className="btn primary" disabled={busy || (live && (!observedValue.trim() || !note.trim()))} onClick={reconcileWrite}>
+                <button className="btn primary" disabled={busy || (live && (!observedValue.trim() || !note.trim() || !evidenceReference.trim()))} onClick={reconcileWrite}>
                   {live ? "Record the value I read" : "Check the target now"}
                 </button>
               )}
               {!writeUnknown && testUnknown && (
                 <>
-                  <button className="btn" disabled={busy || !note.trim()} onClick={() => reconcileTest(true)}>It ran</button>
-                  <button className="btn" disabled={busy || !note.trim()} onClick={() => reconcileTest(false)}>It did not run</button>
+                  <button className="btn" disabled={busy || !note.trim() || !evidenceReference.trim()} onClick={() => reconcileTest(true)}>It ran</button>
+                  <button className="btn" disabled={busy || !note.trim() || !evidenceReference.trim()} onClick={() => reconcileTest(false)}>It did not run</button>
                 </>
               )}
             </div>
@@ -143,23 +156,8 @@ export function ExecutionPanel({
         </div>
       )}
 
-      {execution && execution.reconciliations.length > 0 && (
-        <table className="data" style={{ marginTop: 12 }}>
-          <thead><tr><th>Reconciled</th><th>By</th><th>How</th><th>Found</th><th>Outcome</th><th>Note</th></tr></thead>
-          <tbody>
-            {execution.reconciliations.map((r, i) => (
-              <tr key={i}>
-                <td>{new Date(r.at).toLocaleString("en-GB")}</td>
-                <td>{r.verifiedBy}</td>
-                <td>{r.source}</td>
-                <td className="mono">{r.observedValue ?? "—"}</td>
-                <td>{r.outcome.replace("_", " ")}</td>
-                <td>{r.note}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <ReconciliationLog title="Write reconciliations" rows={execution?.writeReconciliations ?? []} write />
+      <ReconciliationLog title="Test-run reconciliations" rows={execution?.testReconciliations ?? []} write={false} />
 
       <div style={{ marginTop: 12 }}>
         <strong>Would the execution gate allow this write now?</strong>{" "}
@@ -184,6 +182,41 @@ export function ExecutionPanel({
           Jade itself never starts the write: an agent or operator does, and the gate re-runs every check above at that moment.
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReconciliationLog({ title, rows, write }: { title: string; rows: Reconciliation[]; write: boolean }) {
+  if (rows.length === 0) return null;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <strong>{title}</strong>
+      <table className="data">
+        <thead>
+          <tr><th>When</th><th>By</th><th>Target</th><th>Observed</th><th>Outcome</th><th>Evidence</th><th>Note</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <td>{new Date(r.at).toLocaleString("en-GB")}</td>
+              <td>{r.actor?.displayName || r.verifiedBy}</td>
+              <td className="mono">
+                {write
+                  ? `${r.target.application}/${r.target.version}/${r.target.option} → ${r.target.approved_value}`
+                  : r.target.orchestration}
+                <div className="hint">{r.target.jde_environment ?? "no bound environment"}</div>
+              </td>
+              <td className="mono">{write ? String(r.observed?.value ?? r.observedValue ?? "—") : r.observed?.ran ? "ran" : "did not run"}</td>
+              <td>{r.outcome.replace("_", " ")}</td>
+              <td>
+                {r.evidenceReference}
+                <div className="hint">{r.source}</div>
+              </td>
+              <td>{r.note}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

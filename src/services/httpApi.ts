@@ -18,6 +18,7 @@ import type {
   EngagementScopeUpdateInput,
   PasswordResetLinkOut,
   PreflightResult,
+  ReconcileResult,
   ErpLandscape,
   FactoryMetrics,
   ForgotPasswordResult,
@@ -464,17 +465,17 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<PreflightResult>(`/changes/${encodeURIComponent(changeId)}/execution/preflight`, { customerId });
   }
 
-  async reconcileExecution(changeId: string, input: { observedValue?: string; note: string }) {
+  async reconcileExecution(changeId: string, input: { observedValue?: string; note: string; evidenceReference?: string }) {
     const customerId = await this.activeCustomerId();
-    return request<{ outcome: string; observedValue: string; source: string }>(
+    return request<ReconcileResult>(
       `/changes/${encodeURIComponent(changeId)}/execution/reconcile`,
       { method: "POST", customerId, body: input }
     );
   }
 
-  async reconcileTestRun(changeId: string, input: { ran: boolean; note: string }) {
+  async reconcileTestRun(changeId: string, input: { ran: boolean; note: string; evidenceReference: string }) {
     const customerId = await this.activeCustomerId();
-    return request<{ outcome: string }>(`/changes/${encodeURIComponent(changeId)}/execution/reconcile-test`, {
+    return request<ReconcileResult>(`/changes/${encodeURIComponent(changeId)}/execution/reconcile-test`, {
       method: "POST", customerId, body: input,
     });
   }
