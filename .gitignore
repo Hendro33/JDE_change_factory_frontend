@@ -6,4 +6,5 @@ dist/
 .env.local
 .vite/
 e2e/stage1/shots/
+e2e/discovery/shots/
 __pycache__/

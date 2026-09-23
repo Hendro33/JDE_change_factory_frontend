@@ -189,6 +189,9 @@ export interface ArchitectAnalysisVersion {
   implementationSpec: ImplementationSpecification;
   note: string;
   capturedAt: string;
+  /** The immutable evidence baseline recorded for this design revision. */
+  baselineId?: string | null;
+  baselineSha256?: string | null;
 }
 
 /**
@@ -748,11 +751,27 @@ export interface AisConnectionStatus {
   role?: string;
 }
 
+/** Reference to the authoritative discovery profile (Admin > Integrations > JDE). */
+export interface DiscoveryProfileSummary {
+  configured: boolean;
+  revision: number;
+  environment?: string | null;
+  pathCode?: string | null;
+  applicationRelease?: string | null;
+  toolsRelease?: string | null;
+  mode?: string | null;
+  discoveryEnabled: boolean;
+  disabled: boolean;
+  health: Record<string, string>;
+}
+
 export interface ErpLandscape {
   customerId: string;
   toolsRelease: string;
   environment: string;
+  /** The execution gate's connection -- separate from discovery. */
   ais: AisConnectionStatus;
+  discoveryProfile?: DiscoveryProfileSummary | null;
   engagementScopeConfigured: boolean;
   scopeGloballySharedNote: string;
 }

@@ -4,6 +4,7 @@ import { saveErrorMessage } from "../services/saveErrors";
 import type { ArchitectureReviewRun, Change, DomainReview } from "../types/domain";
 import { AskJadePanel } from "../components/AskJade";
 import { ExecutionPanel } from "../components/ExecutionPanel";
+import { DesignEvidencePanel } from "../components/DesignEvidencePanel";
 import { ChangeGrid, FilterBar, useChangeListControls, type GridColumn } from "../components/WorkQueue";
 import { ConfirmDialog, Loading, PriorityBadge, Provenance } from "../components/ui";
 
@@ -175,6 +176,8 @@ export function ArchitectureReview() {
               </div>
             </section>
           )}
+
+          {run && run.history.length > 0 && <DesignEvidencePanel changeId={open.id} designCount={run.history.length} />}
 
           {implementationSpec && (
             <section className="panel">

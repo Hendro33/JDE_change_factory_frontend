@@ -3,6 +3,7 @@ import { api } from "../../services/api";
 import type { IntegrationStatus, JiraConnectionStatus, JiraIntegrationConfig, JiraSyncResult, JiraTestConnectionResult } from "../../types/domain";
 import { ApiNote, Loading } from "../../components/ui";
 import { saveErrorMessage } from "../../services/saveErrors";
+import { JdeDiscoveryPanel } from "../../components/JdeDiscoveryPanel";
 
 /**
  * Client-side mirror of the backend's own check (jira_gateway.
@@ -191,6 +192,8 @@ export function Integrations() {
           <ApiNote endpoint="GET /admin/integrations" />
         </section>
       )}
+
+      <JdeDiscoveryPanel />
 
       <section className="panel">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>

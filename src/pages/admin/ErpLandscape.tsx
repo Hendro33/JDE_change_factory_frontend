@@ -239,15 +239,34 @@ export function ErpLandscape() {
         <div className="stack">
           <section className="panel">
             <h2>JDE connection status</h2>
+            <div className="sub" style={{ marginBottom: 8 }}>
+              Connection settings live in one place: Admin → Integrations → JDE. This page only shows them.
+            </div>
             <dl className="facts">
-              <dt>Tools Release</dt><dd>{landscape.toolsRelease}</dd>
-              <dt>Environment</dt><dd>{landscape.environment}</dd>
-              <dt>AIS mode</dt>
-              <dd><span className={`badge ${landscape.ais.mockMode ? "grey" : "ok"}`}>{landscape.ais.mockMode ? "Mock" : "Live"}</span></dd>
-              <dt>AIS base URL</dt>
-              <dd><span className={`badge ${landscape.ais.baseUrlConfigured ? "ok" : "grey"}`}>{landscape.ais.baseUrlConfigured ? "Configured" : "Not configured"}</span></dd>
-              <dt>AIS environment</dt><dd>{landscape.ais.environment ?? <span className="notstated">not set</span>}</dd>
-              <dt>AIS role</dt><dd>{landscape.ais.role ?? <span className="notstated">not set</span>}</dd>
+              <dt>Discovery profile</dt>
+              <dd>
+                {landscape.discoveryProfile?.configured ? (
+                  <>
+                    {landscape.discoveryProfile.environment} · path code {landscape.discoveryProfile.pathCode} · application{" "}
+                    {landscape.discoveryProfile.applicationRelease}, Tools {landscape.discoveryProfile.toolsRelease} · revision{" "}
+                    {landscape.discoveryProfile.revision}{" "}
+                    <span className={`badge ${landscape.discoveryProfile.mode === "simulation" ? "warn" : "ok"}`}>
+                      {landscape.discoveryProfile.mode === "simulation" ? "SIMULATION" : "live"}
+                    </span>{" "}
+                    <span className={`badge ${landscape.discoveryProfile.discoveryEnabled ? "ok" : "grey"}`}>
+                      {landscape.discoveryProfile.discoveryEnabled ? "discovery enabled" : landscape.discoveryProfile.disabled ? "disabled" : "discovery off"}
+                    </span>
+                    <div className="hint">
+                      {Object.entries(landscape.discoveryProfile.health).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join(" · ")}
+                    </div>
+                  </>
+                ) : <span className="notstated">not configured — Admin → Integrations → JDE</span>}
+              </dd>
+              <dt>Execution connection</dt>
+              <dd>
+                <span className={`badge ${landscape.ais.mockMode ? "grey" : "ok"}`}>{landscape.ais.mockMode ? "Mock" : "Live"}</span>{" "}
+                <span className="hint">Separate from discovery; used only by the execution gate, never by the Architect.</span>
+              </dd>
               <dt>Engagement scope</dt>
               <dd><span className={`badge ${landscape.engagementScopeConfigured ? "ok" : "warn"}`}>{landscape.engagementScopeConfigured ? "Configured" : "Not yet configured"}</span></dd>
             </dl>
