@@ -982,7 +982,14 @@ export interface JiraTestConnectionResult {
 
 /** Status only — NEVER a credential. credentialsConfigured reflects THIS customer's own saved Jira credential, never its value. */
 export interface JiraConnectionStatus {
+  /** True only in explicit demo mode. */
   mockMode: boolean;
+  /**
+   * demo: simulated Jira, by explicit deployment setting · live · unavailable:
+   * real mode without a usable setup -- every Jira operation is blocked, never mocked.
+   */
+  state?: "demo" | "live" | "unavailable";
+  unavailableReason?: string;
   credentialsConfigured: boolean;
   configConfigured: boolean;
   /** How the stored token is held -- never the token itself. */

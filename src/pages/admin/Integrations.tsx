@@ -229,7 +229,16 @@ export function Integrations() {
         {jiraStatus && (
           <dl className="facts" style={{ marginBottom: 16 }}>
             <dt>Mode</dt>
-            <dd><span className={`badge ${jiraStatus.mockMode ? "grey" : "ok"}`}>{jiraStatus.mockMode ? "Mock" : "Live"}</span></dd>
+            <dd>
+              {jiraStatus.state === "live" && <span className="badge ok">Live</span>}
+              {jiraStatus.state === "demo" && <span className="badge grey">Demo (simulated Jira)</span>}
+              {(jiraStatus.state === "unavailable" || !jiraStatus.state) && (
+                <>
+                  <span className="badge stop">Unavailable</span>
+                  {jiraStatus.unavailableReason && <div className="hint">{jiraStatus.unavailableReason}</div>}
+                </>
+              )}
+            </dd>
             <dt>Credential</dt>
             <dd><span className={`badge ${jiraStatus.credentialsConfigured ? "ok" : "warn"}`}>{jiraStatus.credentialsConfigured ? "Configured" : "Not configured"}</span></dd>
             <dt>Stored as</dt>

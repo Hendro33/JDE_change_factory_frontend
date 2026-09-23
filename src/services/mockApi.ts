@@ -1186,7 +1186,9 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     const config = this.jiraConfigs.get(this.scope);
     const creds = this.jiraCredentials.get(this.scope);
     return delay({
+      // The demo is, explicitly, demo mode.
       mockMode: true,
+      state: "demo",
       credentialsConfigured: !!creds && !!creds.email && !!creds.apiToken,
       configConfigured: !!config && jiraIsConfigured(config),
     });
