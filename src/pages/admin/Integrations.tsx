@@ -232,15 +232,23 @@ export function Integrations() {
             <dd><span className={`badge ${jiraStatus.mockMode ? "grey" : "ok"}`}>{jiraStatus.mockMode ? "Mock" : "Live"}</span></dd>
             <dt>Credential</dt>
             <dd><span className={`badge ${jiraStatus.credentialsConfigured ? "ok" : "warn"}`}>{jiraStatus.credentialsConfigured ? "Configured" : "Not configured"}</span></dd>
+            <dt>Stored as</dt>
+            <dd>
+              {jiraStatus.credentialStorage === "encrypted" && <span className="badge ok">Encrypted</span>}
+              {jiraStatus.credentialStorage === "plaintext (legacy)" && <span className="badge warn">Plaintext (from an earlier build) — encrypted on the next restart once a key is set</span>}
+              {jiraStatus.credentialStorage === "unreadable" && <span className="badge stop">Unreadable — encrypted with a key this server does not have; re-enter the token</span>}
+              {(!jiraStatus.credentialStorage || jiraStatus.credentialStorage === "none") && <span className="notstated">nothing stored</span>}
+            </dd>
           </dl>
         )}
         <div className="callout" style={{ marginBottom: 16 }}>
-          <strong>Pilot-scoped credential storage</strong>
-          Entering an email and API token below stores them for this customer, on this server, as ordinary
-          configuration — deliberately simple for a short-lived pilot, not a secrets manager or encrypted
-          storage. The token is never shown again once saved (only whether one is configured), never logged,
-          and never appears anywhere in this UI after you leave this form. Production use would move this
-          behind a real secrets provider — not built in this pilot.
+          <strong>How the token is stored</strong>
+          The API token is encrypted before it is stored, with a key held only in the server's own settings,
+          never in its database or backups. It is never shown again once saved, never logged, and never sent
+          back to this screen.
+          {jiraStatus && jiraStatus.credentialEncryptionAvailable === false && (
+            <> <strong style={{ color: "var(--stop)" }}>This server has no encryption key configured, so a token cannot be saved.</strong></>
+          )}
         </div>
 
         {!jiraConfig ? null : !editing ? (

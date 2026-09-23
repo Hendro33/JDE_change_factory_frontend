@@ -26,6 +26,7 @@ import type {
   DashboardThresholdsUpdateInput,
   EngagementScope,
   EngagementScopeUpdateInput,
+  PasswordResetLinkOut,
   PreflightResult,
   ErpLandscape,
   FactoryMetrics,
@@ -131,6 +132,7 @@ export const API_ENDPOINTS = {
   resendInvitation: "POST /admin/users/invitations/{id}/resend",
   revokeInvitation: "POST /admin/users/invitations/{id}/revoke",
   updateMembershipRoles: "PUT /admin/users/{membershipId}/roles",
+  issuePasswordResetLink: "POST /admin/users/{membershipId}/password-reset-link",
   deactivateMembership: "POST /admin/users/{membershipId}/deactivate",
   reactivateMembership: "POST /admin/users/{membershipId}/reactivate",
 } as const;
@@ -396,6 +398,8 @@ export interface ChangeFactoryApi {
   resendInvitation(invitationId: string): Promise<InvitationOut>;
   revokeInvitation(invitationId: string): Promise<InvitationOut>;
   updateMembershipRoles(membershipId: string, input: UpdateMembershipInput): Promise<MembershipOut>;
+  /** Admin-issued reset link: the only way to reset a password until an email provider exists. */
+  issuePasswordResetLink(membershipId: string): Promise<PasswordResetLinkOut>;
   deactivateMembership(membershipId: string): Promise<MembershipOut>;
   reactivateMembership(membershipId: string): Promise<MembershipOut>;
 }

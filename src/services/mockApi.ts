@@ -19,6 +19,7 @@ import type {
   DashboardThresholdsUpdateInput,
   EngagementScope,
   EngagementScopeUpdateInput,
+  PasswordResetLinkOut,
   PreflightResult,
   ErpLandscape,
   FactoryMetrics,
@@ -1314,6 +1315,13 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     const invitation = list.find((i) => i.id === invitationId);
     if (!invitation) throw new Error(`No such invitation: ${invitationId}`);
     return invitation;
+  }
+
+  async issuePasswordResetLink(): Promise<PasswordResetLinkOut> {
+    return delay({
+      sent: false,
+      previewUrl: `${window.location.origin}${window.location.pathname}?resetToken=mock-${Math.random().toString(16).slice(2, 10)}`,
+    });
   }
 
   async resendInvitation(invitationId: string): Promise<InvitationOut> {

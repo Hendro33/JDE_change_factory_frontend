@@ -16,6 +16,7 @@ import type {
   DashboardThresholdsUpdateInput,
   EngagementScope,
   EngagementScopeUpdateInput,
+  PasswordResetLinkOut,
   PreflightResult,
   ErpLandscape,
   FactoryMetrics,
@@ -598,6 +599,13 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
   async revokeInvitation(invitationId: string): Promise<InvitationOut> {
     const customerId = await this.activeCustomerId();
     return request<InvitationOut>(`/admin/users/invitations/${encodeURIComponent(invitationId)}/revoke`, {
+      method: "POST", customerId,
+    });
+  }
+
+  async issuePasswordResetLink(membershipId: string): Promise<PasswordResetLinkOut> {
+    const customerId = await this.activeCustomerId();
+    return request<PasswordResetLinkOut>(`/admin/users/${encodeURIComponent(membershipId)}/password-reset-link`, {
       method: "POST", customerId,
     });
   }

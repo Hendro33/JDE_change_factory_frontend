@@ -985,6 +985,16 @@ export interface JiraConnectionStatus {
   mockMode: boolean;
   credentialsConfigured: boolean;
   configConfigured: boolean;
+  /** How the stored token is held -- never the token itself. */
+  credentialStorage?: "none" | "encrypted" | "plaintext (legacy)" | "unreadable";
+  /** Whether this server can save a credential at all (encryption key configured). */
+  credentialEncryptionAvailable?: boolean;
+}
+
+export interface PasswordResetLinkOut {
+  /** True once an email provider delivers it; false means previewUrl is for the Admin to hand over. */
+  sent: boolean;
+  previewUrl?: string | null;
 }
 
 export interface JiraSyncError {

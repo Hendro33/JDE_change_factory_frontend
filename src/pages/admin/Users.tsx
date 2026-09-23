@@ -122,6 +122,21 @@ function MemberRow({
   const [domainIds, setDomainIds] = useState<string[]>(member.domainIds);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetLink, setResetLink] = useState<string | null>(null);
+
+  async function issueResetLink() {
+    setBusy(true);
+    setError(null);
+    setResetLink(null);
+    try {
+      const r = await api.issuePasswordResetLink(member.membershipId);
+      setResetLink(r.previewUrl ?? "Sent to their email address.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not create a reset link.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function saveRoles() {
     setBusy(true);
@@ -165,6 +180,11 @@ function MemberRow({
           </>
         )}
         {error && <div className="hint" style={{ color: "var(--stop)" }}>{error}</div>}
+        {resetLink && (
+          <div className="hint" style={{ wordBreak: "break-all" }}>
+            Reset link (no email service is configured, so hand it over yourself; valid once): {resetLink}
+          </div>
+        )}
       </td>
       <td>
         <div className="btnrow">
@@ -176,6 +196,9 @@ function MemberRow({
           ) : (
             <>
               <button className="btn" disabled={busy} onClick={() => setEditing(true)}>Edit roles</button>
+              {member.status === "active" && (
+                <button className="btn" disabled={busy} onClick={issueResetLink}>Reset link</button>
+              )}
               <button className="btn danger" disabled={busy} onClick={toggleStatus}>
                 {busy ? "…" : member.status === "active" ? "Deactivate" : "Reactivate"}
               </button>
