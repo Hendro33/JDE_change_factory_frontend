@@ -24,10 +24,12 @@ function StateBadge({ state }: { state: ExecutionState }) {
  * reconciliation that must happen before anything runs again.
  */
 export function ExecutionPanel({
-  changeId, execution, onChanged,
+  changeId, execution, approvalStatus, onChanged,
 }: {
   changeId: string;
   execution?: ExecutionStatus;
+  /** Re-asks the gate when the approval changes, not only the execution state. */
+  approvalStatus?: string;
   onChanged: () => void;
 }) {
   const [preflight, setPreflight] = useState<PreflightResult | null>(null);
@@ -43,7 +45,7 @@ export function ExecutionPanel({
       .then((p) => { setPreflight(p); setPreflightError(null); })
       .catch((e) => setPreflightError(saveErrorMessage(e, "Could not ask the execution gate.")));
   };
-  useEffect(loadPreflight, [changeId, execution?.writeState, execution?.testState]);
+  useEffect(loadPreflight, [changeId, approvalStatus, execution?.writeState, execution?.testState]);
 
   const live = preflight?.mode === "live";
   const writeUnknown = execution?.writeState === "unknown";

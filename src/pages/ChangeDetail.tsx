@@ -326,7 +326,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                   </div>
                 </div>
               )}
-              <ExecutionPanel changeId={change.id} execution={ec.execution} onChanged={reload} />
+              <ExecutionPanel changeId={change.id} execution={ec.execution} approvalStatus={change.changeApproval?.status} onChanged={reload} />
             </section>
           )}
 

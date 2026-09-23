@@ -68,6 +68,12 @@ with sync_playwright() as p:
     page.locator(".modal button:has-text('Approve exact change'), [role=dialog] button:has-text('Approve exact change')").last.click()
     expect(page.locator(f"text=Exact change approved by {ADMIN_NAME}")).to_be_visible()
     check("approval accepted once a policy allows the approver's role", True)
+
+    # 5. Approved is not the same as executable: the gate's preflight says why not.
+    expect(page.locator("text=Would the execution gate allow this write now?")).to_be_visible()
+    expect(page.locator("text=DEV environment bound and isolation confirmed")).to_be_visible()
+    check("preflight lists the gate's remaining blockers after approval",
+          page.locator("text=does not confirm DEV isolation").count() >= 1)
     page.screenshot(path=f"{SHOTS}/5-approved-with-policy.png", full_page=True)
     browser.close()
 

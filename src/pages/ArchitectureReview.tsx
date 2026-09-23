@@ -291,7 +291,7 @@ export function ArchitectureReview() {
                   </div>
                 </>
               )}
-              <ExecutionPanel changeId={open.id} execution={ec.execution} onChanged={reload} />
+              <ExecutionPanel changeId={open.id} execution={ec.execution} approvalStatus={open.changeApproval?.status} onChanged={reload} />
             </section>
           )}
         </div>
