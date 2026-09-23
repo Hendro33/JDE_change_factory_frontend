@@ -5,3 +5,5 @@ dist/
 .env
 .env.local
 .vite/
+e2e/stage1/shots/
+__pycache__/
