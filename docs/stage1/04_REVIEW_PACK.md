@@ -6,7 +6,8 @@ This pack covers:
 
 - the Stage 1 increments S1-1 and S1-2;
 - the review-readiness pass that followed them (sections 3–7);
-- the acceptance pass that followed that review (**§8**; it updates §1–§5 and §7 where noted).
+- the acceptance pass that followed that review (**§8**; it updates §1–§5 and §7 where noted);
+- the Architect Environment Discovery increment (**§9**).
 
 **Status:** nothing is merged or deployed, nothing has been purchased, and no JDE system has been contacted.
 
@@ -371,3 +372,112 @@ See §2.1. First runs, started by this pass's pushes, both passed: [backend run 
 6. **Backups are not scheduled.** The script is run by hand, and Render's snapshot is not paused.
 7. **The Claude Code approval hook** is still a pilot mechanism (§4.1).
 8. **Not done here:** no deployment, merge, pull request or JDE write.
+
+## 9. Architect Environment Discovery
+
+This increment lets the Architect research a company's DEV installation through governed, read-only discovery; approved technical exports and reference documents; and an immutable evidence baseline for every design. It is administered under Admin → Integrations → JDE. It was built on top of the hardening in §8, which was complete (CI green) before this work started.
+
+**Status:** not merged, not deployed. No customer JDE was contacted. Every JDE interaction described here ran against the backend's labelled simulated endpoint, or against an HTTP mock in tests.
+
+### 9.1 Where to review it
+
+| | Backend | Frontend |
+|---|---|---|
+| Compare (this increment only) | [`e1336e6`…branch](https://github.com/Hendro33/jde_change_factory_backend/compare/e1336e6...claude/stage1-setup-and-safeguards) | [`375a419`…branch](https://github.com/Hendro33/JDE_change_factory_frontend/compare/375a419...claude/focused-gates-gtay96) |
+| Commits | `2e80b82` (discovery), `0fd5c90` (integrations row, demo seed), `e5dd5e7` (operations) | `35f43ff` (UI and demonstrations), this documentation commit |
+
+**Backend code:**
+- `api_service/jde_api_service/discovery/`:
+  - `capabilities`;
+  - `models`;
+  - `profile_service`;
+  - `transport`;
+  - `service`;
+  - `artifacts`;
+  - `baseline`;
+  - `architect_tools`.
+- `routers/discovery.py`;
+- migration 5;
+- `services/architecture_driver.py`;
+- `mcp_server/jde_mcp_server/design_baseline.py`;
+- the agent definitions `architect.md` and `functional-agent.md`.
+
+**Frontend code:**
+- `services/discoveryApi.ts`;
+- `components/JdeDiscoveryPanel.tsx`;
+- `components/DesignEvidencePanel.tsx`;
+- ERP Landscape;
+- Integrations;
+- Architecture Review.
+
+### 9.2 Design decisions a reviewer should check
+
+- **Tools, not agents.** The Architect gets four typed tools: `list_discovery_capabilities`, `discovery_read`, `list_baseline_artifacts` and `read_baseline_artifact`. They run as an **in-process** MCP server inside the API, built for one run and bound to the story's company. Credentials never reach the agent runtime or the `mcp_server` subprocess.
+- **Company from records.** The company comes from the story's own backend link, and is re-checked on every call. The model never chooses it.
+- **Ungoverned reads removed.** The old `get_object`, `get_version` and `get_processing_options` tools are no longer offered to the Architect or to the solution conversation. They are not company-scoped.
+- **Capabilities are a closed list**, each one supported, unverified or unavailable:
+  - **Unavailable:** source code, event rules and full object specifications. AIS does not expose them; the tool points to the baseline import instead.
+  - **Unverified:** everything else, until an approved sample read succeeds for the current profile revision.
+- **Requests are built from typed parameters.** Before dispatch, the semantics are checked: BROWSE only; no form, batch or business-function fields; no paging; at most 10 records.
+- **The manifest records what the run actually did** (the run ledger), not what the model says. A citation to evidence the run did not gather is marked unvalidated and downgraded to an assumption. System gaps are added for:
+  - refused or unavailable reads;
+  - incompatible documentation;
+  - exports whose correspondence to the runtime is unknown;
+  - simulated evidence;
+  - redaction.
+- **Changed evidence never edits a manifest.** Refresh Evidence creates a new baseline revision. A changed observation, a newer artifact revision or a material profile change flags the design `needs_reassessment`. The flag reaches the downstream hand-off copy too.
+- **Execution never reads a baseline.** A test asserts that the gate's modules do not import it.
+
+### 9.3 Implementation and test evidence
+
+**Automated tests:**
+- **Backend:** 350 passed (291 before this increment).
+- **Gate proof:** 22 steps, all checks pass (unchanged).
+- **Frontend:** type-check and build pass.
+
+**New test files:**
+
+| File | Tests | Covers |
+|---|---:|---|
+| `test_discovery_profile.py` | 20 | <ul><li>Versioned persistence; saving never contacts JDE.</li><li>409 and 428 revision handling.</li><li>The credential is encrypted, masked and never returned. With no key it is refused; with a lost key it is unreadable and blocks the connection.</li><li>A material change, or a new credential, switches discovery off; contact names do not.</li><li>Company scope and Admin-only access.</li><li>Unsafe settings refused (422).</li><li>Enable needs every check and both attestations.</li><li>Environment mismatch detected.</li><li>Capability status is stated explicitly.</li></ul> |
+| `test_discovery_policy.py` | 29 | <ul><li>Twelve kinds of out-of-scope call are blocked with **zero** requests sent: an execution tool name, an unavailable or unapproved capability, a wrong target, a field or filter outside scope, a disallowed operator, a wildcard, an extra filter key, and record limits.</li><li>Sanitised evidence and provenance; exactly auth, one read, logout.</li><li>The 10-record cap, with "more available" reported.</li><li>`metadata_only` redaction.</li><li>Window, forged-company and changed-profile grants are refused.</li><li>One request at a time.</li><li>Disable blocks queued calls and reports in-flight ones.</li><li>Sanitised activity.</li><li>No write capability: endpoint set, semantic checks, and no imports of the execution tools.</li><li>Live transport against an HTTP mock: deployment switch, allowlist, fixed endpoints, no redirects, unverifiable environment, circuit breaker, and saving sends nothing.</li></ul> |
+| `test_architect_discovery.py` | 10 | Acceptance 1–8 and 10 through the real Architect driver, with a scripted model calling the same tools: correct company profile; cited observations; artifact provenance; missing code and incompatible documents become gaps; cross-company isolation; refresh and reassessment; the same manifest reaches downstream agents, with tamper detection; the baseline grants nothing to execution; immutable artifact revisions; domain scoping; data-sharing withholding. |
+
+**How the ten acceptance points map to the tests:**
+
+| # | Acceptance point | Where it is shown |
+|---|---|---|
+| 1 | Correct company's profile | `test_acceptance_1_to_4…`, `test_acceptance_5…` |
+| 2 | Permitted read becomes cited evidence | `test_acceptance_1_to_4…` (validated `observed` citation, observation in the manifest); browser demo |
+| 3 | Imported artifact with exact provenance | `test_acceptance_1_to_4…` (id, revision, sha256, repository, commit, runtime statement) |
+| 4 | Missing code and incompatible documents reported | `test_acceptance_1_to_4…`; `test_without_an_enabled_profile…`; browser demo |
+| 5 | Another company's evidence unreachable | `test_acceptance_5…`; forged grant in `test_discovery_policy.py` |
+| 6 | Out-of-scope calls blocked before dispatch | `test_out_of_scope_calls_are_blocked_before_network_dispatch` (12 cases, zero requests) |
+| 7 | Changed evidence gives a new baseline and a reassessment flag | `test_acceptance_7…` |
+| 8 | Downstream agents receive the manifest | `test_acceptance_8…` (the MCP `get_design_baseline` and the API hand-off, with matching checksum) |
+| 9 | No discovery action can invoke a write | `test_no_discovery_action_can_invoke_a_write_capability` |
+| 10 | Everything testable against a labelled simulation | Every test above; `SIMULATION` labels asserted in evidence, profile, manifest and UI |
+
+**Browser demonstrations** (`e2e/discovery/`, run locally against a real backend in simulation mode on 23 September 2026, about 22:42 UTC):
+- `discovery_admin.py`: **10/10**.
+- `discovery_evidence.py`: **7/7**.
+
+The design shown in the second demonstration was recorded by `scripts/seed_demo_design_evidence.py`. It is a scripted stand-in that calls the same governed tools, **not a model run**.
+
+### 9.4 Needs customer-JDE validation (not demonstrated)
+
+1. **Live AIS response shapes.** The shapes of `defaultconfig`, `dataservice` BROWSE and `poservice` are implemented from documentation and unverified. Parsing is labelled "unverified", and the environment check fails closed if AIS does not report the environment or Tools release. This needs a supervised session (the Experiment A1 equivalent).
+2. **The token request and logout flow** against the customer's AIS release and authentication setup.
+3. **The customer-side controls:** the narrowly privileged JDE role, the network route and DEV isolation. Jade records the customer's confirmations and requires them before contacting anything, but cannot verify them itself.
+4. **Whether AIS on the customer's Tools release exposes any source, event rules or specifications** that this increment treats as unavailable.
+5. **A real model run.** Tests and demonstrations replace the model with a scripted fake. Passing an in-process SDK MCP server alongside the project `.mcp.json` server is implemented but not yet exercised with the Claude CLI.
+6. **The Functional Agent's use of `get_design_baseline`**, which depends on a Functional Agent driver that does not exist yet (it is invoked directly).
+
+### 9.5 Limitations of this increment
+
+1. **One process.** The one-at-a-time lock, the in-flight registry, the circuit breaker and the simulated estate are all per process. This matches the single-worker pilot.
+2. **Refresh.** It re-reads the same targets under the current profile. It does not re-run the Architect; a person decides whether to.
+3. **Artifacts.** Text formats only, 2 MB per file, first 60,000 characters analysed. No PAR or ZIP unpacking, no PDF or DOCX extraction.
+4. **Observations.** They store what the model was allowed to see, after redaction, plus a hash of the full payload for change detection. Unredacted values are not kept.
+5. **The Technical Agent** does not exist yet. The hand-off format and tool are ready for it.
+6. **Health checks are manual.** There is no background polling, as specified.

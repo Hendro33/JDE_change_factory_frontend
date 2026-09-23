@@ -63,6 +63,19 @@ Every file is written atomically: temp file, `fsync`, then rename. An interrupte
 | Credential encryption key | Host environment (`JDE_CREDENTIAL_KEY`) and the team password manager | Must never be stored with the data it protects |
 | Browser | `ciq_http_active_customer` (which company is selected); demo persona keys (mock mode only); `jade_dashboard_thresholds` (legacy, read only for the one-time import) | Preferences, never business data |
 
+## 4a. Architect Environment Discovery
+
+| What | Where | Notes |
+|---|---|---|
+| JDE discovery profile | SQLite `jde_profiles`, with every revision in `jde_profile_revisions` | Revisioned (409/428). The credential is encrypted with `JDE_CREDENTIAL_KEY` and never returned. Check results are stored per profile material hash, so a material change makes them stale |
+| Observations | SQLite `discovery_observations` | Immutable; a refresh adds rows. Stores the redacted evidence the model saw, plus a payload hash |
+| Activity | SQLite `discovery_activity` | Sanitised: operation, target shape, counts, outcome. Blocked requests included |
+| Technical artifacts and reference documents | Metadata in SQLite `technical_artifacts` (immutable revisions); bytes under `api_data/artifacts/<company>/<sha256>` | Behind the replaceable `ArtifactStore` interface; reachable only through the authenticated API |
+| Design evidence baselines | SQLite `design_baselines` | The manifest is immutable (sha256); only status and reassessment flags change |
+| Hand-off for downstream agents | `api_data/design_baselines/<story>.json` | Read by `mcp_server` `get_design_baseline`, which checks company and checksum |
+
+All of these sit under the data directory, so the consistent backup (§5) covers them.
+
 ## 5. Backup and restore
 
 The procedure is in backend `docs/OPERATIONS.md`, and is automated in `scripts/jade_backup.py` (backup / verify / restore). It is tested end to end in `tests/test_backup_restore.py`:
