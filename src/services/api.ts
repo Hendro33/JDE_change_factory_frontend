@@ -26,6 +26,7 @@ import type {
   DashboardThresholdsUpdateInput,
   EngagementScope,
   EngagementScopeUpdateInput,
+  PreflightResult,
   ErpLandscape,
   FactoryMetrics,
   FeedbackReasonCode,
@@ -105,6 +106,9 @@ export const API_ENDPOINTS = {
   getErpLandscape: "GET /admin/erp-landscape",
   getDashboardThresholds: "GET /admin/dashboard-thresholds",
   updateDashboardThresholds: "PUT /admin/dashboard-thresholds",
+  getExecutionPreflight: "GET /changes/{id}/execution/preflight",
+  reconcileExecution: "POST /changes/{id}/execution/reconcile",
+  reconcileTestRun: "POST /changes/{id}/execution/reconcile-test",
   getEngagementScope: "GET /admin/engagement-scope",
   updateEngagementScope: "PUT /admin/engagement-scope",
   listAgents: "GET /admin/agents",
@@ -304,6 +308,18 @@ export interface ChangeFactoryApi {
   getCustomerProfile(): Promise<CustomerProfile>;
   /** JDE connection + engagement-scope status. Never a credential value. */
   getErpLandscape(): Promise<ErpLandscape>;
+  /** Read-only: what the execution gate would decide right now. */
+  getExecutionPreflight(changeId: string): Promise<PreflightResult>;
+  /**
+   * Settle an unknown write outcome from the ACTUAL target value. Jade reads
+   * it itself where it can (mock mode); otherwise observedValue is what a
+   * person read in JDE, with a note.
+   */
+  reconcileExecution(
+    changeId: string,
+    input: { observedValue?: string; note: string }
+  ): Promise<{ outcome: string; observedValue: string; source: string }>;
+  reconcileTestRun(changeId: string, input: { ran: boolean; note: string }): Promise<{ outcome: string }>;
   getEngagementScope(): Promise<EngagementScope>;
   updateEngagementScope(input: EngagementScopeUpdateInput): Promise<EngagementScope>;
 

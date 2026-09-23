@@ -16,6 +16,7 @@ import type {
   DashboardThresholdsUpdateInput,
   EngagementScope,
   EngagementScopeUpdateInput,
+  PreflightResult,
   ErpLandscape,
   FactoryMetrics,
   ForgotPasswordResult,
@@ -455,6 +456,26 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
   async getErpLandscape(): Promise<ErpLandscape> {
     const customerId = await this.activeCustomerId();
     return request<ErpLandscape>("/admin/erp-landscape", { customerId });
+  }
+
+  async getExecutionPreflight(changeId: string): Promise<PreflightResult> {
+    const customerId = await this.activeCustomerId();
+    return request<PreflightResult>(`/changes/${encodeURIComponent(changeId)}/execution/preflight`, { customerId });
+  }
+
+  async reconcileExecution(changeId: string, input: { observedValue?: string; note: string }) {
+    const customerId = await this.activeCustomerId();
+    return request<{ outcome: string; observedValue: string; source: string }>(
+      `/changes/${encodeURIComponent(changeId)}/execution/reconcile`,
+      { method: "POST", customerId, body: input }
+    );
+  }
+
+  async reconcileTestRun(changeId: string, input: { ran: boolean; note: string }) {
+    const customerId = await this.activeCustomerId();
+    return request<{ outcome: string }>(`/changes/${encodeURIComponent(changeId)}/execution/reconcile-test`, {
+      method: "POST", customerId, body: input,
+    });
   }
 
   async getEngagementScope(): Promise<EngagementScope> {

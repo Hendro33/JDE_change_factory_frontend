@@ -19,6 +19,7 @@ import type {
   DashboardThresholdsUpdateInput,
   EngagementScope,
   EngagementScopeUpdateInput,
+  PreflightResult,
   ErpLandscape,
   FactoryMetrics,
   FeedbackSummary,
@@ -994,6 +995,26 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
         "policy. The JDE (AIS) connection itself is still one deployment-wide setting shared by every company; " +
         "making it per-company is a later step.",
     });
+  }
+
+  /** The demo has no execution gate behind it; it says so instead of inventing a verdict. */
+  async getExecutionPreflight(changeId: string): Promise<PreflightResult> {
+    return delay({
+      changeId, mode: "unknown", executable: false, writeState: "ready", testState: "ready",
+      checks: [{
+        check: "Execution gate",
+        ok: false,
+        detail: "This is the demo. It has no execution gate behind it; connect to the real backend to see the gate's checks.",
+      }],
+    });
+  }
+
+  async reconcileExecution(): Promise<{ outcome: string; observedValue: string; source: string }> {
+    throw new Error("Reconciliation needs the real backend; the demo never executes anything.");
+  }
+
+  async reconcileTestRun(): Promise<{ outcome: string }> {
+    throw new Error("Reconciliation needs the real backend; the demo never executes anything.");
   }
 
   async getEngagementScope(): Promise<EngagementScope> {

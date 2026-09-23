@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { ownersOf } from "./BusinessDomains";
+import { ExecutionPanel } from "../components/ExecutionPanel";
 import { saveErrorMessage } from "../services/saveErrors";
 import type { BusinessDomain, Change, DomainReview } from "../types/domain";
 import {
@@ -325,6 +326,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                   </div>
                 </div>
               )}
+              <ExecutionPanel changeId={change.id} execution={ec.execution} onChanged={reload} />
             </section>
           )}
 

@@ -235,6 +235,44 @@ export interface ExactChange {
   capabilityId?: string;
   capabilityStatus?: CapabilityStatus;
   capabilityExecutable?: boolean;
+  /** Whether the approved write (and its test) actually happened. */
+  execution?: ExecutionStatus;
+}
+
+/**
+ * ready: nothing in flight · in_progress · applied (write) / completed (test)
+ * · unknown: may or may not have reached JDE; blocked until reconciled
+ * · diverged: target in neither the before nor the approved state; never runs again
+ */
+export type ExecutionState = "ready" | "in_progress" | "applied" | "completed" | "unknown" | "diverged";
+
+export interface Reconciliation {
+  at: string;
+  verifiedBy: string;
+  source: string;
+  outcome: string;
+  observedValue?: string | null;
+  note: string;
+}
+
+export interface ExecutionStatus {
+  writeState: ExecutionState;
+  testState: ExecutionState;
+  attempts: number;
+  lastAttemptAt?: string | null;
+  lastDetail: string;
+  beforeValue?: string | null;
+  reconciliations: Reconciliation[];
+}
+
+/** What the execution gate would decide right now, check by check. Nothing is executed. */
+export interface PreflightResult {
+  changeId: string;
+  mode: "mock" | "live" | "unknown";
+  executable: boolean;
+  writeState: ExecutionState;
+  testState: ExecutionState;
+  checks: { check: string; ok: boolean; detail: string }[];
 }
 
 export type CapabilityStatus = "validated" | "needs_spike" | "restricted" | "human_implementation" | "suspended";

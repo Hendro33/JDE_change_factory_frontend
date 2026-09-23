@@ -415,9 +415,54 @@ export function ErpLandscape() {
             )}
             <ApiNote endpoint="GET/PUT /admin/engagement-scope" />
           </section>
+
+          <GateCoverage />
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * What the execution gate actually does today, kept next to the scope it
+ * reads so nobody mistakes a field on this screen for a control. Mirrors
+ * docs/stage1/04_REVIEW_PACK.md §4 (safeguard inventory).
+ */
+function GateCoverage() {
+  return (
+    <section className="panel">
+      <h2>What the execution gate enforces</h2>
+      <div className="grid halves">
+        <div>
+          <strong>Checked before every JDE write or test run</strong>
+          <ul style={{ fontSize: 13.5, paddingLeft: 18 }}>
+            <li>The story is approved, and linked to this company</li>
+            <li>The exact change is approved by a role this company's approval policy allows, and has not expired</li>
+            <li>The operation is byte-for-byte the one approved</li>
+            <li>The capability has an execution adapter, and is validated or inside a current spike window</li>
+            <li>DEV isolation is confirmed, and the JDE connection points at the bound DEV environment</li>
+            <li>The target is an approved version and option, the value is allowed, and the version is not XJDE/ZJDE</li>
+            <li>No earlier attempt is in flight, already applied, or of unknown outcome</li>
+            <li>A test runs only after its write is applied, and only the test named in the approval</li>
+          </ul>
+        </div>
+        <div>
+          <strong>Recorded here but not enforced</strong>
+          <ul style={{ fontSize: 13.5, paddingLeft: 18 }}>
+            <li>Never-touch categories and the free-text approver lists (reference only)</li>
+            <li>Protected scope, mechanisms and test scope (proposed; not stored)</li>
+            <li>Technical Agent object types, product code and naming prefix: no technical write tool exists</li>
+          </ul>
+          <strong>Not available yet</strong>
+          <ul style={{ fontSize: 13.5, paddingLeft: 18 }}>
+            <li>Any live JDE write: the processing-option request is not recorded (Experiment A)</li>
+            <li>Reading a live value back automatically: a person reads it in JDE and records it</li>
+            <li>Every capability except processing-option update: proposal only, for Human Implementation</li>
+            <li>Change Sets (several dependent operations): refused</li>
+          </ul>
+        </div>
+      </div>
+    </section>
   );
 }
 

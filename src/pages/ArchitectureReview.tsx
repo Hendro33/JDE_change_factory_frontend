@@ -3,6 +3,7 @@ import { api } from "../services/api";
 import { saveErrorMessage } from "../services/saveErrors";
 import type { ArchitectureReviewRun, Change, DomainReview } from "../types/domain";
 import { AskJadePanel } from "../components/AskJade";
+import { ExecutionPanel } from "../components/ExecutionPanel";
 import { ChangeGrid, FilterBar, useChangeListControls, type GridColumn } from "../components/WorkQueue";
 import { ConfirmDialog, Loading, PriorityBadge, Provenance } from "../components/ui";
 
@@ -290,6 +291,7 @@ export function ArchitectureReview() {
                   </div>
                 </>
               )}
+              <ExecutionPanel changeId={open.id} execution={ec.execution} onChanged={reload} />
             </section>
           )}
         </div>
