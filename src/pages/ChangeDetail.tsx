@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
+import { ownersOf } from "./BusinessDomains";
 import { saveErrorMessage } from "../services/saveErrors";
 import type { BusinessDomain, Change, DomainReview } from "../types/domain";
 import {
@@ -150,7 +151,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                   )}
                 </dd>
                 <dt>Domain Owner</dt>
-                <dd>{assignedDomain?.domainOwner || <NotStated />}</dd>
+                <dd>{assignedDomain ? ownersOf(assignedDomain) : <NotStated />}</dd>
                 <dt>Governance stage</dt>
                 <dd>{DOMAIN_STAGE_LABEL[domainReview.stage] ?? domainReview.stage}</dd>
               </dl>

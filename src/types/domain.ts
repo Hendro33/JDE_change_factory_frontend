@@ -365,7 +365,14 @@ export interface BusinessDomain {
   /** APQC Level 2 ("4.4") or Level 3 ("4.4.3") — dotted depth. */
   level: string;
   description: string;
+  /** Legacy free-text note. Never an authority: see assignedOwners. */
   domainOwner: string;
+  /**
+   * Who can actually act as Domain Owner: active members with the
+   * Domain Owner role assigned to this domain in Admin > Users.
+   * Derived by the server on every read.
+   */
+  assignedOwners?: string[];
   status: "active" | "proposed" | "retired";
   /** Sent back as expectedRevision on a status change -- see services/saveErrors.ts. */
   revision: number;

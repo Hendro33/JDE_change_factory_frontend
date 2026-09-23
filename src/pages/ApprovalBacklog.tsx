@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
+import { ownersOf } from "./BusinessDomains";
 import type { BusinessDomain, Change, DomainReview } from "../types/domain";
 import type { NavTarget } from "../types/nav";
 import { ChangeGrid, FilterBar, useChangeListControls, type GridColumn } from "../components/WorkQueue";
@@ -59,7 +60,7 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
     { key: "owner", header: "Domain Owner", render: (c) => {
       const review = reviews.get(c.id);
       const domain = review?.businessDomainId ? domainsById.get(review.businessDomainId) : undefined;
-      return domain?.domainOwner || <NotStated />;
+      return ownersOf(domain);
     } },
     { key: "stage", header: "Status", render: (c) => {
       const review = reviews.get(c.id);

@@ -15,6 +15,12 @@ const STATUS_OPTIONS: BusinessDomain["status"][] = ["active", "proposed", "retir
  * it; the status selector and "New domain" form are the Admin write
  * path onto the same list GET /business-domains already serves.
  */
+/** The people who can actually approve for this domain -- never the legacy free-text note. */
+export function ownersOf(d: BusinessDomain | undefined) {
+  const owners = d?.assignedOwners ?? [];
+  return owners.length ? owners.join(", ") : <span className="notstated">none assigned — nobody can approve</span>;
+}
+
 export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
   const [domains, setDomains] = useState<BusinessDomain[] | null>(null);
   const [showNew, setShowNew] = useState(false);
@@ -23,7 +29,6 @@ export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
   const [name, setName] = useState("");
   const [level, setLevel] = useState("");
   const [description, setDescription] = useState("");
-  const [domainOwner, setDomainOwner] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
 
@@ -39,8 +44,8 @@ export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
     setSaving(true);
     setCreateError(null);
     try {
-      await api.createBusinessDomain({ apqcCode, name, level, description, domainOwner });
-      setApqcCode(""); setName(""); setLevel(""); setDescription(""); setDomainOwner("");
+      await api.createBusinessDomain({ apqcCode, name, level, description });
+      setApqcCode(""); setName(""); setLevel(""); setDescription("");
       setShowNew(false);
       load();
     } catch (e) {
@@ -101,10 +106,7 @@ export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
             <label htmlFor="description">Description <span className="hint">(optional)</span></label>
             <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
-          <div className="field">
-            <label htmlFor="domainOwner">Domain Owner <span className="hint">(optional — a name for record-keeping, not access control)</span></label>
-            <input id="domainOwner" type="text" value={domainOwner} onChange={(e) => setDomainOwner(e.target.value)} />
-          </div>
+          <p className="hint">Domain Owners are assigned per person in Admin &gt; Users, not typed here.</p>
           {createError && (
             <div className="callout" style={{ borderColor: "var(--stop)", marginBottom: 12 }}>
               <strong>Could not create</strong>
@@ -142,7 +144,7 @@ export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
                     {d.description && <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2 }}>{d.description}</div>}
                   </td>
                   <td className="mono">{d.level}</td>
-                  <td>{d.domainOwner || <NotStated />}</td>
+                  <td>{ownersOf(d)}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <select
                       value={d.status}

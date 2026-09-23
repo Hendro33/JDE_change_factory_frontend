@@ -161,7 +161,9 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
         displayName: identity.displayName,
         status: "active",
         roles: ["admin", "domain_owner", "product_manager", "dashboard_viewer"],
-        domainIds: [],
+        // Demo personas own every domain of their company, which is what
+        // lets them act as Domain Owner in the demo flows.
+        domainIds: this.businessDomains.filter((d) => d.customerId === customerId).map((d) => d.id),
       }));
       this.companyMembers.set(customerId, members);
     }
@@ -528,7 +530,18 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
   }
 
   async listBusinessDomains(): Promise<BusinessDomain[]> {
-    return delay(this.businessDomains.filter((d) => d.customerId === this.scope));
+    // Same rule as the server: owners are the active Domain Owners assigned to the domain.
+    const members = this.ensureCompanyMembers(this.scope);
+    return delay(
+      this.businessDomains
+        .filter((d) => d.customerId === this.scope)
+        .map((d) => ({
+          ...d,
+          assignedOwners: members
+            .filter((m) => m.status === "active" && m.roles.includes("domain_owner") && m.domainIds.includes(d.id))
+            .map((m) => m.displayName),
+        }))
+    );
   }
 
   /** Same rule as every other metric: derived from real records, never hard-coded. */
