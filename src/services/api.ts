@@ -400,8 +400,8 @@ export interface ChangeFactoryApi {
   updateMembershipRoles(membershipId: string, input: UpdateMembershipInput): Promise<MembershipOut>;
   /** Admin-issued reset link: the only way to reset a password until an email provider exists. */
   issuePasswordResetLink(membershipId: string): Promise<PasswordResetLinkOut>;
-  deactivateMembership(membershipId: string): Promise<MembershipOut>;
-  reactivateMembership(membershipId: string): Promise<MembershipOut>;
+  deactivateMembership(membershipId: string, expectedRevision: number): Promise<MembershipOut>;
+  reactivateMembership(membershipId: string, expectedRevision: number): Promise<MembershipOut>;
 }
 
 // ---------------------------------------------------------------------

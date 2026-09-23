@@ -166,6 +166,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
         // Demo personas own every domain of their company, which is what
         // lets them act as Domain Owner in the demo flows.
         domainIds: this.businessDomains.filter((d) => d.customerId === customerId).map((d) => d.id),
+        revision: 1,
       }));
       this.companyMembers.set(customerId, members);
     }
@@ -1366,21 +1367,24 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     const members = this.ensureCompanyMembers(this.scope);
     if (!input.roles.includes("admin")) this.assertNotLastActiveAdmin(members, membershipId);
     const member = this.findMembership(membershipId);
+    member.revision = nextRevision(member.revision, input.expectedRevision);
     member.roles = input.roles;
     member.domainIds = input.domainIds;
     return delay(member);
   }
 
-  async deactivateMembership(membershipId: string): Promise<MembershipOut> {
+  async deactivateMembership(membershipId: string, expectedRevision: number): Promise<MembershipOut> {
     const members = this.ensureCompanyMembers(this.scope);
     this.assertNotLastActiveAdmin(members, membershipId);
     const member = this.findMembership(membershipId);
+    member.revision = nextRevision(member.revision, expectedRevision);
     member.status = "inactive";
     return delay(member);
   }
 
-  async reactivateMembership(membershipId: string): Promise<MembershipOut> {
+  async reactivateMembership(membershipId: string, expectedRevision: number): Promise<MembershipOut> {
     const member = this.findMembership(membershipId);
+    member.revision = nextRevision(member.revision, expectedRevision);
     member.status = "active";
     return delay(member);
   }

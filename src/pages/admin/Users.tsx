@@ -142,7 +142,7 @@ function MemberRow({
     setBusy(true);
     setError(null);
     try {
-      await api.updateMembershipRoles(member.membershipId, { roles, domainIds });
+      await api.updateMembershipRoles(member.membershipId, { roles, domainIds, expectedRevision: member.revision });
       setEditing(false);
       onChanged();
     } catch (e) {
@@ -156,8 +156,8 @@ function MemberRow({
     setBusy(true);
     setError(null);
     try {
-      if (member.status === "active") await api.deactivateMembership(member.membershipId);
-      else await api.reactivateMembership(member.membershipId);
+      if (member.status === "active") await api.deactivateMembership(member.membershipId, member.revision);
+      else await api.reactivateMembership(member.membershipId, member.revision);
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not update this member.");

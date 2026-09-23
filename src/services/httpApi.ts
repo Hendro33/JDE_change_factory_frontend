@@ -617,17 +617,17 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     });
   }
 
-  async deactivateMembership(membershipId: string): Promise<MembershipOut> {
+  async deactivateMembership(membershipId: string, expectedRevision: number): Promise<MembershipOut> {
     const customerId = await this.activeCustomerId();
     return request<MembershipOut>(`/admin/users/${encodeURIComponent(membershipId)}/deactivate`, {
-      method: "POST", customerId,
+      method: "POST", customerId, body: { expectedRevision },
     });
   }
 
-  async reactivateMembership(membershipId: string): Promise<MembershipOut> {
+  async reactivateMembership(membershipId: string, expectedRevision: number): Promise<MembershipOut> {
     const customerId = await this.activeCustomerId();
     return request<MembershipOut>(`/admin/users/${encodeURIComponent(membershipId)}/reactivate`, {
-      method: "POST", customerId,
+      method: "POST", customerId, body: { expectedRevision },
     });
   }
 }

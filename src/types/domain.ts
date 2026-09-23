@@ -662,6 +662,8 @@ export interface MembershipOut {
   status: MembershipStatus;
   roles: CompanyRole[];
   domainIds: string[];
+  /** Send back as expectedRevision on the next role, domain or status change. */
+  revision: number;
 }
 
 export interface InvitationOut {
@@ -692,6 +694,8 @@ export interface InviteInput {
 export interface UpdateMembershipInput {
   roles: CompanyRole[];
   domainIds: string[];
+  /** The revision this edit was based on: 409 if someone changed the membership since. */
+  expectedRevision: number;
 }
 
 export interface AcceptInvitationInput {
