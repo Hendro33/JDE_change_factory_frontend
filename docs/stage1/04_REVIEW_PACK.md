@@ -470,8 +470,8 @@ The design shown in the second demonstration was recorded by `scripts/seed_demo_
 2. **The token request and logout flow** against the customer's AIS release and authentication setup.
 3. **The customer-side controls:** the narrowly privileged JDE role, the network route and DEV isolation. Jade records the customer's confirmations and requires them before contacting anything, but cannot verify them itself.
 4. **Whether AIS on the customer's Tools release exposes any source, event rules or specifications** that this increment treats as unavailable.
-5. **A real model run.** Tests and demonstrations replace the model with a scripted fake. Passing an in-process SDK MCP server alongside the project `.mcp.json` server is implemented but not yet exercised with the Claude CLI.
-6. **The Functional Agent's use of `get_design_baseline`**, which depends on a Functional Agent driver that does not exist yet (it is invoked directly).
+5. ~~A real model run.~~ Done in §10 (simulated endpoint).
+6. ~~The Functional Agent's use of `get_design_baseline`.~~ Done in §10, non-executing.
 
 ### 9.5 Limitations of this increment
 
@@ -481,3 +481,140 @@ The design shown in the second demonstration was recorded by `scripts/seed_demo_
 4. **Observations.** They store what the model was allowed to see, after redaction, plus a hash of the full payload for change detection. Unredacted values are not kept.
 5. **The Technical Agent** does not exist yet. The hand-off format and tool are ready for it.
 6. **Health checks are manual.** There is no background polling, as specified.
+
+## 10. Architect discovery: integration proof
+
+This pass completes the discovery integration before any new feature and before any customer JDE connection. It also closes the gaps the proof exposed.
+
+**Status:**
+- not merged, not deployed;
+- no customer JDE contacted;
+- nothing written to any JDE.
+
+Every JDE interaction ran against the backend's labelled simulated AIS endpoint.
+
+### 10.1 Where to review it
+
+| | Backend (`claude/stage1-setup-and-safeguards`) | Frontend (`claude/focused-gates-gtay96`) |
+|---|---|---|
+| Compare (this pass only) | [`e5dd5e7`…branch](https://github.com/Hendro33/jde_change_factory_backend/compare/e5dd5e7...claude/stage1-setup-and-safeguards) | [`6bdc052`…branch](https://github.com/Hendro33/JDE_change_factory_frontend/compare/6bdc052...claude/focused-gates-gtay96) |
+| Commits | <ul><li>`195b565`: unrestricted read tools removed</li><li>`06a2dd7`: environment verification</li><li>`e7fbdb6`: evidence limitations</li><li>`f8c6534`: Architect tool context, proof harness</li><li>`018eaf5`: restricted agent runtime</li><li>`400a2a5`: change binding, catalogue in the prompt, proof phases</li><li>`ef96f8e`: recorded proof</li><li>`cc2c940`: OPERATIONS</li></ul> | <ul><li>`4299887`: UI</li><li>`e6e3561`: demonstration selectors</li><li>this documentation commit</li></ul> |
+| Recorded proof | [`docs/proof/architect_discovery_run/summary.md`](https://github.com/Hendro33/jde_change_factory_backend/blob/claude/stage1-setup-and-safeguards/docs/proof/architect_discovery_run/summary.md) and `trace.json` | — |
+
+### 10.2 The real Architect run
+
+`scripts/prove_architect_discovery.py` sets up the run through the real Admin API:
+- a simulation profile;
+- a credential;
+- Test Connection and the approved sample reads;
+- Enable;
+- one imported artifact (custom business function `B5542001`, with repository, commit and a CNC runtime statement);
+- one approved story.
+
+The story is a credit hold for webshop orders on `P4210|CIQ0001`.
+
+It then runs `run_architecture_review` **unchanged**: the real `claude_agent_sdk.query`, the Claude CLI, the project `.mcp.json` server and the in-process discovery server. The stream is observed, not altered.
+
+**Runtime recorded:**
+- **Model reported by the runtime:** `claude-sonnet-5`.
+- **Versions:** Claude CLI 2.1.281 (the runtime reported 2.1.277); claude-agent-sdk 0.2.157.
+- **Mode:** `dontAsk`, 40 turns maximum.
+- **Code:** backend `400a2a5`, frontend `4299887`.
+
+**What the run showed:**
+
+| Required | Shown by |
+|---|---|
+| Resolves the correct company profile | `list_discovery_capabilities`: environment JDV920, path code DV920, profile revision 2, SIMULATION |
+| Reads an approved target | `discovery_read processing_option_values P4210\|CIQ0001` gave `OBS-045baa1f9b` (PCREDCHK blank); three `object_librarian` reads |
+| Consults an imported artifact | `read_baseline_artifact ART-BSFN-B5542001@r1`; cited with sha256, repository, commit and runtime statement |
+| Design, immutable manifest, valid citations | `propose_change` (`processing_option_update`, PCREDCHK set to 1). Route: Functional Agent, confidence 0.85. Baseline `BL-0399192a27`, manifest sha256 `148bb40a…`. Five `observed` citations and one `customer_attestation` citation validated against the run ledger; one stated as an assumption |
+| A missing piece of evidence reported as a gap | The P554210 event rules (the call to B5542001) are unavailable through AIS and were not imported. They are reported as a gap, with a question for the CNC and the blocked step |
+| Out-of-scope read rejected before any network request | An explicit probe through the same runtime: `F0301` (not approved), `F4211.UPRC` (field not approved) and `source_code P554210` (unavailable) were all blocked. **Simulated endpoint requests during the probe: none.** Three blocked activity rows |
+
+In an earlier run on `018eaf5` (not kept), the Architect itself tried two out-of-scope reads: `version_list P554210`, and processing options on `P554210`. Both were blocked, with no request sent.
+
+The run-to-run variation is real. On an earlier fixture that contradicted itself, one run resolved without a change and another stopped without a terminal call. The driver recorded the second as failed, and no design was stored. The fixture now matches the story: the credit check is off in the simulated DEV.
+
+### 10.3 No entry point exposes the old unrestricted tools
+
+- **Removed from the code.** `get_object`, `get_version` and `get_processing_options` are gone from the `.mcp.json` server and from `AISClient`.
+- **Replacement.** `read_approved_target(story_id, change_id)` reads only the target of an approved change for the story's own company.
+- **Pinned by tests.** `test_tool_surface.py` (9 tests) checks:
+  - the server registry and `.mcp.json`;
+  - every agent definition's `tools:`;
+  - every driver's allowlist;
+  - `settings.json` pre-approvals;
+  - that the Architect runtime is denied every other project tool;
+  - that every driver uses the restricted runtime;
+  - that the Architect's prompt carries every catalogue id.
+- **Built-in tools restricted.** The first real run showed that the runtime also offers its built-in tools, and that some of them (`ScheduleWakeup`) run even under `dontAsk`. Every agent run now goes through `services/agent_runtime.py`: `Task` is the only built-in tool, and secrets are blanked in the agent process. The recorded inventories:
+  - **Architect:** `Task` plus its seven MCP tools;
+  - **Functional Agent:** `Task`, `get_design_baseline`, `get_capability_status`, `read_approved_target`.
+
+### 10.4 Environment verification against the AIS contract
+
+Test Connection keeps four sources of information apart, and shows each one under Admin → Integrations → JDE:
+
+1. **Expected:** the profile.
+2. **Server defaults:** `defaultconfig`. Recorded, never used as evidence.
+3. **Session context:** the v2 token response: `environment`, `role`, `userInfo.appsRelease`.
+4. **Attested:** the Tools release and path code (the CNC runtime attestation), and OCM routing and isolation. AIS reports none of these.
+
+Handling:
+- A mismatch fails the check.
+- A missing item leaves the check `unknown`. Enable is blocked, and the check names the missing evidence.
+- The check never falls back to `defaultconfig`.
+
+The contract basis and its sources are in the backend `docs/OPERATIONS.md`. docs.oracle.com could not be fetched from the build environment, so those pages were read through search results. The live response shapes remain to be confirmed with the customer (§9.4).
+
+### 10.5 Evidence limits made explicit
+
+**Truncation.** Text artifacts are analysed up to 60,000 characters. The artifact record, the manifest, the Architect's tool result and the design screen all state "N of M characters analysed", and citations of a truncated artifact carry the limitation.
+
+**Hashes.** An observation's full-result SHA-256 is labelled as a change detector. Unredacted values are not retained. A test shows that the hash detects a change in a value the model never saw.
+
+**Refresh Evidence**, shown in the real run after the simulated DEV value changed to 2:
+- Baseline 2 was created, with four new observations. The changed one is flagged: `OBS-045baa1f9b` became `OBS-47f683a0c0`.
+- Baseline 2 is `needs_reassessment`; baseline 1 is kept, `superseded`.
+- The design history stayed at one revision.
+- The change stayed `approved`, with an unchanged `approved_at`.
+- The Functional Agent's `get_design_baseline` now returns `needs_reassessment`, which its definition treats as a stop.
+
+### 10.6 Hand-off status
+
+**Functional Agent: complete, non-executing.** The existing entry point is the `functional-agent` subagent definition. No new driver was built.
+
+In the recorded run:
+1. The change the Architect proposed was approved through the API.
+2. The subagent ran through the same runtime, with every write, orchestration and evidence tool removed from its context.
+3. It called `get_design_baseline`, `get_capability_status` and `read_approved_target`.
+4. It reported design revision 1, baseline `BL-0399192a27` and manifest sha256 `148bb40a…`. All three equal the database.
+5. It reported that the given `change_id` equals the change bound to that design revision, and that the change is approved.
+
+It then said it would **stop**, correctly: `processing_option_update` is `needs_spike` (the AIS write adapter is not implemented). The change record was unchanged, and no execution was recorded.
+
+The proof exposed a gap that is now closed: the hand-off did not say which change a design proposed. The package now binds the proposed `change_id`; a refresh keeps it; a later design revision that proposes nothing is unbound. The agent definition stops on any mismatch.
+
+Limitation: the Functional Agent's `read_approved_target` goes to the execution server's own mock AIS, which returned `MOCK-INITIAL`. It does not go to the discovery simulator. The two simulations do not share state, and the agent noticed and reported the difference.
+
+**Technical Agent: incomplete.** There is no Technical Agent definition or driver. The hand-off format and `get_design_baseline` are ready for it; nothing has been demonstrated.
+
+### 10.7 Verification
+
+| Check | Result |
+|---|---|
+| Backend tests | 366 passed |
+| Gate proof | all checks pass |
+| Frontend | type-check and build pass |
+| Browser demonstrations (local, simulation, 24 September 2026) | `discovery_admin.py` 11/11; `discovery_evidence.py` 7/7 |
+| Real-runtime proof | recorded (above); needs a Claude login, not in CI |
+| CI on the final commit of each branch | see the delivery report |
+
+### 10.8 Decisions for the reviewer
+
+1. **Execution credentials in agent runs.** `agent_runtime` blanks `JDE_AIS_USERNAME` and `JDE_AIS_PASSWORD` in every agent process, and so also in the project MCP server it starts. Safe today (it fails closed, and no live execution is authorised). Live execution through an agent run would therefore be unable to authenticate. Decide deliberately before any authorised live execution:
+   - either the credential reaches only the execution server;
+   - or execution moves out of the agent process.
+2. **One simulation for discovery and execution.** The Functional Agent's target read should see the same simulated DEV as discovery. This is a test-harness change, not yet made.
+
