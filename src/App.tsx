@@ -9,6 +9,7 @@ import { UserStories } from "./pages/UserStories";
 import { UserStoryReview } from "./pages/UserStoryReview";
 import { ApprovalBacklog } from "./pages/ApprovalBacklog";
 import { ArchitectureReview } from "./pages/ArchitectureReview";
+import { TechnicalWork } from "./pages/TechnicalWork";
 import { DeliveryQueuePage } from "./pages/DeliveryQueue";
 import { Pipeline } from "./pages/Pipeline";
 import { BusinessDomains } from "./pages/BusinessDomains";
@@ -39,6 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
   ] },
   { label: "Delivery", items: [
     { key: "deliveryqueue", label: "Delivery Queue" },
+    { key: "technical", label: "Technical Work" },
     { key: "pipeline", label: "Active Changes", filter: { stage: "active" } },
     { key: "pipeline", label: "Validation", filter: { stage: "validation" } },
   ] },
@@ -227,6 +229,8 @@ function MainApp({ onSignedOut }: { onSignedOut?: () => void }) {
           <ApprovalBacklog {...navTarget} />
         ) : page === "architecture" ? (
           <ArchitectureReview />
+        ) : page === "technical" ? (
+          <TechnicalWork />
         ) : page === "deliveryqueue" ? (
           <DeliveryQueuePage onOpenChange={setDetailId} />
         ) : page === "domains" ? (

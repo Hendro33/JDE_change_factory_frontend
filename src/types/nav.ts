@@ -9,6 +9,7 @@ export type Page =
   | "userstoryreview"
   | "approval"
   | "architecture"
+  | "technical"
   | "deliveryqueue"
   | "pipeline"
   | "domains"

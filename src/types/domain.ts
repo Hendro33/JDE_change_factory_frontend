@@ -53,9 +53,11 @@ export interface Customer {
  *     assignments, settings and integrations (Jira). Does NOT confer
  *     business approval or agent-execution authority on its own.
  *   - dashboard_viewer: read-only.
+ *   - cnc_operator: records a package deployment/activation a human CNC
+ *     performed (Technical work). Never granted by default.
  * A user can hold more than one role on the same company.
  */
-export type CompanyRole = "domain_owner" | "product_manager" | "admin" | "dashboard_viewer";
+export type CompanyRole = "domain_owner" | "product_manager" | "admin" | "dashboard_viewer" | "cnc_operator";
 
 export type UserRole = string;
 
@@ -109,8 +111,11 @@ export type Complexity = "Low" | "Medium" | "High" | "Unknown";
 export type ImplementationRoute =
   | "Functional Agent"
   | "Technical Agent"
+  | "Mixed"
   | "Human Implementation"
-  | "Resolve without Change";
+  | "Resolve without Change"
+  /** The evidence contradicts the story or a business question is open: a result, not a failure. */
+  | "Clarification Required";
 
 export type ChangeType =
   | "Configuration"

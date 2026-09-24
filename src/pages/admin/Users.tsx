@@ -3,12 +3,13 @@ import { api } from "../../services/api";
 import type { BusinessDomain, CompanyRole, CompanyUsersOut, InvitationOut, MembershipOut } from "../../types/domain";
 import { ApiNote, Loading } from "../../components/ui";
 
-const ALL_ROLES: CompanyRole[] = ["admin", "domain_owner", "product_manager", "dashboard_viewer"];
+const ALL_ROLES: CompanyRole[] = ["admin", "domain_owner", "product_manager", "dashboard_viewer", "cnc_operator"];
 const ROLE_LABEL: Record<CompanyRole, string> = {
   admin: "Admin",
   domain_owner: "Domain Owner",
   product_manager: "Product Manager",
   dashboard_viewer: "Dashboard Viewer",
+  cnc_operator: "CNC Operator",
 };
 
 function RoleAndDomainPicker({
