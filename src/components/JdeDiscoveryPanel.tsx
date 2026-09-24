@@ -26,7 +26,8 @@ function blankConfig(): JdeProfileConfig {
     connectionMode: "simulation", aisBaseUrl: "https://", environment: "", environmentType: "DEV", role: "",
     expectedApplicationRelease: "", expectedToolsRelease: "", pathCode: "", authMethod: "ais_token_request",
     customerContact: "", cncContact: "", networkRoute: "", isolationEvidence: "", routingIsolationConfirmed: false,
-    privilegeStatement: "", privilegeConfirmed: false, approvedReads: [],
+    privilegeStatement: "", privilegeConfirmed: false, runtimeAttestationConfirmed: false, runtimeAttestationEvidence: "",
+    approvedReads: [],
     discoveryWindow: { startsAt: start.toISOString(), endsAt: end.toISOString() },
     limits: { maxRecords: 10, timeoutSeconds: 15, concurrentRequests: 1 }, dataSharingPolicy: "metadata_only",
   };
@@ -55,6 +56,44 @@ function Check({ result }: { result?: CheckResult }) {
       {r.checkedAt && <span className="hint">{new Date(r.checkedAt).toLocaleString("en-GB")}</span>}
       {r.detail && <div className="hint">{r.detail}</div>}
     </>
+  );
+}
+
+const itemTone: Record<string, string> = { verified: "ok", attested: "warn", missing: "grey", mismatch: "stop" };
+
+/**
+ * Environment verification, source by source: what the profile expects, what
+ * the AIS server's defaults say (recorded, never evidence), what the
+ * authenticated session reports, and what only the customer can attest.
+ */
+function EnvironmentFacets({ result }: { result?: CheckResult }) {
+  const f = result?.facets;
+  if (!f?.items?.length) return null;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <strong>Environment verification, by source</strong>
+      <table className="data">
+        <thead><tr><th>Item</th><th>Status</th><th>Source</th><th>Detail</th></tr></thead>
+        <tbody>
+          {f.items.map((i) => (
+            <tr key={i.item}>
+              <td>{i.item}</td>
+              <td><span className={`badge ${itemTone[i.status] ?? "grey"}`}>{i.status}</span></td>
+              <td className="hint">{i.source}</td>
+              <td style={{ fontSize: 12.5 }}>{i.detail}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {f.server_defaults && (
+        <div className="hint">
+          Server defaults (defaultconfig, not evidence of the session):{" "}
+          {Object.entries(f.server_defaults).filter(([k]) => k !== "used_as_evidence").map(([k, v]) => `${k} ${String(v)}`).join(" · ")}
+        </div>
+      )}
+      {f.notes?.map((n) => <div key={n} className="hint">{n}</div>)}
+      {f.contract_basis && <div className="hint">Basis: {f.contract_basis}</div>}
+    </div>
   );
 }
 
@@ -151,6 +190,7 @@ export function JdeDiscoveryPanel() {
             <dt>Network route</dt><dd>{cfg.networkRoute || <span className="notstated">not stated</span>}</dd>
             <dt>Routing & isolation</dt><dd>{cfg.routingIsolationConfirmed ? "Confirmed by customer" : <span className="badge warn">not confirmed</span>} <span className="hint">{cfg.isolationEvidence}</span></dd>
             <dt>Least privilege</dt><dd>{cfg.privilegeConfirmed ? "Confirmed by customer" : <span className="badge warn">not confirmed</span>} <span className="hint">{cfg.privilegeStatement}</span></dd>
+            <dt>Tools release & path code</dt><dd>{cfg.runtimeAttestationConfirmed ? "Attested by CNC (not verifiable through AIS)" : <span className="badge warn">not attested</span>} <span className="hint">{cfg.runtimeAttestationEvidence}</span></dd>
             <dt>Window</dt><dd>{cfg.discoveryWindow ? `${new Date(cfg.discoveryWindow.startsAt).toLocaleString("en-GB")} – ${new Date(cfg.discoveryWindow.endsAt).toLocaleString("en-GB")}` : "none"}</dd>
             <dt>Limits</dt><dd>{cfg.limits.maxRecords} records per query, one request at a time, {cfg.limits.timeoutSeconds}s timeout, no paging or retries</dd>
             <dt>Data sharing with the model</dt><dd>{cfg.dataSharingPolicy.replace(/_/g, " ")}</dd>
@@ -165,6 +205,7 @@ export function JdeDiscoveryPanel() {
                 ))}
               </tbody>
             </table>
+            <EnvironmentFacets result={view.health.environment} />
           </div>
 
           <div className="btnrow" style={{ flexWrap: "wrap" }}>
@@ -250,6 +291,9 @@ export function JdeDiscoveryPanel() {
           <label style={{ display: "flex", gap: 6, fontWeight: 400 }}><input type="checkbox" checked={form.routingIsolationConfirmed} onChange={(e) => set("routingIsolationConfirmed", e.target.checked)} />The customer/CNC has confirmed the route reaches DEV only and the environment is isolated</label>
           <label className="field">Privilege statement<textarea value={form.privilegeStatement} onChange={(e) => set("privilegeStatement", e.target.value)} /></label>
           <label style={{ display: "flex", gap: 6, fontWeight: 400 }}><input type="checkbox" checked={form.privilegeConfirmed} onChange={(e) => set("privilegeConfirmed", e.target.checked)} />The customer has confirmed this JDE identity is narrowly privileged (read-only)</label>
+          <label className="field">Runtime attestation <span className="hint">(the AIS contract does not report the Tools release or path code a session runs on; record the CNC's statement)</span>
+            <textarea value={form.runtimeAttestationEvidence} onChange={(e) => set("runtimeAttestationEvidence", e.target.value)} placeholder="CNC (name, ticket): JDV920 runs path code DV920 on Tools 9.2.8.2" /></label>
+          <label style={{ display: "flex", gap: 6, fontWeight: 400 }}><input type="checkbox" checked={form.runtimeAttestationConfirmed} onChange={(e) => set("runtimeAttestationConfirmed", e.target.checked)} />The CNC has attested the Tools release and path code for this environment</label>
           <label className="field">
             Approved reads <span className="hint">(one per line: capability; targets; fields; filter fields — lists comma-separated, e.g. table_browse; F4211; DOCO,DCTO; DCTO or processing_option_values; P4210|CIQ0001)</span>
             <textarea value={readsText} onChange={(e) => setReadsText(e.target.value)} rows={5} className="mono" />
@@ -306,6 +350,12 @@ export function JdeDiscoveryPanel() {
       <ApiNote endpoint="GET/PUT /admin/jde/profile, PUT /admin/jde/credential, POST /admin/jde/test-connection|sample-read|enable|disable, GET /admin/jde/activity" />
     </section>
   );
+}
+
+function coverage(a: ArtifactView): { analysedChars: number; totalChars: number; truncated: boolean; analysed: boolean } | null {
+  const c = a.meta.analysis_coverage as { analysed_chars?: number; total_chars?: number; truncated?: boolean; analysed?: boolean } | undefined;
+  if (!c || !c.analysed) return null;
+  return { analysedChars: c.analysed_chars ?? 0, totalChars: c.total_chars ?? 0, truncated: !!c.truncated, analysed: true };
 }
 
 const EMPTY_UPLOAD: Omit<ArtifactUploadInput, "fileName" | "contentBase64"> = {
@@ -367,7 +417,13 @@ function TechnicalBaseline() {
                     ? <span className={`badge ${a.compatibility === "compatible" ? "ok" : a.compatibility === "incompatible" ? "stop" : "grey"}`}>{a.compatibility}</span>
                     : <span className={`badge ${a.meta.runtime_correspondence === "matches_dev_runtime" ? "ok" : a.meta.runtime_correspondence === "known_mismatch" ? "stop" : "grey"}`}>{String(a.meta.runtime_correspondence).replace(/_/g, " ")}</span>}
                 </td>
-                <td><span className={`badge ${a.extractionStatus === "supported" ? "ok" : "grey"}`}>{a.extractionStatus === "supported" ? "analysable" : "unavailable"}</span>{a.extractionNote && <div className="hint">{a.extractionNote}</div>}</td>
+                <td>
+                  <span className={`badge ${a.extractionStatus === "supported" ? (coverage(a)?.truncated ? "warn" : "ok") : "grey"}`}>
+                    {a.extractionStatus !== "supported" ? "unavailable" : coverage(a)?.truncated ? "partly analysable" : "analysable"}
+                  </span>
+                  {coverage(a)?.analysed && <div className="hint">{coverage(a)!.analysedChars.toLocaleString("en-GB")} of {coverage(a)!.totalChars.toLocaleString("en-GB")} characters analysable</div>}
+                  {a.extractionNote && <div className="hint">{a.extractionNote}</div>}
+                </td>
               </tr>
             ))}
           </tbody>

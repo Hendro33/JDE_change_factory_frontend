@@ -61,6 +61,8 @@ with sync_playwright() as p:
     page.check("label:has-text('route reaches DEV only') input")
     page.get_by_label("Privilege statement").fill("JADEDISC: read-only role on the listed tables")
     page.check("label:has-text('narrowly privileged') input")
+    page.locator("label:has-text('Runtime attestation') textarea").fill("CNC (Chris, ticket 12): JDV920 runs path code DV920 on Tools 9.2.8.2")
+    page.check("label:has-text('attested the Tools release and path code') input")
     page.locator("label:has-text('Approved reads') textarea").fill(READS)
     page.get_by_label("Customer data in model prompts").select_option("configuration_and_artifacts")
     page.click("button:has-text('Save profile')")
@@ -88,6 +90,11 @@ with sync_playwright() as p:
     page.click("button:has-text('Enable Discovery')")
     expect(page.locator(".badge:has-text('Discovery enabled')")).to_be_visible()
     check("four health checks ok, discovery enabled", page.locator("td >> .badge.ok").count() >= 4)
+    check("environment verified from the session response, releases and routing shown as attested",
+          page.locator("text=Environment verification, by source").count() == 1
+          and page.locator("tr:has-text('session environment') .badge:has-text('verified')").count() == 1
+          and page.locator("tr:has-text('path code') .badge:has-text('attested')").count() == 1
+          and page.locator("text=not evidence of the session").count() >= 1)
     check("unavailable capabilities stated (source, event rules, specifications)",
           page.locator("text=AIS does not expose business function source code.").count() == 1)
     check("activity shows the test and sample reads, sanitised",

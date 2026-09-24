@@ -60,6 +60,9 @@ export function DesignEvidencePanel({ changeId, designCount }: { changeId: strin
               </div>
             )}
             <div className="hint" style={{ marginTop: 4 }}>{m.scope_statement}</div>
+            {current.trigger === "refresh" && m.refresh_note && (
+              <div className="callout" style={{ marginTop: 6 }}><strong>Refreshed evidence</strong>{m.refresh_note}</div>
+            )}
           </div>
 
           <dl className="facts">
@@ -80,7 +83,10 @@ export function DesignEvidencePanel({ changeId, designCount }: { changeId: strin
                     <td className="mono">{o.observation_id}</td>
                     <td className="mono" style={{ fontSize: 12.5 }}>{o.capability_id} {o.target}<div className="hint">{o.provenance}</div></td>
                     <td>{new Date(o.observed_at).toLocaleString("en-GB")}</td>
-                    <td>{o.record_count} record(s){!o.values_shared && <div className="hint">values redacted for the model</div>}</td>
+                    <td>
+                      {o.record_count} record(s){!o.values_shared && <div className="hint">values redacted for the model</div>}
+                      <div className="hint mono" title="Computed over the full read result; a change detector, not retained content">change detector {o.payload_sha256.slice(0, 10)}…</div>
+                    </td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -90,7 +96,14 @@ export function DesignEvidencePanel({ changeId, designCount }: { changeId: strin
                 <thead><tr><th>Imported evidence</th><th>Provenance</th><th>Applies?</th></tr></thead>
                 <tbody>{[...m.artifacts, ...m.documents].map((a) => (
                   <tr key={String(a.evidence_id)}>
-                    <td className="mono">{String(a.evidence_id)}<div className="hint">{String(a.object_type ?? "")} {String(a.title ?? a.object_name ?? "")}</div></td>
+                    <td className="mono">{String(a.evidence_id)}<div className="hint">{String(a.object_type ?? "")} {String(a.title ?? a.object_name ?? "")}</div>
+                      {(() => {
+                        const c = a.analysis_coverage as { analysed_chars?: number; total_chars?: number; truncated?: boolean } | undefined;
+                        return c?.truncated
+                          ? <div><span className="badge warn">truncated</span> <span className="hint">{(c.analysed_chars ?? 0).toLocaleString("en-GB")} of {(c.total_chars ?? 0).toLocaleString("en-GB")} characters analysed</span></div>
+                          : c?.total_chars ? <div className="hint">all {c.total_chars.toLocaleString("en-GB")} characters analysable</div> : null;
+                      })()}
+                    </td>
                     <td style={{ fontSize: 12.5 }}>{String(a.repository || a.source_location || "")} {String(a.commit_ref || "")}<div className="hint mono">sha256 {String(a.sha256).slice(0, 12)}…</div></td>
                     <td>{String(a.kind) === "reference_document"
                       ? <span className={`badge ${a.compatibility === "compatible" ? "ok" : "stop"}`}>{String(a.compatibility)}</span>
@@ -151,6 +164,7 @@ export function DesignEvidencePanel({ changeId, designCount }: { changeId: strin
               )}
             </div>
           )}
+          {m.evidence_notes?.map((n) => <p key={n} className="hint">{n}</p>)}
           <p className="hint">This baseline does not authorise any change. Execution re-checks approval, scope and the live environment on its own.</p>
         </div>
       )}

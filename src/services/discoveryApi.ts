@@ -39,10 +39,20 @@ export interface JdeProfileConfig {
   routingIsolationConfirmed: boolean;
   privilegeStatement: string;
   privilegeConfirmed: boolean;
+  /** CNC attestation of what the AIS contract does not expose: Tools release and path code. */
+  runtimeAttestationConfirmed: boolean;
+  runtimeAttestationEvidence: string;
   approvedReads: ApprovedRead[];
   discoveryWindow: { startsAt: string; endsAt: string } | null;
   limits: { maxRecords: number; timeoutSeconds: number; concurrentRequests: 1 };
   dataSharingPolicy: DataSharingPolicy;
+}
+
+export interface VerificationItem {
+  item: string;
+  status: "verified" | "attested" | "missing" | "mismatch";
+  source: string;
+  detail: string;
 }
 
 export interface CheckResult {
@@ -50,6 +60,16 @@ export interface CheckResult {
   checkedAt?: string | null;
   detail: string;
   profileRevision?: number | null;
+  /** Environment check only (snake_case keys): expected, server_defaults, session_context, attested, items, missing_evidence, notes. */
+  facets?: {
+    expected?: Record<string, string>;
+    server_defaults?: Record<string, unknown>;
+    session_context?: Record<string, unknown>;
+    items?: VerificationItem[];
+    missing_evidence?: string[];
+    notes?: string[];
+    contract_basis?: string;
+  };
 }
 
 export interface CapabilityView {
@@ -188,8 +208,11 @@ export interface EvidenceManifest {
   };
   observations: {
     observation_id: string; capability_id: string; target: string; fields: string[]; observed_at: string;
-    mode: string; record_count: number; payload_sha256: string; values_shared: boolean; provenance: string;
+    mode: string; record_count: number; payload_sha256: string; payload_sha256_role?: string; retained?: string;
+    values_shared: boolean; provenance: string;
   }[];
+  evidence_notes?: string[];
+  refresh_note?: string;
   artifacts: Record<string, unknown>[];
   documents: Record<string, unknown>[];
   dependencies: string[];
