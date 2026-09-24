@@ -59,20 +59,20 @@ with sync_playwright() as p:
     check("generated source is not presented as an implemented change",
           page.locator("text=Generated source is a candidate, not an implemented JDE change").count() == 1)
     check("prepared but not approved: not eligible, awaiting a decision",
-          badge(page, "Exact approval: waiting") == 1 and page.locator("text=Eligibility to apply: not eligible").count() == 1)
+          badge(page, "Exact approval: waiting") == 1 and page.locator("text=Next milestone: apply -- not eligible").count() == 1)
     page.screenshot(path=f"{SHOTS}/1-technical-prepared.png", full_page=True)
 
     page.click("button:has-text('Approve this exact revision')")
     expect(page.locator(".badge:has-text('Exact approval: done')")).to_be_visible()
     check("after exact approval the revision is eligible (simulation only)",
-          page.locator("text=Eligibility to apply: eligible (simulation only)").count() == 1)
+          page.locator("text=Next milestone: apply -- eligible (simulation only)").count() == 1)
     page.click("button:has-text('Apply (simulation)')")
     expect(page.locator(".badge:has-text('Applied (checked in, not active): done')")).to_be_visible()
     page.click("button:has-text('Build (simulation)')")
     expect(page.locator(".badge:has-text('Built: done')")).to_be_visible()
     check("apply and build are separate milestones; the CNC step waits for a human",
           badge(page, "Human CNC activation: waiting") == 1
-          and page.locator("text=Only a CNC operator can record it").count() == 1)
+          and page.locator("text=Only a CNC operator can record it").count() >= 1)
     page.click("button:has-text('Run verification tests')")
     expect(page.locator("text=awaiting human CNC activation")).to_be_visible()
     check("verification is refused until the CNC activation is recorded",

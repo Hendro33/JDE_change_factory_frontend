@@ -59,7 +59,7 @@ export interface PackageApproval {
 export interface PackageView {
   revision: number; package_id: string; content_sha256: string; created_at: string; created_by_run: string;
   superseded_by: number | null; content: PackageContent; approval: PackageApproval | null;
-  eligibility: { eligible: boolean; reasons: string[] };
+  eligibility: { eligible: boolean; next_milestone: string | null; reasons: string[] };
 }
 
 export interface TechnicalRun {
