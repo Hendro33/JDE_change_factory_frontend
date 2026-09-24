@@ -540,7 +540,7 @@ The run-to-run variation is real. On an earlier fixture that contradicted itself
 
 - **Removed from the code.** `get_object`, `get_version` and `get_processing_options` are gone from the `.mcp.json` server and from `AISClient`.
 - **Replacement.** `read_approved_target(story_id, change_id)` reads only the target of an approved change for the story's own company.
-- **Pinned by tests.** `test_tool_surface.py` (9 tests) checks:
+- **Pinned by tests.** `test_tool_surface.py` (8 tests) checks:
   - the server registry and `.mcp.json`;
   - every agent definition's `tools:`;
   - every driver's allowlist;
