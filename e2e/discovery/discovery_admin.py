@@ -52,8 +52,8 @@ with sync_playwright() as p:
     page.get_by_label("DEV environment").fill("JDV920")
     page.get_by_label("JDE role (explicit)").fill("JADEDISC")
     page.get_by_label("Application release").fill("9.2")
-    page.get_by_label("Tools release").fill("9.2.8.2")
-    page.get_by_label("Path code").first.fill("DV920")  # the import form below has one too
+    page.get_by_label("Tools release", exact=True).fill("9.2.8.2")
+    page.get_by_label("Path code", exact=True).first.fill("DV920")  # the import form below has one too
     page.get_by_label("Customer contact").fill("Pat Customer")
     page.get_by_label("CNC contact").fill("Chris CNC")
     page.get_by_label("Network route").fill("site-to-site VPN to the DEV AIS server only")
@@ -77,6 +77,7 @@ with sync_playwright() as p:
     page.get_by_label("JDE password").fill(DISCOVERY_PW)
     page.click("button:has-text('Save credential')")
     expect(page.locator("text=Save credential: done")).to_be_visible()
+    page.locator("text=JA••••••").first.wait_for(timeout=10_000)  # the refreshed view renders after the message
     check("credential saved, username masked, password field cleared",
           page.locator("text=JA••••••").count() >= 1 and page.get_by_label("JDE password").input_value() == "")
     check("the password is not on the page", DISCOVERY_PW not in page.content())
@@ -92,8 +93,8 @@ with sync_playwright() as p:
     check("four health checks ok, discovery enabled", page.locator("td >> .badge.ok").count() >= 4)
     check("environment verified from the session response, releases and routing shown as attested",
           page.locator("text=Environment verification, by source").count() == 1
-          and page.locator("tr:has-text('session environment') .badge:has-text('verified')").count() == 1
-          and page.locator("tr:has-text('path code') .badge:has-text('attested')").count() == 1
+          and page.locator("tr:has(td:text-is('session environment')) .badge:has-text('verified')").count() == 1
+          and page.locator("tr:has(td:text-is('path code')) .badge:has-text('attested')").count() == 1
           and page.locator("text=not evidence of the session").count() >= 1)
     check("unavailable capabilities stated (source, event rules, specifications)",
           page.locator("text=AIS does not expose business function source code.").count() == 1)
