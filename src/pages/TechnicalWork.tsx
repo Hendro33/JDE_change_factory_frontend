@@ -119,7 +119,7 @@ function PackageCard({ storyId, p, roles, onChanged }: { storyId: string; p: Pac
       ))}
 
       <div className="callout" style={{ borderColor: p.eligibility.eligible ? "var(--ok)" : "var(--stop)" }}>
-        <strong>Execution eligibility: {p.eligibility.eligible ? "eligible (simulation only)" : "not eligible"}</strong>
+        <strong>Eligibility to apply: {p.eligibility.eligible ? "eligible (simulation only)" : "not eligible"}</strong>
         {p.eligibility.reasons.map((r) => <div key={r} className="hint">{r}</div>)}
         {a?.status === "approved" && <div className="hint">Approved by {a.approved_by}. An approval is history; eligibility is re-checked before every milestone.</div>}
         {(a?.invalidations ?? []).map((i) => <div key={i.at_iso} className="hint">Invalidated {i.at_iso}: {i.kind} -- {i.detail}</div>)}
