@@ -7,6 +7,8 @@ import { ExecutionPanel } from "../components/ExecutionPanel";
 import { DesignEvidencePanel } from "../components/DesignEvidencePanel";
 import { ChangeGrid, FilterBar, useChangeListControls, type GridColumn } from "../components/WorkQueue";
 import { ConfirmDialog, Loading, PriorityBadge, Provenance } from "../components/ui";
+import type { Navigate, NavTarget } from "../types/nav";
+import { JourneyBar } from "./ProcessWork";
 
 /**
  * Architecture Review — Gate 2. The Architect has already analysed the
@@ -14,7 +16,7 @@ import { ConfirmDialog, Loading, PriorityBadge, Provenance } from "../components
  * reasoning and either approves or rejects the specific write, before
  * anything reaches JD Edwards.
  */
-export function ArchitectureReview() {
+export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<NavTarget> & { onNavigate?: Navigate } = {}) {
   const [changes, setChanges] = useState<Change[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<"approve" | "reject" | null>(null);
@@ -28,10 +30,12 @@ export function ArchitectureReview() {
     api.listChanges().then((all) => {
       const queue = all.filter((c) => c.architectDecision || c.exactChange);
       setChanges(queue);
-      setOpenId((cur) => (cur && queue.some((c) => c.id === cur) ? cur : queue[0]?.id ?? null));
+      setOpenId((cur) => (navFilter?.story && queue.some((c) => c.id === navFilter.story) ? navFilter.story
+        : cur && queue.some((c) => c.id === cur) ? cur : queue[0]?.id ?? null));
     });
   };
-  useEffect(reload, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(reload, [navToken]);
 
   useEffect(() => {
     if (!openId) { setDomainReview(null); setRun(null); return; }
@@ -107,6 +111,7 @@ export function ArchitectureReview() {
 
       {open && (
         <div className="stack">
+          <JourneyBar storyId={open.id} at="design" onNavigate={onNavigate} />
           <section className="panel">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
               <div>

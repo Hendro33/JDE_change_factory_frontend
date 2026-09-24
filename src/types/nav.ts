@@ -10,6 +10,8 @@ export type Page =
   | "approval"
   | "architecture"
   | "technical"
+  | "process"
+  | "asbuilt"
   | "deliveryqueue"
   | "pipeline"
   | "domains"
@@ -17,7 +19,8 @@ export type Page =
   | "admin-erp"
   | "admin-agents"
   | "admin-integrations"
-  | "admin-users";
+  | "admin-users"
+  | "admin-process";
 
 export type NavFilter = Record<string, string>;
 

@@ -781,6 +781,7 @@ Stage 1 packages are estimated in the backlog from repository inspection (low/ba
 | Appendices B–E | retained by reference | To be carried over verbatim into the rendered update once accepted |
 | 19 Administration area (Stage 1) | 1.4, 3.3, 7.1, 8.4, 9.1, 9.4 | Approval policy; per-company scope enforced; revisions and visible save errors; restart recovery. See `docs/stage1/` |
 | 4.5 Technical Agent; 6.5 Approval Record; 8.4 Rollback | 9.6, 9.7, 11.1 | Approval basis and computed eligibility; one simulated estate; Technical Agent workflow implemented, with text-source preparation and simulated application only; live mechanisms unverified. See `docs/stage1/04_REVIEW_PACK.md` §11 |
+| 3 Story refinement; 4.1 Architect; 13 Knowledge layer | new | Company process frameworks (xlsx import, immutable versions, original-file provenance); reviewer-confirmed story process mappings pinned to framework/version/node; versioned as-is/to-be process maps (assumption vs confirmed practice); Architect process context via company-scoped tool; material process changes flag the design; versioned as-built records finalised only when delivery checkpoints are complete. Synthetic framework fixture only; no APQC content. See backend `docs/OPERATIONS.md` |
 
 ## Appendix B — Sources
 

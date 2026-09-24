@@ -4,6 +4,8 @@ import { saveErrorMessage } from "../services/saveErrors";
 import { technicalApi, type PackageView, type TechnicalWorkView } from "../services/technicalApi";
 import type { Change, CompanyRole } from "../types/domain";
 import { Loading } from "../components/ui";
+import type { Navigate, NavTarget } from "../types/nav";
+import { JourneyBar } from "./ProcessWork";
 
 const TECHNICAL_ROUTES = new Set(["Technical Agent", "Mixed", "Clarification Required"]);
 
@@ -168,7 +170,7 @@ function PackageCard({ storyId, p, roles, onChanged }: { storyId: string; p: Pac
  * the Technical Agent's runs and package revisions, exact approval and
  * eligibility, and every milestone separately. Everything is SIMULATION.
  */
-export function TechnicalWork() {
+export function TechnicalWork({ navFilter, navToken, onNavigate }: Partial<NavTarget> & { onNavigate?: Navigate } = {}) {
   const [changes, setChanges] = useState<Change[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [view, setView] = useState<TechnicalWorkView | null>(null);
@@ -180,10 +182,11 @@ export function TechnicalWork() {
     api.listChanges().then((all) => {
       const list = all.filter((c) => TECHNICAL_ROUTES.has(c.architectDecision?.recommendedRoute ?? ""));
       setChanges(list);
-      setOpenId((cur) => cur ?? list[0]?.id ?? null);
+      setOpenId((cur) => (navFilter?.story && list.some((c) => c.id === navFilter.story) ? navFilter.story : cur ?? list[0]?.id ?? null));
     });
     api.getSession().then((s) => setRoles(s.customers.find((c) => c.id === s.activeCustomerId)?.roles ?? []));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navToken]);
 
   const load = () => {
     if (!openId) { setView(null); return; }
@@ -217,6 +220,7 @@ export function TechnicalWork() {
       {error && <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div>}
       {view && (
         <>
+          {openId && <JourneyBar storyId={openId} at="implementation" onNavigate={onNavigate} />}
           <div className="callout" style={{ borderColor: "var(--warn)" }}>
             <strong>{view.simulation_label ?? "LIVE"}</strong>
             <div>{view.format_label}</div>

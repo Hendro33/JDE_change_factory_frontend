@@ -10,6 +10,9 @@ import { UserStoryReview } from "./pages/UserStoryReview";
 import { ApprovalBacklog } from "./pages/ApprovalBacklog";
 import { ArchitectureReview } from "./pages/ArchitectureReview";
 import { TechnicalWork } from "./pages/TechnicalWork";
+import { ProcessWork } from "./pages/ProcessWork";
+import { AsBuilt } from "./pages/AsBuilt";
+import { ProcessFramework } from "./pages/admin/ProcessFramework";
 import { DeliveryQueuePage } from "./pages/DeliveryQueue";
 import { Pipeline } from "./pages/Pipeline";
 import { BusinessDomains } from "./pages/BusinessDomains";
@@ -40,7 +43,9 @@ const NAV_GROUPS: NavGroup[] = [
   ] },
   { label: "Delivery", items: [
     { key: "deliveryqueue", label: "Delivery Queue" },
+    { key: "process", label: "Process & Maps" },
     { key: "technical", label: "Technical Work" },
+    { key: "asbuilt", label: "As-built Records" },
     { key: "pipeline", label: "Active Changes", filter: { stage: "active" } },
     { key: "pipeline", label: "Validation", filter: { stage: "validation" } },
   ] },
@@ -68,6 +73,7 @@ const ADMIN_GROUP: NavGroup = {
     { key: "admin-customer", label: "Customer Setup" },
     { key: "admin-erp", label: "ERP / JDE Landscape" },
     { key: "admin-agents", label: "Agents" },
+    { key: "admin-process", label: "Process Framework" },
     { key: "domains", label: "Business Domains" },
     { key: "admin-integrations", label: "Integrations" },
     { key: "admin-users", label: "Users" },
@@ -228,9 +234,15 @@ function MainApp({ onSignedOut }: { onSignedOut?: () => void }) {
         ) : page === "approval" ? (
           <ApprovalBacklog {...navTarget} />
         ) : page === "architecture" ? (
-          <ArchitectureReview />
+          <ArchitectureReview {...navTarget} onNavigate={navigate} />
         ) : page === "technical" ? (
-          <TechnicalWork />
+          <TechnicalWork {...navTarget} onNavigate={navigate} />
+        ) : page === "process" ? (
+          <ProcessWork {...navTarget} onNavigate={navigate} />
+        ) : page === "asbuilt" ? (
+          <AsBuilt {...navTarget} onNavigate={navigate} />
+        ) : page === "admin-process" ? (
+          <ProcessFramework {...navTarget} onNavigate={navigate} />
         ) : page === "deliveryqueue" ? (
           <DeliveryQueuePage onOpenChange={setDetailId} />
         ) : page === "domains" ? (
