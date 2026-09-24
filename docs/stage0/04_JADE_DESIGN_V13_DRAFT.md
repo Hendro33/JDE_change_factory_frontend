@@ -522,6 +522,34 @@ Order creation, reports with side effects and external calls are separately scop
 
 ---
 
+### 9.6 Approval basis and execution eligibility (*implemented*)
+
+An approval is history; eligibility is computed. Each exact-change approval, Functional or Technical, records the basis it was given against:
+- the Architect design revision;
+- its evidence baseline and manifest checksum;
+- the artifact revisions the design used;
+- the change's own dependencies;
+- the target's before-state.
+
+The approval record itself is never edited, and an unchanged approval time implies nothing about eligibility.
+
+Before every dispatch the executor re-derives:
+- the approval and its expiry;
+- the approver's current authority;
+- the company scope;
+- that the operation or package is byte-for-byte the approved one;
+- that the design revision is still current (a later design or baseline is never substituted);
+- that no invalidation is recorded;
+- that the target is still in its before-state.
+
+Refresh Evidence, a new artifact revision or a material profile change records a permanent invalidation on the work whose own dependencies it touches. That work needs a fresh proposal and approval. Unaffected work stays eligible, while the design as a whole is flagged for a person.
+
+*Evidence:* `mcp_server/jde_mcp_server/binding.py`, `api_service/.../services/work_invalidation.py`, `tests/test_approval_binding.py`.
+
+### 9.7 One authoritative simulated estate (*implemented; simulation only*)
+
+Discovery and simulated execution read and change one persisted estate, scoped by company, environment and target (`jde_mcp_server/sim_estate.py`). An approved simulated change is visible to the next discovery read. Drift, failures and timeouts exist only as explicit, recorded test conditions. Every estate change records who made it and why, and every result is labelled SIMULATION.
+
 ## 10. Functional capability families
 
 All are *Needs spike*; the definitions are in `capability_catalog.json`.
@@ -563,6 +591,17 @@ Report these milestones separately:
 5. accepted
 
 **Generated code alone is not a delivered change.** Web OMW export/import is **not** assumed to be a general editing API.
+
+### 11.1 Technical Agent status after the Technical increment
+
+| Category | Status | What exists |
+|---|---|---|
+| Agent workflow | **Implemented** | `technical-agent.md` and its driver. The run uses the restricted runtime: Task only, secrets blanked, project tools removed. Its tools are typed and bound to one run, resolved from backend records. There is an isolated workspace; runs are durable (progress, failures, model usage, outcome); stale responses are discarded by compare-and-set. Design approval and exact implementation approval are separate. Unresolved business questions are recorded as outcomes (clarification required, inconclusive, blocked), not failures. |
+| Artifact preparation | **Supported for text source** | Candidate text and an exact diff are prepared from a complete, authorised, non-stale text export. The immutable original and its checksum are kept. `c_source` can be prepared for a developer but never applied. ER print exports, specification exports, archives and documents cannot be edited as text; partial exports are refused. |
+| Application, build and verification | **Simulation only** | The adapter works on a SYNTHETIC event-rule format (`jade_sim_er`) that the simulation genuinely parses, builds (syntax, types, interface, customer build rules) and executes. Apply, build, the human CNC activation (by a `cnc_operator`, re-checked) and verification are separate milestones. Attempts are recorded before dispatch; unknown outcomes are reconciled against the estate; evidence is hash-chained to the approved package. |
+| Live JDE mechanisms | **Unverified -- unavailable** | No mechanism for editing or importing any real object type is qualified. The live adapter reports unavailable. No speculative JDE import or edit commands exist. Execution credentials never reach any agent; a governed executor would retrieve them server-side only after checking the exact approved operation (not built: no live execution in this increment). |
+
+Real-model evidence: backend `docs/proof/technical_agent_run/`.
 
 ---
 
@@ -741,6 +780,7 @@ Stage 1 packages are estimated in the backlog from repository inspection (low/ba
 | — (new) | 6.5–6.7, 15 | Durable engine, runner, cost ledger, economics |
 | Appendices B–E | retained by reference | To be carried over verbatim into the rendered update once accepted |
 | 19 Administration area (Stage 1) | 1.4, 3.3, 7.1, 8.4, 9.1, 9.4 | Approval policy; per-company scope enforced; revisions and visible save errors; restart recovery. See `docs/stage1/` |
+| 4.5 Technical Agent; 6.5 Approval Record; 8.4 Rollback | 9.6, 9.7, 11.1 | Approval basis and computed eligibility; one simulated estate; Technical Agent workflow implemented, with text-source preparation and simulated application only; live mechanisms unverified. See `docs/stage1/04_REVIEW_PACK.md` §11 |
 
 ## Appendix B — Sources
 

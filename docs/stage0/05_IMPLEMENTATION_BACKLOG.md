@@ -212,6 +212,23 @@ Productionise the families proven in X-D and X-E:
 
 **Gate:** real technical changes accepted in DEV, with explicit unsupported cases and operating costs.
 
+**Done ahead of the runner, in simulation only (Technical increment):**
+- the Technical Agent workflow;
+- source and diff views;
+- exact package approval, separate from design approval;
+- the CNC pause and resume (a recorded human hand-off);
+- milestone tracking;
+- reconciliation of unknown outcomes;
+- the Technical Work screen.
+
+**Still open for this gate:**
+- a qualified mechanism per object family (X-D, X-E);
+- the Windows runner and its protocol;
+- object reservation;
+- a server-side governed executor holding execution credentials;
+- real builds and CNC integration;
+- live before-state reads.
+
 ---
 
 ## Stage 6 — shared pilot hardening (hosting decision resumes here)
