@@ -113,6 +113,19 @@ export class HttpError extends Error {
   }
 }
 
+/** The local backend only accepts pages served at http://localhost:5173 (its CORS origin). */
+const LOCAL_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
+
+function unreachableMessage(): string {
+  const here = typeof window !== "undefined" ? window.location.origin : "";
+  const localBackend = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(BASE_URL);
+  if (localBackend && here && !LOCAL_ORIGINS.includes(here)) {
+    return "This page is not your local Jade, so it cannot reach Jade's backend. Start Jade on your Mac with " +
+      "scripts/run_local_preview.sh and open http://localhost:5173 in a browser on that Mac.";
+  }
+  return `Cannot reach Jade's backend at ${BASE_URL}. Check that it is running (scripts/run_local_preview.sh) and try again.`;
+}
+
 export async function request<T>(
   path: string,
   options: { method?: string; body?: unknown; customerId?: string } = {}
@@ -138,7 +151,7 @@ export async function request<T>(
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
     });
   } catch {
-    throw new Error(`Cannot reach Jade's backend at ${BASE_URL}. Check that it is running (scripts/run_local_preview.sh) and try again.`);
+    throw new Error(unreachableMessage());
   }
 
   if (!res.ok) {
