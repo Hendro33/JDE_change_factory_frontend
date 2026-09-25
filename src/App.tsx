@@ -223,6 +223,13 @@ function MainApp({ onSignedOut }: { onSignedOut?: () => void }) {
       </nav>
 
       <main className="page" key={scopeKey}>
+        {IS_MOCK_MODE && (
+          <div className="callout" role="alert" style={{ borderColor: "var(--stop)", marginBottom: 12 }}>
+            <strong>Demo mode: sample data in this browser, not connected to Jade's backend.</strong> Nothing you see or save here is
+            real, and the JDE connection settings, process maps and as-built records are not shown. Start Jade with{" "}
+            <span className="mono">scripts/run_local_preview.sh</span> (backend repository) and sign in there.
+          </div>
+        )}
         {detailId ? (
           <ChangeDetail changeId={detailId} onBack={() => setDetailId(null)} />
         ) : page === "dashboard" ? (
