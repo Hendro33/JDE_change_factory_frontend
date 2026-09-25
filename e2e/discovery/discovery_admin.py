@@ -111,6 +111,13 @@ with sync_playwright() as p:
             page.get_by_label("Sample read max records").fill("2")
             page.select_option("select[aria-label='Sample read filter column']", "DCTO")
             page.get_by_label("Sample read filter value").fill("SO")
+        check(f"{cap}: run stays off until the exact request is previewed",
+              page.locator("button:has-text('Run Approved Sample Read')").is_disabled())
+        page.click("button:has-text('Preview exact request')")
+        expect(page.locator("[aria-label='Sample read request preview']")).to_be_visible()
+        check(f"{cap}: preview shows method, URL, body and request sha256, nothing sent",
+              page.locator("[aria-label='Sample read request preview'] >> text=request sha256").count() == 1
+              and page.locator("[aria-label='Sample read request preview'] >> text=nothing was sent").count() == 1)
         page.click("button:has-text('Run Approved Sample Read')")
         expect(page.locator("text=Approved sample read: ok")).to_be_visible()
     page.click("button:has-text('Enable Architect Discovery')")
@@ -121,6 +128,11 @@ with sync_playwright() as p:
           and page.locator("tr:has(td:text-is('session environment')) .badge:has-text('verified')").count() == 1
           and page.locator("tr:has(td:text-is('path code')) .badge:has-text('attested')").count() == 1
           and page.locator("text=not evidence of the session").count() >= 1)
+    check("five separately visible readiness statuses",
+          all(page.locator(f"[aria-label='Readiness: {g}']").count() == 1 for g in
+              ("Connectivity", "Identity", "JDE authorisation", "Network restriction", "Jade runtime safeguards")))
+    check("identity table shows configured and reported values side by side",
+          page.locator("th:text-is('Configured')").count() == 1 and page.locator("th:text-is('Reported by JDE')").count() == 1)
     check("unavailable capabilities stated (source, event rules, specifications)",
           page.locator("text=AIS does not expose business function source code.").count() == 1)
     check("activity shows the test and sample reads; the filter value is masked",
@@ -143,7 +155,7 @@ with sync_playwright() as p:
     expect(page.locator(".badge:has-text('Connection disabled')")).to_be_visible()
     check("Disable is a kill switch: discovery off, checks cleared, Enable needs a fresh test",
           page.locator("button:has-text('Enable Architect Discovery')").is_disabled()
-          and page.locator("text=disabled -- run Test Connection to re-check").count() == 1)
+          and page.locator("[aria-label='Readiness: Jade runtime safeguards'] >> text=disabled -- run Test Connection to re-check").count() == 1)
     page.screenshot(path=f"{SHOTS}/3-jde-disabled.png", full_page=True)
     browser.close()
 

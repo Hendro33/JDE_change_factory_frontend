@@ -48,16 +48,40 @@ export interface JdeProfileConfig {
   runtimeAttestationEvidence: string;
   evidenceArtifactIds: string[];
   approvedReads: ApprovedRead[];
+  /** The customer-side security boundary: a dedicated, non-*ALL JDE user and role, independently verified. */
+  dedicatedAccount: DedicatedAccount;
+  networkRestriction: NetworkRestriction;
   discoveryWindow: { startsAt: string; endsAt: string } | null;
   limits: { maxRecords: number; timeoutSeconds: number; concurrentRequests: 1 };
   dataSharingPolicy: DataSharingPolicy;
 }
 
+export interface DedicatedAccount {
+  username: string;
+  role: string;
+  verifiedBy: string;
+  verifiedOn: string;
+  method: "" | "security_configuration_review" | "prohibited_operation_test";
+  permitsApprovedReads: boolean;
+  rejectsProhibitedOperations: boolean;
+  evidenceArtifactIds: string[];
+  notes: string;
+}
+
+export interface NetworkRestriction {
+  backendSourceAddress: string;
+  restrictedToSource: boolean;
+  evidence: string;
+  evidenceArtifactIds: string[];
+}
+
 export interface VerificationItem {
   item: string;
-  status: "verified" | "attested" | "missing" | "mismatch";
+  status: "verified" | "attested" | "missing" | "mismatch" | "pending";
   source: string;
   detail: string;
+  configured?: string;
+  reported?: string;
 }
 
 export interface CheckResult {
@@ -119,11 +143,23 @@ export interface JdeProfileView {
   ceilings: { max_records: number; max_timeout_seconds: number; max_window_days: number; concurrent_requests: number; max_filters: number };
   authMethods: { id: string; supported: boolean; label: string; credentials: string[]; detail: string }[];
   requestUrls: Record<string, string>;
+  /** Connectivity, Identity, JDE authorisation, Network restriction, Jade runtime safeguards. */
+  readiness: ReadinessGroup[];
+  ready: boolean;
+}
+
+export interface ReadinessGroup { id: string; label: string; satisfied: boolean; items: Prerequisite[] }
+
+/** Exactly what a sample read would send; computed on the server, nothing sent (snake_case keys). */
+export interface SampleReadPreview {
+  capability_id: string; target: string; fields: string[]; filters: { field: string; op: string; value: string }[];
+  max_records: number; method: string; path: string; url: string; body: Record<string, unknown>;
+  request_sha256: string; mode: string; note: string;
 }
 
 export interface Prerequisite {
   id: string; label: string; satisfied: boolean; detail: string; required?: boolean;
-  kind?: "customer_attestation" | "machine_verified" | "configuration" | "server_managed";
+  kind?: "customer_attestation" | "machine_verified" | "configuration" | "server_managed" | "evidence";
 }
 
 export interface SampleReadInput {
@@ -279,6 +315,12 @@ export const discoveryApi = {
   },
   async sampleRead(input: SampleReadInput): Promise<ActionResult> {
     return request<ActionResult>("/admin/jde/sample-read", {
+      method: "POST", customerId: await customer(), body: input,
+    });
+  },
+  /** Nothing is sent to JDE: the server builds the bound request and returns it. */
+  async previewSampleRead(input: SampleReadInput): Promise<SampleReadPreview> {
+    return request<SampleReadPreview>("/admin/jde/sample-read/preview", {
       method: "POST", customerId: await customer(), body: input,
     });
   },

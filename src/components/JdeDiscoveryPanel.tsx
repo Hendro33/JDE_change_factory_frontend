@@ -14,7 +14,9 @@ import {
   type JdeProfileConfig,
   type JdeProfileView,
   type Prerequisite,
+  type ReadinessGroup,
   type RuntimeCorrespondence,
+  type SampleReadPreview,
 } from "../services/discoveryApi";
 import { saveErrorMessage } from "../services/saveErrors";
 import { ApiNote, Loading } from "./ui";
@@ -30,6 +32,9 @@ function blankConfig(): JdeProfileConfig {
     authMethod: "ais_token_request", customerContact: "", cncContact: "", networkRoute: "", isolationEvidence: "",
     routingIsolationConfirmed: false, privilegeStatement: "", privilegeConfirmed: false, runtimeAttestationConfirmed: false,
     runtimeAttestationEvidence: "", evidenceArtifactIds: [], approvedReads: [],
+    dedicatedAccount: { username: "", role: "", verifiedBy: "", verifiedOn: "", method: "", permitsApprovedReads: false,
+      rejectsProhibitedOperations: false, evidenceArtifactIds: [], notes: "" },
+    networkRestriction: { backendSourceAddress: "", restrictedToSource: false, evidence: "", evidenceArtifactIds: [] },
     discoveryWindow: { startsAt: start.toISOString(), endsAt: end.toISOString() },
     limits: { maxRecords: 10, timeoutSeconds: 15, concurrentRequests: 1 }, dataSharingPolicy: "metadata_only",
   };
@@ -53,7 +58,7 @@ function Check({ result }: { result?: CheckResult }) {
   );
 }
 
-const itemTone: Record<string, string> = { verified: "ok", attested: "warn", missing: "grey", mismatch: "stop" };
+const itemTone: Record<string, string> = { verified: "ok", attested: "warn", missing: "grey", mismatch: "stop", pending: "grey" };
 
 /**
  * Environment verification, source by source: what the profile expects, what
@@ -67,11 +72,13 @@ function EnvironmentFacets({ result }: { result?: CheckResult }) {
     <div style={{ marginTop: 8 }}>
       <strong>Environment verification, by source</strong>
       <table className="data">
-        <thead><tr><th>Item</th><th>Status</th><th>Source</th><th>Detail</th></tr></thead>
+        <thead><tr><th>Item</th><th>Configured</th><th>Reported by JDE</th><th>Status</th><th>Source</th><th>Detail</th></tr></thead>
         <tbody>
           {f.items.map((i) => (
             <tr key={i.item}>
               <td>{i.item}</td>
+              <td className="mono">{i.configured || "—"}</td>
+              <td className="mono">{i.reported || "—"}</td>
               <td><span className={`badge ${itemTone[i.status] ?? "grey"}`}>{i.status}</span></td>
               <td className="hint">{i.source}</td>
               <td style={{ fontSize: 12.5 }}>{i.detail}</td>
@@ -96,13 +103,41 @@ const KIND_LABEL: Record<string, string> = {
   machine_verified: "Checked by Jade for this profile revision",
   configuration: "Configuration",
   server_managed: "Server-managed -- set by whoever runs the backend, not in this browser",
+  evidence: "Evidence -- a verification record with a linked document",
 };
 
+/** The five separately visible readiness statuses. Passing TLS, sign-in or attestations alone never makes a connection ready. */
+function Readiness({ groups, ready }: { groups: ReadinessGroup[]; ready: boolean }) {
+  return (
+    <div aria-label="Readiness">
+      <strong>Readiness for Architect discovery</strong>{" "}
+      <span className={`badge ${ready ? "ok" : "stop"}`}>{ready ? "ready" : "not ready"}</span>
+      <div className="grid halves" style={{ marginTop: 6 }}>
+        {groups.map((g) => (
+          <div key={g.id} className="callout" aria-label={`Readiness: ${g.label}`}>
+            <strong>{g.label}</strong>{" "}
+            <span className={`badge ${g.satisfied ? "ok" : "stop"}`}>{g.satisfied ? "satisfied" : "blocked"}</span>
+            <ul style={{ listStyle: "none", paddingLeft: 0, margin: "4px 0 0" }}>
+              {g.items.map((i) => (
+                <li key={i.id} style={{ fontSize: 13 }}>
+                  <span className={`badge ${i.satisfied ? "ok" : i.required === false ? "grey" : "stop"}`}>
+                    {i.satisfied ? "ok" : i.required === false ? "not required" : "missing"}</span> {i.label}
+                  <span className="hint"> ({(i.kind ?? "").replace(/_/g, " ")}) -- {i.detail}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Prerequisites({ items }: { items: Prerequisite[] }) {
-  const kinds = ["configuration", "customer_attestation", "machine_verified", "server_managed"];
+  const kinds = ["configuration", "customer_attestation", "machine_verified", "server_managed", "evidence"];
   return (
     <div aria-label="Prerequisites">
-      <strong>Prerequisites for Architect discovery</strong>
+      <strong>Prerequisites for Test Connection and discovery</strong>
       {kinds.filter((k) => items.some((i) => i.kind === k)).map((k) => (
         <div key={k} style={{ marginTop: 6 }}>
           <div className="hint" style={{ fontWeight: 600 }}>{KIND_LABEL[k]}</div>
@@ -119,6 +154,23 @@ function Prerequisites({ items }: { items: Prerequisite[] }) {
       ))}
       <div className="hint">A successful Test Connection proves the backend can reach AIS and sign in; it does not verify that the
         environment is isolated. Isolation is the customer's attestation.</div>
+    </div>
+  );
+}
+
+/** Pick reference documents (imported under Technical baseline) as evidence. */
+function DocChooser({ label, documents, selected, onChange }: { label: string; documents: ArtifactView[]; selected: string[]; onChange: (ids: string[]) => void }) {
+  return (
+    <div className="field">{label} <span className="hint">(import them below under Technical baseline as reference documents)</span>
+      {documents.length === 0 ? <div className="notstated">No reference documents imported yet.</div> : documents.map((d) => {
+        const ref = `${d.artifactId}@r${d.revision}`;
+        return (
+          <label key={ref} style={{ display: "block", fontWeight: 400 }}>
+            <input type="checkbox" aria-label={`${label}: ${ref}`} checked={selected.includes(ref)}
+              onChange={(e) => onChange(e.target.checked ? [...selected, ref] : selected.filter((x) => x !== ref))} />{" "}
+            <span className="mono">{ref}</span> {String(d.meta.doc_title || d.meta.title || d.meta.file_name || "")}
+          </label>);
+      })}
     </div>
   );
 }
@@ -164,12 +216,19 @@ function SampleRead({ view, busy, run }: { view: JdeProfileView; busy: boolean; 
   const [fField, setFField] = useState("");
   const [fOp, setFOp] = useState("=");
   const [fValue, setFValue] = useState("");
+  const [preview, setPreview] = useState<SampleReadPreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   useEffect(() => { setTarget(read?.targets[0] ?? ""); setFField(""); }, [capId]);
+  useEffect(() => { setPreview(null); setPreviewError(null); }, [capId, target, max, fField, fOp, fValue, view.revision]);
   const limit = Math.min(view.config?.limits.maxRecords ?? 1, view.ceilings.max_records);
+  const input = () => ({ capabilityId: capId, target, maxRecords: max, filters: fField ? [{ field: fField, op: fOp, value: fValue }] : [] });
   return (
     <div className="callout" style={{ marginTop: 6 }}>
       <strong>3. Run Approved Sample Read</strong>
-      <div className="hint">One read of one approved target, approved columns only, at most the record limit. Requires a successful Test Connection for this revision. It confirms the capability works; it is not an Architect run.</div>
+      <div className="hint">One read of one approved target, exactly the approved columns, at most the record limit. The server builds the AIS
+        request from the approved read; the browser never supplies an endpoint or query body. Requires a successful Test Connection for this
+        revision with a verified dedicated role (never *ALL). Run it only when the read has been explicitly approved. The path code is
+        established only by the approved environment-master read (table F00941, columns EMENHV, EMPATHCD, filter EMENHV = the session environment).</div>
       <div className="btnrow" style={{ flexWrap: "wrap", marginTop: 6 }}>
         <select aria-label="Sample read capability" value={capId} onChange={(e) => setCapId(e.target.value)}>
           {reads.map((r) => <option key={r.capabilityId} value={r.capabilityId}>{r.capabilityId}</option>)}
@@ -189,9 +248,21 @@ function SampleRead({ view, busy, run }: { view: JdeProfileView; busy: boolean; 
             <input aria-label="Sample read filter value" value={fValue} onChange={(e) => setFValue(e.target.value)} size={10} /></>}
         </>)}
         <button className="btn" disabled={busy || !capId || (!!read?.targets.length && !target)}
-          onClick={() => run("Approved sample read", () => discoveryApi.sampleRead({ capabilityId: capId, target, maxRecords: max,
-            filters: fField ? [{ field: fField, op: fOp, value: fValue }] : [] }))}>Run Approved Sample Read</button>
+          onClick={() => discoveryApi.previewSampleRead(input()).then(setPreview)
+            .catch((e) => { setPreview(null); setPreviewError(saveErrorMessage(e, "Refused.")); })}>Preview exact request</button>
+        <button className="btn" disabled={busy || !preview}
+          onClick={() => run("Approved sample read", () => discoveryApi.sampleRead(input()))}>Run Approved Sample Read</button>
       </div>
+      {!preview && <div className="hint">Preview the exact request first; the run button stays off until you have seen it.</div>}
+      {previewError && <div className="hint" style={{ color: "var(--stop)" }}>Preview refused: {previewError}</div>}
+      {preview && (
+        <div aria-label="Sample read request preview" style={{ marginTop: 6 }}>
+          <div className="mono" style={{ fontSize: 12.5 }}>{preview.method} {preview.url}</div>
+          <pre className="mono" style={{ fontSize: 12, overflowX: "auto", margin: "4px 0" }}>{JSON.stringify(preview.body, null, 2)}</pre>
+          <div className="hint mono">request sha256 {preview.request_sha256} · {preview.mode}</div>
+          <div className="hint">{preview.note} The run is refused if what would be sent differs from this approved read.</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -248,6 +319,8 @@ export function JdeDiscoveryPanel() {
   }
 
   const set = <K extends keyof JdeProfileConfig>(k: K, v: JdeProfileConfig[K]) => setForm({ ...form, [k]: v });
+  const setAcc = (patch: Partial<JdeProfileConfig["dedicatedAccount"]>) => set("dedicatedAccount", { ...form.dedicatedAccount, ...patch });
+  const setNet = (patch: Partial<JdeProfileConfig["networkRestriction"]>) => set("networkRestriction", { ...form.networkRestriction, ...patch });
 
   if (loadError) {
     return (
@@ -291,7 +364,14 @@ export function JdeDiscoveryPanel() {
             <dt>Environment</dt><dd><span className="mono">{cfg.environment}</span> -- {cfg.environmentPurpose === "isolated_trial"
               ? <>approved isolated trial <span className="hint">({cfg.trialApprovalReference})</span></> : "development"}</dd>
             <dt>Role</dt><dd className="mono">{cfg.role}</dd>
-            <dt>Expected releases</dt><dd>Application {cfg.expectedApplicationRelease}, Tools {cfg.expectedToolsRelease}, path code <span className="mono">{cfg.pathCode}</span></dd>
+            <dt>Expected releases</dt><dd>Application {cfg.expectedApplicationRelease}, Tools / server {cfg.expectedToolsRelease}, path code{" "}
+              {cfg.pathCode ? <span className="mono">{cfg.pathCode}</span> : <span className="notstated">not established (only from JDE's F00941 read)</span>}</dd>
+            <dt>Dedicated JDE account</dt><dd>{cfg.dedicatedAccount.username
+              ? <><span className="mono">{cfg.dedicatedAccount.username} / {cfg.dedicatedAccount.role}</span> <span className="hint">verified by {cfg.dedicatedAccount.verifiedBy || "—"} on {cfg.dedicatedAccount.verifiedOn || "—"} ({cfg.dedicatedAccount.method.replace(/_/g, " ") || "no method"}), {cfg.dedicatedAccount.evidenceArtifactIds.length} evidence document(s)</span></>
+              : <span className="notstated">no verification recorded</span>}</dd>
+            <dt>Network restriction</dt><dd>{cfg.networkRestriction.backendSourceAddress
+              ? <>AIS restricted to <span className="mono">{cfg.networkRestriction.backendSourceAddress}</span>{cfg.networkRestriction.restrictedToSource ? "" : " (not confirmed)"} <span className="hint">{cfg.networkRestriction.evidence}</span></>
+              : <span className="notstated">not recorded</span>}</dd>
             <dt>Authentication</dt><dd>{view.authMethods.find((m) => m.id === cfg.authMethod)?.label} · {view.credentialConfigured
               ? <>user {view.credentialUsernameMasked} <span className="badge grey">{view.credentialStorage}</span></> : <span className="notstated">no credential saved</span>}</dd>
             <dt>Customer / CNC</dt><dd>{cfg.customerContact || "—"} / {cfg.cncContact || "—"}</dd>
@@ -301,7 +381,8 @@ export function JdeDiscoveryPanel() {
             <dt>Customer data in AI prompts</dt><dd>{cfg.dataSharingPolicy.replace(/_/g, " ")}</dd>
           </dl>
 
-          <Prerequisites items={view.prerequisites} />
+          <Readiness groups={view.readiness} ready={view.ready} />
+          <details><summary>Prerequisites for Test Connection</summary><Prerequisites items={view.prerequisites} /></details>
           {live && view.serverPrerequisites.some((p) => !p.satisfied) && (
             <div className="callout" style={{ borderColor: "var(--stop)" }}>
               <strong>A server-managed prerequisite blocks this live endpoint.</strong> These are set by whoever runs Jade's backend
@@ -325,9 +406,10 @@ export function JdeDiscoveryPanel() {
           <div className="stack">
             <div className="callout">
               <strong>2. Test Connection</strong>
-              <div className="hint">From the backend: reach the AIS address, sign in with the saved credential for the stated environment and
-                role, read the AIS server defaults, check the session's environment, role and release, then sign out. No business data is read.
-                Needs the customer's isolation and privilege confirmations and an open window first.</div>
+              <div className="hint">From the backend, over verified TLS: sign in with the saved credential for the stated environment and
+                role, read the AIS server identity (defaultconfig), record what the session reports, then sign out. No business data, UBE or
+                batch job. A different environment name or a *ALL role is shown as a mismatch, never corrected; authentication can succeed
+                while the connection stays not ready.</div>
               <button className="btn" style={{ marginTop: 6 }} disabled={busy} onClick={() => run("Test Connection", discoveryApi.testConnection)}>Test Connection</button>
             </div>
             <SampleRead view={view} busy={busy} run={run} />
@@ -411,7 +493,7 @@ export function JdeDiscoveryPanel() {
             <label className="field">AIS HTTPS address <span className="hint">(https://host[:port][/proxy-prefix] -- Jade appends /jderest/…; no credentials in the address)</span>
               <input aria-label="AIS HTTPS address" value={form.aisBaseUrl} onChange={(e) => set("aisBaseUrl", e.target.value)} placeholder="https://ais.customer.example:9302" /></label>
             <div className="grid halves">
-              <label className="field">JDE environment (exact name)<input aria-label="JDE environment" value={form.environment} onChange={(e) => set("environment", e.target.value)} placeholder="e.g. PS920 or JDV920" /></label>
+              <label className="field">JDE environment (exact name) <span className="hint">(compared exactly with what the session reports; never aliased)</span><input aria-label="JDE environment" value={form.environment} onChange={(e) => set("environment", e.target.value)} placeholder="e.g. JPS920" /></label>
               <label className="field">Environment purpose <span className="hint">(stated by the customer; never inferred from the name)</span>
                 <select aria-label="Environment purpose" value={form.environmentPurpose} onChange={(e) => set("environmentPurpose", e.target.value as JdeProfileConfig["environmentPurpose"])}>
                   <option value="development">Development</option>
@@ -420,10 +502,10 @@ export function JdeDiscoveryPanel() {
               {form.environmentPurpose === "isolated_trial" && (
                 <label className="field">Trial approval reference <span className="hint">(who approved using this environment, and where)</span>
                   <input aria-label="Trial approval reference" value={form.trialApprovalReference} onChange={(e) => set("trialApprovalReference", e.target.value)} placeholder="e.g. e-mail from the customer's IT lead, 2026-09-25" /></label>)}
-              <label className="field">JDE role (explicit)<input aria-label="JDE role" value={form.role} onChange={(e) => set("role", e.target.value)} placeholder="e.g. JADEREAD" /></label>
+              <label className="field">JDE role (explicit)<input aria-label="JDE role" value={form.role} onChange={(e) => set("role", e.target.value)} placeholder="dedicated role, e.g. JADEREAD -- never *ALL" /></label>
               <label className="field">Application release<input aria-label="Application release" value={form.expectedApplicationRelease} onChange={(e) => set("expectedApplicationRelease", e.target.value)} placeholder="9.2" /></label>
-              <label className="field">Tools release<input aria-label="Tools release" value={form.expectedToolsRelease} onChange={(e) => set("expectedToolsRelease", e.target.value)} placeholder="9.2.8.2" /></label>
-              <label className="field">Path code<input aria-label="Path code" value={form.pathCode} onChange={(e) => set("pathCode", e.target.value)} placeholder="e.g. PS920" /></label>
+              <label className="field">Tools / server release<input aria-label="Tools release" value={form.expectedToolsRelease} onChange={(e) => set("expectedToolsRelease", e.target.value)} placeholder="9.2.8.2" /></label>
+              <label className="field">Path code <span className="hint">(optional; never derived from the environment name -- JDE's F00941 read establishes it)</span><input aria-label="Path code" value={form.pathCode} onChange={(e) => set("pathCode", e.target.value)} placeholder="leave blank until JDE reports it" /></label>
             </div>
           </fieldset>
 
@@ -464,6 +546,37 @@ export function JdeDiscoveryPanel() {
                   </label>);
               })}
             </div>
+          </fieldset>
+
+          <fieldset><legend>Dedicated JDE account (the customer-side security boundary)</legend>
+            <div className="hint">Readiness needs a dedicated user and a dedicated non-*ALL role whose JDE permissions were independently verified
+              to permit the approved reads and reject prohibited operations, with the verification record linked. A CNC statement or a
+              "read-only" label alone is not proof. Jade's own read restrictions are additional, not a substitute.</div>
+            <div className="grid halves">
+              <label className="field">Verified JDE user<input aria-label="Verified JDE user" value={form.dedicatedAccount.username} onChange={(e) => setAcc({ username: e.target.value })} /></label>
+              <label className="field">Verified role<input aria-label="Verified role" value={form.dedicatedAccount.role} onChange={(e) => setAcc({ role: e.target.value })} placeholder="the configured role, never *ALL" /></label>
+              <label className="field">Verified by<input aria-label="Verified by" value={form.dedicatedAccount.verifiedBy} onChange={(e) => setAcc({ verifiedBy: e.target.value })} /></label>
+              <label className="field">Verified on<input aria-label="Verified on" type="date" value={form.dedicatedAccount.verifiedOn} onChange={(e) => setAcc({ verifiedOn: e.target.value })} /></label>
+              <label className="field">Verification method
+                <select aria-label="Verification method" value={form.dedicatedAccount.method} onChange={(e) => setAcc({ method: e.target.value as JdeProfileConfig["dedicatedAccount"]["method"] })}>
+                  <option value="">choose…</option>
+                  <option value="security_configuration_review">Review of the JDE security configuration (e.g. Security Workbench export)</option>
+                  <option value="prohibited_operation_test">Test: the approved reads work and prohibited operations are rejected by JDE</option>
+                </select></label>
+              <label className="field">Notes<input aria-label="Verification notes" value={form.dedicatedAccount.notes} onChange={(e) => setAcc({ notes: e.target.value })} /></label>
+            </div>
+            <label style={{ display: "flex", gap: 6, fontWeight: 400 }}><input type="checkbox" aria-label="Permits approved reads" checked={form.dedicatedAccount.permitsApprovedReads} onChange={(e) => setAcc({ permitsApprovedReads: e.target.checked })} />JDE permits the approved reads for this user and role</label>
+            <label style={{ display: "flex", gap: 6, fontWeight: 400 }}><input type="checkbox" aria-label="Rejects prohibited operations" checked={form.dedicatedAccount.rejectsProhibitedOperations} onChange={(e) => setAcc({ rejectsProhibitedOperations: e.target.checked })} />JDE rejects prohibited operations (writes, UBEs, other tables) for this user and role</label>
+            <DocChooser label="Verification evidence documents" documents={documents} selected={form.dedicatedAccount.evidenceArtifactIds} onChange={(ids) => setAcc({ evidenceArtifactIds: ids })} />
+          </fieldset>
+
+          <fieldset><legend>Network restriction</legend>
+            <div className="grid halves">
+              <label className="field">Backend source address <span className="hint">(the address JDE sees requests come from)</span><input aria-label="Backend source address" value={form.networkRestriction.backendSourceAddress} onChange={(e) => setNet({ backendSourceAddress: e.target.value })} /></label>
+              <label className="field">Evidence<input aria-label="Network restriction evidence" value={form.networkRestriction.evidence} onChange={(e) => setNet({ evidence: e.target.value })} placeholder="e.g. firewall rule allowing the AIS port from that address only" /></label>
+            </div>
+            <label style={{ display: "flex", gap: 6, fontWeight: 400 }}><input type="checkbox" aria-label="Restricted to source" checked={form.networkRestriction.restrictedToSource} onChange={(e) => setNet({ restrictedToSource: e.target.checked })} />AIS access is restricted to that source address</label>
+            <DocChooser label="Network evidence documents" documents={documents} selected={form.networkRestriction.evidenceArtifactIds} onChange={(ids) => setNet({ evidenceArtifactIds: ids })} />
           </fieldset>
 
           <fieldset><legend>Approved discovery reads</legend>
@@ -521,7 +634,7 @@ export function JdeDiscoveryPanel() {
           </table>
         )}
       </div>
-      <ApiNote endpoint="GET/PUT /admin/jde/profile, PUT /admin/jde/credential, POST /admin/jde/test-connection|sample-read|enable|disable, GET /admin/jde/activity" />
+      <ApiNote endpoint="GET/PUT /admin/jde/profile, PUT /admin/jde/credential, POST /admin/jde/test-connection|sample-read/preview|sample-read|enable|disable, GET /admin/jde/activity" />
     </section>
   );
 }
