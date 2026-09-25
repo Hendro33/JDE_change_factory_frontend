@@ -35,6 +35,8 @@ export interface JdeProfileConfig {
   expectedApplicationRelease: string;
   expectedToolsRelease: string;
   pathCode: string;
+  /** sha256 of the AIS certificate uploaded for this connection; "" = public CAs. */
+  caCertificateSha256: string;
   authMethod: "ais_token_request";
   customerContact: string;
   cncContact: string;
@@ -146,6 +148,17 @@ export interface JdeProfileView {
   /** Connectivity, Identity, JDE authorisation, Network restriction, Jade runtime safeguards. */
   readiness: ReadinessGroup[];
   ready: boolean;
+  /** The uploaded AIS certificate in use (snake_case inner keys), or null. */
+  certificate?: (CertificateSummary & { coversHost?: boolean; missing?: boolean }) | null;
+  /** False when the saved password was entered for another address or certificate. */
+  credentialBound: boolean;
+}
+
+export interface CertificateSummary {
+  sha256: string;
+  uploadedBy?: string;
+  uploadedAt?: string;
+  certificates: { subject: string; issuer: string; names: string[]; not_after: string; is_ca: boolean; fingerprint_sha256: string }[];
 }
 
 export interface ReadinessGroup { id: string; label: string; satisfied: boolean; items: Prerequisite[] }
@@ -317,6 +330,10 @@ export const discoveryApi = {
     return request<ActionResult>("/admin/jde/sample-read", {
       method: "POST", customerId: await customer(), body: input,
     });
+  },
+  /** Stores the AIS server certificate (or its CA) for this company; select it in the settings and Save. */
+  async uploadCertificate(pem: string): Promise<CertificateSummary> {
+    return request<CertificateSummary>("/admin/jde/certificates", { method: "POST", customerId: await customer(), body: { pem } });
   },
   /** Nothing is sent to JDE: the server builds the bound request and returns it. */
   async previewSampleRead(input: SampleReadInput): Promise<SampleReadPreview> {
