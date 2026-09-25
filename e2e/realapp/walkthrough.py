@@ -38,6 +38,27 @@ def nav(page, group, label):
     page.wait_for_timeout(800)
 
 
+def test_certificate(path, host):
+    """A throwaway self-signed certificate naming the AIS host (never a customer's)."""
+    import datetime
+    import ipaddress
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "walkthrough-ais")])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
+            .serial_number(x509.random_serial_number()).not_valid_before(now).not_valid_after(now + datetime.timedelta(days=30))
+            .add_extension(x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address(host))]), critical=False)
+            .sign(key, hashes.SHA256()))
+    with open(path, "wb") as f:
+        f.write(cert.public_bytes(serialization.Encoding.PEM))
+
+
 def shot(page, name):
     page.screenshot(path=f"{SHOTS}/{name}.png", full_page=True)
 
@@ -87,6 +108,13 @@ with sync_playwright() as p:
         check("a real customer cannot choose a simulated JDE", page.locator("text=(demo customers only)").count() == 0)
         page.get_by_label("Connection name").fill("Walkthrough JPS920")
         page.get_by_label("AIS HTTPS address").fill(AIS)
+        cert_file = os.path.join(SHOTS, "walkthrough-ais-cert.pem")
+        test_certificate(cert_file, AIS.split("//")[1].split(":")[0])
+        page.set_input_files("input[aria-label='AIS certificate file']", cert_file)
+        expect(page.locator("[aria-label='Uploaded certificate']")).to_be_visible()
+        check("the uploaded AIS certificate is shown with the AIS host in its names",
+              AIS.split("//")[1].split(":")[0] in page.locator("[aria-label='Uploaded certificate']").inner_text()
+              and page.locator("text=does not name").count() == 0)
         page.get_by_label("JDE environment", exact=True).fill("JPS920")
         page.get_by_label("JDE role", exact=True).fill("JADEREAD")
         page.get_by_label("Application release", exact=True).fill("9.2")
@@ -117,8 +145,9 @@ with sync_playwright() as p:
         page.wait_for_selector("text=/Test Connection: /", timeout=60000)
         jde_msg = page.locator("[role=status]").first.inner_text()
         print("JDE Test Connection said:", jde_msg)
-        check("JDE Test Connection shows a real outcome, never a simulated success",
-              "SIMULATION" not in jde_msg and "Test Connection:" in jde_msg)
+        check("JDE Test Connection runs live with no server settings and reports the real outcome",
+              "SIMULATION" not in jde_msg and "Test Connection:" in jde_msg and "switched off" not in jde_msg
+              and "locked off" not in jde_msg)
         shot(page, "3-jde-connection")
 
         page.click("button:has-text('Configure')")
@@ -178,8 +207,9 @@ with sync_playwright() as p:
               page.locator(".agentcard:has-text('Architect Agent') >> text=Off for this customer").count() == 1)
         nav(page, "Admin", "Integrations")
         page.wait_for_selector("text=AIS address")
-        check("JDE connection persisted, credential masked",
-              AIS in page.inner_text("main") and "user JA•••••• encrypted" in page.inner_text("main"))
+        check("JDE connection persisted, credential masked, certificate kept",
+              AIS in page.inner_text("main") and "user JA•••••• encrypted" in page.inner_text("main")
+              and "CN=walkthrough-ais" in page.inner_text("main"))
         page.click("button:has-text('Test Connection') >> nth=0")
         page.wait_for_selector("text=/Test Connection: /", timeout=90000)
         jde_msg = page.locator("[role=status]").first.inner_text()

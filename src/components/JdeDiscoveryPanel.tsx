@@ -6,6 +6,7 @@ import {
   HEALTH_CHECKS,
   type ActivityRow,
   type ApprovedRead,
+  type CertificateSummary,
   type ArtifactUploadInput,
   type ArtifactView,
   type CheckResult,
@@ -28,7 +29,7 @@ function blankConfig(): JdeProfileConfig {
   const end = new Date(start.getTime() + 7 * 24 * 3600 * 1000);
   return {
     connectionName: "", connectionMode: "live", aisBaseUrl: "https://", environment: "", environmentPurpose: "development",
-    trialApprovalReference: "", role: "", expectedApplicationRelease: "", expectedToolsRelease: "", pathCode: "",
+    trialApprovalReference: "", role: "", expectedApplicationRelease: "", expectedToolsRelease: "", pathCode: "", caCertificateSha256: "",
     authMethod: "ais_token_request", customerContact: "", cncContact: "", networkRoute: "", isolationEvidence: "",
     routingIsolationConfirmed: false, privilegeStatement: "", privilegeConfirmed: false, runtimeAttestationConfirmed: false,
     runtimeAttestationEvidence: "", evidenceArtifactIds: [], approvedReads: [],
@@ -154,6 +155,52 @@ function Prerequisites({ items }: { items: Prerequisite[] }) {
       ))}
       <div className="hint">A successful Test Connection proves the backend can reach AIS and sign in; it does not verify that the
         environment is isolated. Isolation is the customer's attestation.</div>
+    </div>
+  );
+}
+
+const hostOf = (url: string) => { try { return new URL(url).hostname.toLowerCase(); } catch { return ""; } };
+
+/**
+ * The AIS server certificate (or its CA) for this connection. Uploading only
+ * adds trust for this one address; Jade never switches verification off.
+ */
+function CertificateEditor({ selected, initial, aisUrl, onSelect }: {
+  selected: string; initial?: CertificateSummary | null; aisUrl: string; onSelect: (sha: string) => void;
+}) {
+  const [summary, setSummary] = useState<CertificateSummary | null>(initial && initial.sha256 === selected ? initial : null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const host = hostOf(aisUrl);
+  async function pick(file: File | undefined) {
+    if (!file) return;
+    setBusy(true); setError(null);
+    try {
+      const s = await discoveryApi.uploadCertificate(await file.text());
+      setSummary(s); onSelect(s.sha256);
+    } catch (e) { setError(saveErrorMessage(e, "The certificate was refused.")); }
+    finally { setBusy(false); }
+  }
+  const covers = !!summary && summary.certificates.some((c) => c.names.some((n) => n.toLowerCase() === host));
+  const hasCa = !!summary && summary.certificates.some((c) => c.is_ca);
+  return (
+    <div className="field">AIS server certificate <span className="hint">(needed when the AIS certificate is self-signed or from a
+      private CA. Upload the server's certificate or its CA as .pem/.crt -- never a private key. It is trusted only for this
+      connection; certificate and host-name/IP checks always stay on.)</span>
+      <input type="file" aria-label="AIS certificate file" accept=".pem,.crt,.cer,.txt" disabled={busy} onChange={(e) => pick(e.target.files?.[0])} />
+      {selected && !summary && <div className="hint">Certificate selected (sha256 <span className="mono">{selected.slice(0, 16)}…</span>).</div>}
+      {summary && (
+        <div aria-label="Uploaded certificate" style={{ marginTop: 4 }}>
+          {summary.certificates.map((c) => (
+            <div key={c.fingerprint_sha256} className="hint">
+              <strong>{c.subject}</strong>{c.is_ca ? " (CA)" : ""} · names: <span className="mono">{c.names.join(", ") || "none"}</span> · valid
+              until {new Date(c.not_after).toLocaleDateString("en-GB")} · fingerprint <span className="mono">{c.fingerprint_sha256.slice(0, 16)}…</span>
+            </div>))}
+          {host && !covers && !hasCa && <div className="hint" style={{ color: "var(--stop)" }}>This certificate does not name {host}; the connection will be refused
+            unless the AIS address matches a name in it.</div>}
+        </div>)}
+      {selected && <button className="btn small" onClick={() => { setSummary(null); onSelect(""); }}>Remove certificate (use public CAs)</button>}
+      {error && <div className="hint" role="alert" style={{ color: "var(--stop)" }}>{error}</div>}
     </div>
   );
 }
@@ -374,6 +421,11 @@ export function JdeDiscoveryPanel() {
               <div className="hint">Jade calls {view.requestUrls.token_request} (sign-in), {view.requestUrls.defaultconfig}, {view.requestUrls.dataservice} and {view.requestUrls.poservice} -- nothing else.</div></dd>
             <dt>Environment</dt><dd><span className="mono">{cfg.environment}</span> -- {cfg.environmentPurpose === "isolated_trial"
               ? <>approved isolated trial <span className="hint">({cfg.trialApprovalReference})</span></> : "development"}</dd>
+            <dt>Certificate</dt><dd>{view.certificate && !view.certificate.missing
+              ? <>{view.certificate.certificates.map((c) => <div key={c.fingerprint_sha256}><span className="mono">{c.subject}</span> · names {c.names.join(", ") || "none"} · valid until {new Date(c.not_after).toLocaleDateString("en-GB")}</div>)}
+                  {!view.certificate.coversHost && !view.certificate.certificates.some((c) => c.is_ca) && <div className="hint" style={{ color: "var(--stop)" }}>does not name the AIS host</div>}</>
+              : view.certificate?.missing ? <span className="notstated">selected certificate not found -- upload it again</span>
+              : <span className="hint">none uploaded: the public CA trust store is used</span>}</dd>
             <dt>Role</dt><dd className="mono">{cfg.role}</dd>
             <dt>Expected releases</dt><dd>Application {cfg.expectedApplicationRelease}, Tools / server {cfg.expectedToolsRelease}, path code{" "}
               {cfg.pathCode ? <span className="mono">{cfg.pathCode}</span> : <span className="notstated">not established (only from JDE's F00941 read)</span>}</dd>
@@ -396,8 +448,8 @@ export function JdeDiscoveryPanel() {
           <details><summary>Prerequisites for Test Connection</summary><Prerequisites items={view.prerequisites} /></details>
           {live && view.serverPrerequisites.some((p) => !p.satisfied) && (
             <div className="callout" style={{ borderColor: "var(--stop)" }}>
-              <strong>A server-managed prerequisite blocks this live endpoint.</strong> These are set by whoever runs Jade's backend
-              (not in this browser); Jade never disables certificate checks or allows arbitrary destinations.
+              <strong>This live connection cannot be used yet.</strong> Jade never disables certificate checks and only sends requests to
+              the saved AIS address.
               <ul>{view.serverPrerequisites.filter((p) => !p.satisfied).map((p) => <li key={p.id}>{p.label}: {p.detail}</li>)}</ul>
             </div>
           )}
@@ -466,7 +518,9 @@ export function JdeDiscoveryPanel() {
 
           <div>
             <strong>Credential</strong> <span className="hint">(write-only: enter it here, it is encrypted on the server and never shown again.
-              Replacing it needs re-verification; editing other settings does not need it re-entered.)</span>
+              It is only ever sent to the address and certificate it was entered for.)</span>
+            {!view.credentialBound && <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}>The AIS address or certificate changed
+              since the password was entered. Enter the password again for the new address; until then nothing is sent.</div>}
             <div className="grid halves">
               <input type="text" autoComplete="off" placeholder="JDE user" value={username} onChange={(e) => setUsername(e.target.value)} aria-label="JDE user" />
               <input type="password" autoComplete="new-password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label="JDE password" />
@@ -496,13 +550,16 @@ export function JdeDiscoveryPanel() {
                 <strong>Simulation</strong> (demo customers only) -- Jade's simulated AIS endpoint; nothing leaves the backend; results are labelled SIMULATION.</label>}
               <label style={{ display: "block", fontWeight: 400 }}><input type="radio" checked={form.connectionMode === "live"} onChange={() => set("connectionMode", "live")} />{" "}
                 <strong>Live</strong> -- the customer's AIS server, read-only. There is no fallback to simulation.
-                {!view.liveAllowedByDeployment && <span className="badge warn"> live access is not yet enabled on this server</span>}</label>
+                {!view.liveAllowedByDeployment && <span className="badge warn"> live access unavailable -- see Connectivity</span>}</label>
             </div>
           </fieldset>
 
           <fieldset><legend>Endpoint and environment</legend>
             <label className="field">AIS HTTPS address <span className="hint">(https://host[:port][/proxy-prefix] -- Jade appends /jderest/…; no credentials in the address)</span>
               <input aria-label="AIS HTTPS address" value={form.aisBaseUrl} onChange={(e) => set("aisBaseUrl", e.target.value)} placeholder="https://ais.customer.example:9302" /></label>
+            <div className="hint">Jade sends requests only to this address. Changing it means the JDE password must be entered again.</div>
+            <CertificateEditor selected={form.caCertificateSha256} initial={view.certificate} aisUrl={form.aisBaseUrl}
+              onSelect={(sha) => set("caCertificateSha256", sha)} />
             <div className="grid halves">
               <label className="field">JDE environment (exact name) <span className="hint">(compared exactly with what the session reports; never aliased)</span><input aria-label="JDE environment" value={form.environment} onChange={(e) => set("environment", e.target.value)} placeholder="e.g. JPS920" /></label>
               <label className="field">Environment purpose <span className="hint">(stated by the customer; never inferred from the name)</span>
