@@ -9,6 +9,10 @@ import { UserStories } from "./pages/UserStories";
 import { UserStoryReview } from "./pages/UserStoryReview";
 import { ApprovalBacklog } from "./pages/ApprovalBacklog";
 import { ArchitectureReview } from "./pages/ArchitectureReview";
+import { TechnicalWork } from "./pages/TechnicalWork";
+import { ProcessWork } from "./pages/ProcessWork";
+import { AsBuilt } from "./pages/AsBuilt";
+import { ProcessFramework } from "./pages/admin/ProcessFramework";
 import { DeliveryQueuePage } from "./pages/DeliveryQueue";
 import { Pipeline } from "./pages/Pipeline";
 import { BusinessDomains } from "./pages/BusinessDomains";
@@ -39,6 +43,9 @@ const NAV_GROUPS: NavGroup[] = [
   ] },
   { label: "Delivery", items: [
     { key: "deliveryqueue", label: "Delivery Queue" },
+    { key: "process", label: "Process & Maps" },
+    { key: "technical", label: "Technical Work" },
+    { key: "asbuilt", label: "As-built Records" },
     { key: "pipeline", label: "Active Changes", filter: { stage: "active" } },
     { key: "pipeline", label: "Validation", filter: { stage: "validation" } },
   ] },
@@ -66,6 +73,7 @@ const ADMIN_GROUP: NavGroup = {
     { key: "admin-customer", label: "Customer Setup" },
     { key: "admin-erp", label: "ERP / JDE Landscape" },
     { key: "admin-agents", label: "Agents" },
+    { key: "admin-process", label: "Process Framework" },
     { key: "domains", label: "Business Domains" },
     { key: "admin-integrations", label: "Integrations" },
     { key: "admin-users", label: "Users" },
@@ -215,6 +223,20 @@ function MainApp({ onSignedOut }: { onSignedOut?: () => void }) {
       </nav>
 
       <main className="page" key={scopeKey}>
+        {IS_MOCK_MODE && (
+          <div className="callout" role="alert" style={{ borderColor: "var(--stop)", marginBottom: 12 }}>
+            <strong>Demo mode: sample data in this browser, not connected to Jade's backend.</strong> Nothing you see or save here is
+            real, and the JDE connection settings, process maps and as-built records are not shown. Start Jade with{" "}
+            <span className="mono">scripts/run_local_preview.sh</span> (backend repository) and sign in there.
+          </div>
+        )}
+        {!IS_MOCK_MODE && session?.customers.find((c) => c.id === session.activeCustomerId)?.isDemo && (
+          <div className="callout" style={{ borderColor: "var(--warn)", marginBottom: 12 }}>
+            <strong>Demo customer — test data.</strong> Every requirement, user story and delivery record under this customer is
+            test/demo data, and its JDE connection may be simulated. Create or select a real customer under Admin › Customer Setup
+            for real work; real customers only ever use live connections.
+          </div>
+        )}
         {detailId ? (
           <ChangeDetail changeId={detailId} onBack={() => setDetailId(null)} />
         ) : page === "dashboard" ? (
@@ -226,13 +248,21 @@ function MainApp({ onSignedOut }: { onSignedOut?: () => void }) {
         ) : page === "approval" ? (
           <ApprovalBacklog {...navTarget} />
         ) : page === "architecture" ? (
-          <ArchitectureReview />
+          <ArchitectureReview {...navTarget} onNavigate={navigate} />
+        ) : page === "technical" ? (
+          <TechnicalWork {...navTarget} onNavigate={navigate} />
+        ) : page === "process" ? (
+          <ProcessWork {...navTarget} onNavigate={navigate} />
+        ) : page === "asbuilt" ? (
+          <AsBuilt {...navTarget} onNavigate={navigate} />
+        ) : page === "admin-process" ? (
+          <ProcessFramework {...navTarget} onNavigate={navigate} />
         ) : page === "deliveryqueue" ? (
           <DeliveryQueuePage onOpenChange={setDetailId} />
         ) : page === "domains" ? (
           <BusinessDomains onNavigate={navigate} />
         ) : page === "admin-customer" ? (
-          <CustomerSetup />
+          <CustomerSetup onNavigate={navigate} />
         ) : page === "admin-erp" ? (
           <ErpLandscape />
         ) : page === "admin-agents" ? (
@@ -258,12 +288,22 @@ function MainApp({ onSignedOut }: { onSignedOut?: () => void }) {
               <span>Jade · v0.1 prototype · front-end only, mock data</span>
             </>
           ) : (
-            <span>Jade · v0.1 prototype · connected to the real backend</span>
+            <BuildVersions />
           )}
         </span>
       </footer>
     </div>
   );
+}
+
+/** Which frontend and backend commits are actually running. */
+function BuildVersions() {
+  const [backend, setBackend] = useState<string>("…");
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/health`)
+      .then((r) => r.json()).then((h) => setBackend(h.commit ?? "unknown")).catch(() => setBackend("unreachable"));
+  }, []);
+  return <span className="mono" style={{ fontSize: 12 }}>Jade · frontend {__BUILD_COMMIT__} · backend {backend}</span>;
 }
 
 /**

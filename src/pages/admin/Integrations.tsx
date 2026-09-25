@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type { IntegrationStatus, JiraConnectionStatus, JiraIntegrationConfig, JiraSyncResult, JiraTestConnectionResult } from "../../types/domain";
 import { ApiNote, Loading } from "../../components/ui";
+import { saveErrorMessage } from "../../services/saveErrors";
+import { JdeDiscoveryPanel } from "../../components/JdeDiscoveryPanel";
 
 /**
  * Client-side mirror of the backend's own check (jira_gateway.
@@ -54,7 +56,6 @@ export function Integrations() {
   const [postPickupStatus, setPostPickupStatus] = useState("");
   const [jadeIdField, setJadeIdField] = useState("");
   const [requestTypeField, setRequestTypeField] = useState("");
-  const [updatedBy, setUpdatedBy] = useState(() => localStorage.getItem("ciq_approver") ?? "");
 
   const load = () => {
     api.listIntegrations().then(setIntegrations);
@@ -89,25 +90,27 @@ export function Integrations() {
     setSaving(true);
     setSaveError(null);
     try {
-      localStorage.setItem("ciq_approver", updatedBy.trim());
-      await api.updateJiraIntegration({
+      const savedConfig = await api.updateJiraIntegration({
         baseUrl: baseUrl.trim(),
         projectKey: projectKey.trim(),
         pickupStatus: pickupStatus.trim(),
         postPickupStatus: postPickupStatus.trim(),
         jadeIdField: jadeIdField.trim(),
         requestTypeField: requestTypeField.trim(),
-        updatedBy: updatedBy.trim(),
+        expectedRevision: jiraConfig?.revision ?? 0,
       });
+      // Keep the new revision even if the credential step below fails, so a
+      // retry is not refused as stale.
+      setJiraConfig(savedConfig);
       if (email.trim() && apiToken.trim()) {
-        await api.updateJiraCredentials({ email: email.trim(), apiToken: apiToken.trim(), updatedBy: updatedBy.trim() });
+        await api.updateJiraCredentials({ email: email.trim(), apiToken: apiToken.trim() });
       }
       setEditing(false);
       setSyncResult(null);
       setSyncError(null);
       load();
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Could not save the Jira configuration.");
+      setSaveError(saveErrorMessage(e, "Could not save the Jira configuration."));
     } finally {
       setSaving(false);
     }
@@ -159,7 +162,7 @@ export function Integrations() {
   const configured = !!jiraConfig && !!(jiraConfig.baseUrl && jiraConfig.projectKey && jiraConfig.pickupStatus && jiraConfig.postPickupStatus && jiraConfig.jadeIdField);
   const baseUrlError = baseUrlIssue(baseUrl);
   const canTest = !testing && !!baseUrl.trim() && !baseUrlError && !!email.trim() && !!apiToken.trim();
-  const canSave = !saving && !!updatedBy.trim() && !baseUrlError;
+  const canSave = !saving && !baseUrlError;
 
   return (
     <>
@@ -189,6 +192,8 @@ export function Integrations() {
           <ApiNote endpoint="GET /admin/integrations" />
         </section>
       )}
+
+      <JdeDiscoveryPanel />
 
       <section className="panel">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
@@ -227,18 +232,35 @@ export function Integrations() {
         {jiraStatus && (
           <dl className="facts" style={{ marginBottom: 16 }}>
             <dt>Mode</dt>
-            <dd><span className={`badge ${jiraStatus.mockMode ? "grey" : "ok"}`}>{jiraStatus.mockMode ? "Mock" : "Live"}</span></dd>
+            <dd>
+              {jiraStatus.state === "live" && <span className="badge ok">Live</span>}
+              {jiraStatus.state === "demo" && <span className="badge grey">Demo (simulated Jira)</span>}
+              {(jiraStatus.state === "unavailable" || !jiraStatus.state) && (
+                <>
+                  <span className="badge stop">Unavailable</span>
+                  {jiraStatus.unavailableReason && <div className="hint">{jiraStatus.unavailableReason}</div>}
+                </>
+              )}
+            </dd>
             <dt>Credential</dt>
             <dd><span className={`badge ${jiraStatus.credentialsConfigured ? "ok" : "warn"}`}>{jiraStatus.credentialsConfigured ? "Configured" : "Not configured"}</span></dd>
+            <dt>Stored as</dt>
+            <dd>
+              {jiraStatus.credentialStorage === "encrypted" && <span className="badge ok">Encrypted</span>}
+              {jiraStatus.credentialStorage === "plaintext (legacy)" && <span className="badge warn">Plaintext (from an earlier build) — encrypted on the next restart once a key is set</span>}
+              {jiraStatus.credentialStorage === "unreadable" && <span className="badge stop">Unreadable — encrypted with a key this server does not have; re-enter the token</span>}
+              {(!jiraStatus.credentialStorage || jiraStatus.credentialStorage === "none") && <span className="notstated">nothing stored</span>}
+            </dd>
           </dl>
         )}
         <div className="callout" style={{ marginBottom: 16 }}>
-          <strong>Pilot-scoped credential storage</strong>
-          Entering an email and API token below stores them for this customer, on this server, as ordinary
-          configuration — deliberately simple for a short-lived pilot, not a secrets manager or encrypted
-          storage. The token is never shown again once saved (only whether one is configured), never logged,
-          and never appears anywhere in this UI after you leave this form. Production use would move this
-          behind a real secrets provider — not built in this pilot.
+          <strong>How the token is stored</strong>
+          The API token is encrypted before it is stored, with a key held only in the server's own settings,
+          never in its database or backups. It is never shown again once saved, never logged, and never sent
+          back to this screen.
+          {jiraStatus && jiraStatus.credentialEncryptionAvailable === false && (
+            <> <strong style={{ color: "var(--stop)" }}>This server has no encryption key configured, so a token cannot be saved.</strong></>
+          )}
         </div>
 
         {!jiraConfig ? null : !editing ? (
@@ -316,10 +338,7 @@ export function Integrations() {
               <input id="jiraRequestTypeField" type="text" value={requestTypeField} onChange={(e) => setRequestTypeField(e.target.value)} placeholder="customfield_10010" />
               <span className="hint">If set, JSM's own Request Type is imported as source context alongside Work Type and Priority — never used to decide pickup.</span>
             </div>
-            <div className="field">
-              <label htmlFor="jiraUpdatedBy">Your name</label>
-              <input id="jiraUpdatedBy" type="text" value={updatedBy} onChange={(e) => setUpdatedBy(e.target.value)} placeholder="Every change is recorded against a person" />
-            </div>
+            <p className="hint">Saved under your signed-in name.</p>
             {saveError && (
               <div className="callout" style={{ borderColor: "var(--stop)" }}>
                 <strong>Could not save</strong>

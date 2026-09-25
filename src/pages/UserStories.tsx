@@ -196,13 +196,20 @@ export function UserStories({ onOpenChange, navFilter, navToken }: { onOpenChang
         </div>
         {view === "requests" && (
           <div style={{ textAlign: "right" }}>
-            <button className="btn primary" disabled={retrieving} onClick={retrieveNewRequests}>
+            <button
+              className="btn primary"
+              disabled={retrieving || jiraStatus?.state === "unavailable"}
+              onClick={retrieveNewRequests}
+            >
               {retrieving ? "Retrieving…" : "Retrieve new requests"}
             </button>
-            {jiraStatus && !jiraStatus.configConfigured && (
+            {jiraStatus?.state === "unavailable" && (
               <div className="hint" style={{ marginTop: 6 }}>
-                Jira isn't configured for this customer yet — set it up under Admin &gt; Integrations first.
+                Jira is unavailable for this company: {jiraStatus.unavailableReason}
               </div>
+            )}
+            {jiraStatus?.state === "demo" && (
+              <div className="hint" style={{ marginTop: 6 }}>Demo mode: requests come from a simulated Jira.</div>
             )}
           </div>
         )}

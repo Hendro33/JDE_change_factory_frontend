@@ -43,6 +43,7 @@ export function CustomerScope({
       <div className="cscope">
         <span className="cscope-label">Customer</span>
         <span className="cscope-name">{active.name}</span>
+        {active.isDemo && <span className="badge warn" style={{ marginLeft: 6 }}>DEMO</span>}
       </div>
     );
   }
@@ -57,6 +58,7 @@ export function CustomerScope({
         aria-expanded={open}
       >
         {active.name}
+        {active.isDemo && <span className="badge warn" style={{ marginLeft: 6 }}>DEMO</span>}
         <span aria-hidden="true" style={{ marginLeft: 8 }}>▾</span>
       </button>
       {open && (
@@ -70,7 +72,7 @@ export function CustomerScope({
                   if (c.id !== active.id) onSwitch(c.id);
                 }}
               >
-                <span className="nm">{c.name}</span>
+                <span className="nm">{c.name}{c.isDemo ? " (demo)" : ""}</span>
                 <span className="meta">Tools Release {c.toolsRelease} · {c.environment}</span>
               </button>
             </li>

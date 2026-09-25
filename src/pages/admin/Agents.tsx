@@ -1,3 +1,5 @@
+import { agentSettingsApi, type AgentSettings } from "../../services/agentSettingsApi";
+import { saveErrorMessage } from "../../services/saveErrors";
 import { useEffect, useState } from "react";
 import type { SVGProps } from "react";
 import { api } from "../../services/api";
@@ -62,9 +64,9 @@ const ROSTER: RosterEntry[] = [
     internalName: "functional-agent",
   },
   {
-    key: "technical", displayName: "Development Agent", group: "Delivery", icon: DevelopmentIcon,
-    purpose: "Approved technical JDE implementation, such as traditional/custom development, once the governed execution capability exists.",
-    internalName: null,
+    key: "technical", displayName: "Technical Agent", group: "Delivery", icon: DevelopmentIcon,
+    purpose: "Prepares the exact technical package (customer-owned development objects) for an approved design; applied only through the governed technical gate.",
+    internalName: "technical-agent",
   },
 ];
 
@@ -88,6 +90,9 @@ function statusFor(entry: RosterEntry, byName: Map<string, AgentDefinition>): Ag
 }
 
 export function Agents() {
+  const [settings, setSettings] = useState<AgentSettings | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [agents, setAgents] = useState<AgentDefinition[] | null>(null);
   const [healthByAgent, setHealthByAgent] = useState<Record<string, AgentHealth>>({});
   const [selected, setSelected] = useState<string>(ROSTER[0].key);
@@ -103,7 +108,18 @@ export function Agents() {
       setHealthByAgent(Object.fromEntries(pairs));
     });
     api.listCapabilities().then((c) => setCapabilities([...c.capabilities].sort((a, b) => a.priority - b.priority)));
+    agentSettingsApi.get().then(setSettings).catch((e) => setSettingsError(saveErrorMessage(e, "Could not load the agent settings.")));
+    api.getSession().then((s) => setIsAdmin(!!s.customers.find((c) => c.id === s.activeCustomerId)?.roles?.includes("admin")));
   }, []);
+
+  async function toggle(name: string, enabled: boolean) {
+    if (!settings) return;
+    const disabled = settings.agents.filter((a) => (a.name === name ? !enabled : !a.enabled)).map((a) => a.name);
+    setSettingsError(null);
+    try { setSettings(await agentSettingsApi.save(disabled, settings.revision)); }
+    catch (e) { setSettingsError(saveErrorMessage(e, "Could not save the agent settings.")); }
+  }
+  const enabledFor = (internalName: string | null) => settings?.agents.find((a) => a.name === internalName)?.enabled;
 
   const byName = new Map((agents ?? []).map((a) => [a.name, a]));
   const openEntry = ROSTER.find((r) => r.key === selected)!;
@@ -117,9 +133,9 @@ export function Agents() {
         <div>
           <h1>Your Jade AI delivery team</h1>
           <div className="sub">
-            Six roles across Requirements, Solution and Delivery — what each one actually does today, not a
-            technical file listing. Editing an agent's instructions happens through the normal code-review
-            and deploy process, not here.
+            The six agents that exist in Jade, what each does, and whether it runs for this customer. An Admin can switch an agent
+            off for this customer; a switched-off agent is never started. Agent instructions and platform safeguards are not
+            editable here.
           </div>
         </div>
       </div>
@@ -153,7 +169,8 @@ export function Agents() {
                           </span>
                           <div>
                             <div className="agentcard-name">{entry.displayName}</div>
-                            <span className={`badge ${STATUS_BADGE[status]}`}>{status}</span>
+                            <span className={`badge ${STATUS_BADGE[status]}`}>{status}</span>{" "}
+                            {enabledFor(entry.internalName) === false && <span className="badge stop">Off for this customer</span>}
                           </div>
                         </div>
                         <div className="agentcard-role">{entry.purpose}</div>
@@ -198,6 +215,16 @@ export function Agents() {
                 <h2 style={{ margin: 0 }}>{openEntry.displayName}</h2>
               </div>
               <p style={{ marginTop: 10 }}>{openEntry.purpose}</p>
+              {settings && openEntry.internalName && (
+                <label style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 400 }}>
+                  <input type="checkbox" aria-label={`${openEntry.displayName} enabled for this customer`} disabled={!isAdmin}
+                    checked={enabledFor(openEntry.internalName) !== false}
+                    onChange={(e) => toggle(openEntry.internalName!, e.target.checked)} />
+                  Runs for this customer{!isAdmin && <span className="hint"> (only an Admin can change this)</span>}
+                  {settings.updatedAt && <span className="hint"> · last changed by {settings.updatedBy}, {new Date(settings.updatedAt).toLocaleString("en-GB")}</span>}
+                </label>
+              )}
+              {settingsError && <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}>{settingsError}</div>}
               <div className="callout" style={{ marginBottom: 16 }}>
                 <strong><span className={`badge ${STATUS_BADGE[openStatus]}`}>{openStatus}</span></strong>
                 {STATUS_NOTE[openStatus]}

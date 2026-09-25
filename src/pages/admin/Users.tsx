@@ -3,12 +3,13 @@ import { api } from "../../services/api";
 import type { BusinessDomain, CompanyRole, CompanyUsersOut, InvitationOut, MembershipOut } from "../../types/domain";
 import { ApiNote, Loading } from "../../components/ui";
 
-const ALL_ROLES: CompanyRole[] = ["admin", "domain_owner", "product_manager", "dashboard_viewer"];
+const ALL_ROLES: CompanyRole[] = ["admin", "domain_owner", "product_manager", "dashboard_viewer", "cnc_operator"];
 const ROLE_LABEL: Record<CompanyRole, string> = {
   admin: "Admin",
   domain_owner: "Domain Owner",
   product_manager: "Product Manager",
   dashboard_viewer: "Dashboard Viewer",
+  cnc_operator: "CNC Operator",
 };
 
 function RoleAndDomainPicker({
@@ -122,12 +123,27 @@ function MemberRow({
   const [domainIds, setDomainIds] = useState<string[]>(member.domainIds);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetLink, setResetLink] = useState<string | null>(null);
+
+  async function issueResetLink() {
+    setBusy(true);
+    setError(null);
+    setResetLink(null);
+    try {
+      const r = await api.issuePasswordResetLink(member.membershipId);
+      setResetLink(r.previewUrl ?? "Sent to their email address.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not create a reset link.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function saveRoles() {
     setBusy(true);
     setError(null);
     try {
-      await api.updateMembershipRoles(member.membershipId, { roles, domainIds });
+      await api.updateMembershipRoles(member.membershipId, { roles, domainIds, expectedRevision: member.revision });
       setEditing(false);
       onChanged();
     } catch (e) {
@@ -141,8 +157,8 @@ function MemberRow({
     setBusy(true);
     setError(null);
     try {
-      if (member.status === "active") await api.deactivateMembership(member.membershipId);
-      else await api.reactivateMembership(member.membershipId);
+      if (member.status === "active") await api.deactivateMembership(member.membershipId, member.revision);
+      else await api.reactivateMembership(member.membershipId, member.revision);
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not update this member.");
@@ -165,6 +181,11 @@ function MemberRow({
           </>
         )}
         {error && <div className="hint" style={{ color: "var(--stop)" }}>{error}</div>}
+        {resetLink && (
+          <div className="hint" style={{ wordBreak: "break-all" }}>
+            Reset link (no email service is configured, so hand it over yourself; valid once): {resetLink}
+          </div>
+        )}
       </td>
       <td>
         <div className="btnrow">
@@ -176,6 +197,9 @@ function MemberRow({
           ) : (
             <>
               <button className="btn" disabled={busy} onClick={() => setEditing(true)}>Edit roles</button>
+              {member.status === "active" && (
+                <button className="btn" disabled={busy} onClick={issueResetLink}>Reset link</button>
+              )}
               <button className="btn danger" disabled={busy} onClick={toggleStatus}>
                 {busy ? "…" : member.status === "active" ? "Deactivate" : "Reactivate"}
               </button>

@@ -1,3 +1,4 @@
+import { IS_MOCK_MODE } from "../services/api";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import type { CapabilityStatus, FeedbackReasonCode, LifecycleState } from "../types/domain";
@@ -515,8 +516,8 @@ export function Loading({ what }: { what: string }) {
 export function ApiNote({ endpoint }: { endpoint: string }) {
   return (
     <div className="apinote">
-      Reads from <code>{endpoint}</code> — served by mock data today, by the Jade
-      backend once connected.
+      {IS_MOCK_MODE ? <>Sample data in this browser; the real screen reads from <code>{endpoint}</code>.</>
+        : <>Saved on and read from Jade's backend: <code>{endpoint}</code></>}
     </div>
   );
 }

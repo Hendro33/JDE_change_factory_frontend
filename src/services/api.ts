@@ -22,8 +22,13 @@ import type {
   CustomerProfile,
   DeliveryQueueEntry,
   DomainReview,
+  DashboardThresholds,
+  DashboardThresholdsUpdateInput,
   EngagementScope,
   EngagementScopeUpdateInput,
+  PasswordResetLinkOut,
+  PreflightResult,
+  ReconcileResult,
   ErpLandscape,
   FactoryMetrics,
   FeedbackReasonCode,
@@ -40,8 +45,7 @@ import type {
   MembershipOut,
   Session,
   UpdateMembershipInput,
-  UserStory,
-} from "../types/domain";
+  UserStory, CustomerInput, Customer } from "../types/domain";
 
 /**
  * The REST endpoints the FastAPI backend is expected to expose.
@@ -101,6 +105,11 @@ export const API_ENDPOINTS = {
 
   getCustomerProfile: "GET /admin/customer-profile",
   getErpLandscape: "GET /admin/erp-landscape",
+  getDashboardThresholds: "GET /admin/dashboard-thresholds",
+  updateDashboardThresholds: "PUT /admin/dashboard-thresholds",
+  getExecutionPreflight: "GET /changes/{id}/execution/preflight",
+  reconcileExecution: "POST /changes/{id}/execution/reconcile",
+  reconcileTestRun: "POST /changes/{id}/execution/reconcile-test",
   getEngagementScope: "GET /admin/engagement-scope",
   updateEngagementScope: "PUT /admin/engagement-scope",
   listAgents: "GET /admin/agents",
@@ -123,6 +132,7 @@ export const API_ENDPOINTS = {
   resendInvitation: "POST /admin/users/invitations/{id}/resend",
   revokeInvitation: "POST /admin/users/invitations/{id}/revoke",
   updateMembershipRoles: "PUT /admin/users/{membershipId}/roles",
+  issuePasswordResetLink: "POST /admin/users/{membershipId}/password-reset-link",
   deactivateMembership: "POST /admin/users/{membershipId}/deactivate",
   reactivateMembership: "POST /admin/users/{membershipId}/reactivate",
 } as const;
@@ -298,10 +308,32 @@ export interface ChangeFactoryApi {
 
   /** The active customer's profile plus who is entitled to it. */
   getCustomerProfile(): Promise<CustomerProfile>;
+  /** Admin: edit the active customer's own information. */
+  updateCustomerProfile(input: CustomerInput): Promise<CustomerProfile>;
+  /** Admin: create a new (real, non-demo) customer; the creator becomes its Admin. */
+  createCustomer(input: CustomerInput): Promise<Customer>;
   /** JDE connection + engagement-scope status. Never a credential value. */
   getErpLandscape(): Promise<ErpLandscape>;
+  /** Read-only: what the execution gate would decide right now. */
+  getExecutionPreflight(changeId: string): Promise<PreflightResult>;
+  /**
+   * Settle an unknown write outcome from the ACTUAL target value. Jade reads
+   * it itself where it can (mock mode); otherwise observedValue is what a
+   * person read in JDE, with a note.
+   */
+  reconcileExecution(
+    changeId: string,
+    input: { observedValue?: string; note: string; evidenceReference?: string }
+  ): Promise<ReconcileResult>;
+  reconcileTestRun(
+    changeId: string, input: { ran: boolean; note: string; evidenceReference: string }
+  ): Promise<ReconcileResult>;
   getEngagementScope(): Promise<EngagementScope>;
   updateEngagementScope(input: EngagementScopeUpdateInput): Promise<EngagementScope>;
+
+  /** Dashboard KPI alert colours for the active company -- any member reads, Admin saves. */
+  getDashboardThresholds(): Promise<DashboardThresholds>;
+  updateDashboardThresholds(input: DashboardThresholdsUpdateInput): Promise<DashboardThresholds>;
 
   /** The five subagent definitions, parsed live from .claude/agents/*.md. */
   listAgents(): Promise<AgentDefinition[]>;
@@ -311,7 +343,12 @@ export interface ChangeFactoryApi {
   listCapabilities(): Promise<CapabilityCatalog>;
 
   createBusinessDomain(input: BusinessDomainCreateInput): Promise<BusinessDomain>;
-  updateBusinessDomainStatus(domainId: string, status: BusinessDomain["status"]): Promise<BusinessDomain>;
+  /** expectedRevision is the domain's revision as loaded; a stale one is refused (saveErrors.ts). */
+  updateBusinessDomainStatus(
+    domainId: string,
+    status: BusinessDomain["status"],
+    expectedRevision: number
+  ): Promise<BusinessDomain>;
 
   listIntegrations(): Promise<IntegrationStatus[]>;
 
@@ -367,8 +404,10 @@ export interface ChangeFactoryApi {
   resendInvitation(invitationId: string): Promise<InvitationOut>;
   revokeInvitation(invitationId: string): Promise<InvitationOut>;
   updateMembershipRoles(membershipId: string, input: UpdateMembershipInput): Promise<MembershipOut>;
-  deactivateMembership(membershipId: string): Promise<MembershipOut>;
-  reactivateMembership(membershipId: string): Promise<MembershipOut>;
+  /** Admin-issued reset link: the only way to reset a password until an email provider exists. */
+  issuePasswordResetLink(membershipId: string): Promise<PasswordResetLinkOut>;
+  deactivateMembership(membershipId: string, expectedRevision: number): Promise<MembershipOut>;
+  reactivateMembership(membershipId: string, expectedRevision: number): Promise<MembershipOut>;
 }
 
 // ---------------------------------------------------------------------
@@ -384,6 +423,8 @@ export interface ChangeFactoryApi {
 import { MockChangeFactoryApi } from "./mockApi";
 import { HttpChangeFactoryApi } from "./httpApi";
 
-export const IS_MOCK_MODE = import.meta.env.VITE_USE_MOCK_API !== "false";
+// The real backend is the default. The in-browser sample-data mode runs only
+// when explicitly asked for (VITE_USE_MOCK_API=true), and says so on every page.
+export const IS_MOCK_MODE = import.meta.env.VITE_USE_MOCK_API === "true";
 
 export const api: ChangeFactoryApi = IS_MOCK_MODE ? new MockChangeFactoryApi() : new HttpChangeFactoryApi();

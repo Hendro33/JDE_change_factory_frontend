@@ -12,8 +12,13 @@ import type {
   CustomerProfile,
   DeliveryQueueEntry,
   DomainReview,
+  DashboardThresholds,
+  DashboardThresholdsUpdateInput,
   EngagementScope,
   EngagementScopeUpdateInput,
+  PasswordResetLinkOut,
+  PreflightResult,
+  ReconcileResult,
   ErpLandscape,
   FactoryMetrics,
   ForgotPasswordResult,
@@ -32,9 +37,9 @@ import type {
   MeOut,
   Session,
   UpdateMembershipInput,
-  UserStory,
-} from "../types/domain";
+  UserStory, CustomerInput, Customer } from "../types/domain";
 import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
+import { RevisionConflictError } from "./saveErrors";
 
 /**
  * Real implementation of ChangeFactoryApi, talking to the FastAPI
@@ -60,7 +65,7 @@ import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
  * client. Nothing here should be read as "the frontend decides access."
  */
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 const ACTIVE_CUSTOMER_KEY = "ciq_http_active_customer";
 
@@ -121,18 +126,36 @@ export async function request<T>(
     if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
   }
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers,
-    // The session cookie is httponly, set by /auth/login -- this is
-    // what actually sends it (and is required for it to be sent
-    // cross-origin, see config.py's cookie_samesite comment).
-    credentials: "include",
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers,
+      // The session cookie is httponly, set by /auth/login -- this is
+      // what actually sends it (and is required for it to be sent
+      // cross-origin, see config.py's cookie_samesite comment).
+      credentials: "include",
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    });
+  } catch {
+    throw new Error(`Cannot reach Jade's backend at ${BASE_URL}. Check that it is running (scripts/run_local_preview.sh) and try again.`);
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    if (res.status === 409 || res.status === 428) {
+      // A revisioned save that lost a race (see saveErrors.ts). Other
+      // 409s (e.g. a lifecycle-state conflict) carry no currentRevision
+      // and stay ordinary HttpErrors.
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed.currentRevision === "number") {
+          throw new RevisionConflictError(res.status, parsed.currentRevision);
+        }
+      } catch (e) {
+        if (e instanceof RevisionConflictError) throw e;
+      }
+    }
     throw new HttpError(res.status, text);
   }
   if (res.status === 204) return undefined as T;
@@ -436,9 +459,42 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<CustomerProfile>("/admin/customer-profile", { customerId });
   }
 
+  async updateCustomerProfile(input: CustomerInput): Promise<CustomerProfile> {
+    const customerId = await this.activeCustomerId();
+    return request<CustomerProfile>("/admin/customer-profile", { method: "PUT", customerId, body: input });
+  }
+
+  async createCustomer(input: CustomerInput): Promise<Customer> {
+    const customerId = await this.activeCustomerId();
+    const created = await request<Customer>("/admin/customers", { method: "POST", customerId, body: input });
+    rememberActiveCustomer(created.id);
+    this.lastSession = null;
+    return created;
+  }
+
   async getErpLandscape(): Promise<ErpLandscape> {
     const customerId = await this.activeCustomerId();
     return request<ErpLandscape>("/admin/erp-landscape", { customerId });
+  }
+
+  async getExecutionPreflight(changeId: string): Promise<PreflightResult> {
+    const customerId = await this.activeCustomerId();
+    return request<PreflightResult>(`/changes/${encodeURIComponent(changeId)}/execution/preflight`, { customerId });
+  }
+
+  async reconcileExecution(changeId: string, input: { observedValue?: string; note: string; evidenceReference?: string }) {
+    const customerId = await this.activeCustomerId();
+    return request<ReconcileResult>(
+      `/changes/${encodeURIComponent(changeId)}/execution/reconcile`,
+      { method: "POST", customerId, body: input }
+    );
+  }
+
+  async reconcileTestRun(changeId: string, input: { ran: boolean; note: string; evidenceReference: string }) {
+    const customerId = await this.activeCustomerId();
+    return request<ReconcileResult>(`/changes/${encodeURIComponent(changeId)}/execution/reconcile-test`, {
+      method: "POST", customerId, body: input,
+    });
   }
 
   async getEngagementScope(): Promise<EngagementScope> {
@@ -449,6 +505,16 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
   async updateEngagementScope(input: EngagementScopeUpdateInput): Promise<EngagementScope> {
     const customerId = await this.activeCustomerId();
     return request<EngagementScope>("/admin/engagement-scope", { method: "PUT", customerId, body: input });
+  }
+
+  async getDashboardThresholds(): Promise<DashboardThresholds> {
+    const customerId = await this.activeCustomerId();
+    return request<DashboardThresholds>("/admin/dashboard-thresholds", { customerId });
+  }
+
+  async updateDashboardThresholds(input: DashboardThresholdsUpdateInput): Promise<DashboardThresholds> {
+    const customerId = await this.activeCustomerId();
+    return request<DashboardThresholds>("/admin/dashboard-thresholds", { method: "PUT", customerId, body: input });
   }
 
   async listAgents(): Promise<AgentDefinition[]> {
@@ -471,12 +537,16 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<BusinessDomain>("/admin/business-domains", { method: "POST", customerId, body: input });
   }
 
-  async updateBusinessDomainStatus(domainId: string, status: BusinessDomain["status"]): Promise<BusinessDomain> {
+  async updateBusinessDomainStatus(
+    domainId: string,
+    status: BusinessDomain["status"],
+    expectedRevision: number
+  ): Promise<BusinessDomain> {
     const customerId = await this.activeCustomerId();
     return request<BusinessDomain>(`/admin/business-domains/${encodeURIComponent(domainId)}/status`, {
       method: "PUT",
       customerId,
-      body: { status },
+      body: { status, expectedRevision },
     });
   }
 
@@ -551,6 +621,13 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     });
   }
 
+  async issuePasswordResetLink(membershipId: string): Promise<PasswordResetLinkOut> {
+    const customerId = await this.activeCustomerId();
+    return request<PasswordResetLinkOut>(`/admin/users/${encodeURIComponent(membershipId)}/password-reset-link`, {
+      method: "POST", customerId,
+    });
+  }
+
   async updateMembershipRoles(membershipId: string, input: UpdateMembershipInput): Promise<MembershipOut> {
     const customerId = await this.activeCustomerId();
     return request<MembershipOut>(`/admin/users/${encodeURIComponent(membershipId)}/roles`, {
@@ -558,17 +635,17 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     });
   }
 
-  async deactivateMembership(membershipId: string): Promise<MembershipOut> {
+  async deactivateMembership(membershipId: string, expectedRevision: number): Promise<MembershipOut> {
     const customerId = await this.activeCustomerId();
     return request<MembershipOut>(`/admin/users/${encodeURIComponent(membershipId)}/deactivate`, {
-      method: "POST", customerId,
+      method: "POST", customerId, body: { expectedRevision },
     });
   }
 
-  async reactivateMembership(membershipId: string): Promise<MembershipOut> {
+  async reactivateMembership(membershipId: string, expectedRevision: number): Promise<MembershipOut> {
     const customerId = await this.activeCustomerId();
     return request<MembershipOut>(`/admin/users/${encodeURIComponent(membershipId)}/reactivate`, {
-      method: "POST", customerId,
+      method: "POST", customerId, body: { expectedRevision },
     });
   }
 }

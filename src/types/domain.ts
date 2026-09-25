@@ -28,6 +28,8 @@ export interface Customer {
   toolsRelease: string;
   /** Which JDE environment this engagement's pilot targets. */
   environment: string;
+  /** Demo customers hold test data only; simulated JDE exists only inside them. */
+  isDemo?: boolean;
   /**
    * This user's roles on THIS company specifically — a user can hold
    * different roles on different companies. See CompanyRole's own
@@ -53,9 +55,11 @@ export interface Customer {
  *     assignments, settings and integrations (Jira). Does NOT confer
  *     business approval or agent-execution authority on its own.
  *   - dashboard_viewer: read-only.
+ *   - cnc_operator: records a package deployment/activation a human CNC
+ *     performed (Technical work). Never granted by default.
  * A user can hold more than one role on the same company.
  */
-export type CompanyRole = "domain_owner" | "product_manager" | "admin" | "dashboard_viewer";
+export type CompanyRole = "domain_owner" | "product_manager" | "admin" | "dashboard_viewer" | "cnc_operator";
 
 export type UserRole = string;
 
@@ -109,8 +113,11 @@ export type Complexity = "Low" | "Medium" | "High" | "Unknown";
 export type ImplementationRoute =
   | "Functional Agent"
   | "Technical Agent"
+  | "Mixed"
   | "Human Implementation"
-  | "Resolve without Change";
+  | "Resolve without Change"
+  /** The evidence contradicts the story or a business question is open: a result, not a failure. */
+  | "Clarification Required";
 
 export type ChangeType =
   | "Configuration"
@@ -189,6 +196,9 @@ export interface ArchitectAnalysisVersion {
   implementationSpec: ImplementationSpecification;
   note: string;
   capturedAt: string;
+  /** The immutable evidence baseline recorded for this design revision. */
+  baselineId?: string | null;
+  baselineSha256?: string | null;
 }
 
 /**
@@ -235,6 +245,69 @@ export interface ExactChange {
   capabilityId?: string;
   capabilityStatus?: CapabilityStatus;
   capabilityExecutable?: boolean;
+  /** Whether the approved write (and its test) actually happened. */
+  execution?: ExecutionStatus;
+}
+
+/**
+ * ready: nothing in flight · in_progress · applied (write) / completed (test)
+ * · unknown: may or may not have reached JDE; blocked until reconciled
+ * · diverged: target in neither the before nor the approved state; never runs again
+ */
+export type ExecutionState = "ready" | "in_progress" | "applied" | "completed" | "unknown" | "diverged";
+
+/**
+ * One audited reconciliation: the exact target checked, what was observed
+ * there, who checked (user id and name), when, and the evidence reference.
+ * Also appended to the story's tamper-evident evidence chain.
+ */
+export interface Reconciliation {
+  kind: "write_reconciliation" | "test_reconciliation" | string;
+  at: string;
+  actor: { userId?: string | null; displayName: string };
+  verifiedBy: string;
+  source: string;
+  outcome: string;
+  /** company_id, story_id, change_id, capability, environment, jde_environment and the write target or orchestration. */
+  target: Record<string, string | null>;
+  /** Write: { value, before_value }; test: { ran }. */
+  observed: Record<string, unknown>;
+  observedValue?: string | null;
+  evidenceReference: string;
+  evidenceEntryHash?: string | null;
+  settlesAttemptId?: string | null;
+  note: string;
+}
+
+export interface ReconcileResult {
+  outcome: string;
+  observedValue?: string;
+  source?: string;
+  target: Record<string, string | null>;
+  evidenceReference: string;
+  evidenceEntryHash: string;
+}
+
+export interface ExecutionStatus {
+  writeState: ExecutionState;
+  testState: ExecutionState;
+  attempts: number;
+  lastAttemptAt?: string | null;
+  lastDetail: string;
+  beforeValue?: string | null;
+  /** Kept apart: a write reconciliation settles whether the value is in JDE, a test one whether the test ran. */
+  writeReconciliations: Reconciliation[];
+  testReconciliations: Reconciliation[];
+}
+
+/** What the execution gate would decide right now, check by check. Nothing is executed. */
+export interface PreflightResult {
+  changeId: string;
+  mode: "mock" | "live" | "unknown";
+  executable: boolean;
+  writeState: ExecutionState;
+  testState: ExecutionState;
+  checks: { check: string; ok: boolean; detail: string }[];
 }
 
 export type CapabilityStatus = "validated" | "needs_spike" | "restricted" | "human_implementation" | "suspended";
@@ -365,8 +438,19 @@ export interface BusinessDomain {
   /** APQC Level 2 ("4.4") or Level 3 ("4.4.3") — dotted depth. */
   level: string;
   description: string;
+  /** Legacy free-text note. Never an authority: see assignedOwners. */
   domainOwner: string;
+  /**
+   * Who can actually act as Domain Owner: active members with the
+   * Domain Owner role assigned to this domain in Admin > Users.
+   * Derived by the server on every read.
+   */
+  assignedOwners?: string[];
   status: "active" | "proposed" | "retired";
+  /** Sent back as expectedRevision on a status change -- see services/saveErrors.ts. */
+  revision: number;
+  updatedAt?: string;
+  updatedBy?: string;
 }
 
 export type DomainReviewStage =
@@ -582,6 +666,15 @@ export interface IdentitySummary {
 export interface CustomerProfile {
   customer: Customer;
   identities: IdentitySummary[];
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export interface CustomerInput {
+  name: string;
+  shortName: string;
+  toolsRelease: string;
+  environment: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -613,6 +706,8 @@ export interface MembershipOut {
   status: MembershipStatus;
   roles: CompanyRole[];
   domainIds: string[];
+  /** Send back as expectedRevision on the next role, domain or status change. */
+  revision: number;
 }
 
 export interface InvitationOut {
@@ -643,6 +738,8 @@ export interface InviteInput {
 export interface UpdateMembershipInput {
   roles: CompanyRole[];
   domainIds: string[];
+  /** The revision this edit was based on: 409 if someone changed the membership since. */
+  expectedRevision: number;
 }
 
 export interface AcceptInvitationInput {
@@ -670,11 +767,29 @@ export interface AisConnectionStatus {
   role?: string;
 }
 
+/** Reference to the authoritative discovery profile (Admin > Integrations > JDE). */
+export interface DiscoveryProfileSummary {
+  configured: boolean;
+  connectionName?: string | null;
+  environmentPurpose?: string | null;
+  revision: number;
+  environment?: string | null;
+  pathCode?: string | null;
+  applicationRelease?: string | null;
+  toolsRelease?: string | null;
+  mode?: string | null;
+  discoveryEnabled: boolean;
+  disabled: boolean;
+  health: Record<string, string>;
+}
+
 export interface ErpLandscape {
   customerId: string;
   toolsRelease: string;
   environment: string;
+  /** The execution gate's connection -- separate from discovery. */
   ais: AisConnectionStatus;
+  discoveryProfile?: DiscoveryProfileSummary | null;
   engagementScopeConfigured: boolean;
   scopeGloballySharedNote: string;
 }
@@ -686,6 +801,14 @@ export interface ErpLandscape {
  * Appendix D.2/E.2 describes (mcp_server/jde_mcp_server/scope.py).
  */
 export interface ApprovedVersion {
+  /** Catalogue capability this approval is bound to; empty on older records. */
+  capabilityId?: string;
+  /**
+   * Enforced, required before anything can run: one of the capability's
+   * option categories (OPTION_CATEGORIES). Protected categories are never
+   * written; empty means "not classified" and blocks execution.
+   */
+  optionCategory?: string;
   application: string;
   version: string;
   options: string[];
@@ -693,10 +816,69 @@ export interface ApprovedVersion {
   notes: string;
 }
 
+/** The JDE access mechanisms a company may allow (closed list, enforced). */
+export type Mechanism = "ais_form_service_request" | "ais_orchestration";
+
+/** Declared side effects of a post-change test (closed list, enforced). */
+export type TestSideEffect =
+  | "none"
+  | "creates_dev_transaction"
+  | "posting"
+  | "payment"
+  | "outbound_integration"
+  | "batch_run";
+
+/** An orchestration the company allows Jade to run as a post-change test. */
+export interface ApprovedTest {
+  orchestration: string;
+  sideEffects: TestSideEffect[];
+  note: string;
+}
+
+export interface TestScope {
+  approvedTests: ApprovedTest[];
+}
+
+/**
+ * A dated, explicitly approved experiment allowing a capability that
+ * is not yet customer-DEV validated to run once in DEV. Enforced by the
+ * execution gate: an expired or undated experiment allows nothing.
+ * approvedBy/approvedAt are stamped by the server, never typed.
+ */
+export interface SpikeExperiment {
+  capabilityId: string;
+  capabilityRevision: string;
+  application: string;
+  version: string;
+  option: string;
+  environment: string;
+  /** ISO-8601 with timezone. */
+  expiresAt: string;
+  note: string;
+  approvedBy?: string;
+  approvedAt?: string;
+}
+
 export interface FunctionalAgentScope {
   approvedVersions: ApprovedVersion[];
+  spikeExperiments?: SpikeExperiment[];
+  /** Enforced: option categories (closed list) this company never lets Jade write. */
   neverTouchCategories: string[];
+  /** Reference only -- free-text guidance, never read by the execution gate. */
+  neverTouchNotes?: string[];
+  /** Reference only -- approval authority comes from roles and the approval policy. */
   approvers: string[];
+}
+
+/** Which JDE DEV environment this company's writes are bound to. */
+export interface EnvironmentBinding {
+  devEnvironmentId: string;
+  devPathCode: string;
+  aisDataSourceName: string;
+  isolationConfirmed: boolean;
+  isolationEvidence: string;
+  isolationConfirmedBy?: string;
+  isolationConfirmedAt?: string;
 }
 
 export interface TechnicalAgentScope {
@@ -706,21 +888,73 @@ export interface TechnicalAgentScope {
   approvers: string[];
 }
 
+export type ApproverRole = "admin" | "product_manager" | "domain_owner";
+
+/**
+ * Who may approve an exact change for this company, and for how long
+ * the approval stays valid. Enforced at approval and again immediately
+ * before execution; absent means nobody can approve and nothing runs.
+ */
+export interface ApprovalPolicy {
+  policyVersion: 1;
+  exactChangeApproverRoles: ApproverRole[];
+  /** 1-168. */
+  approvalValidHours: number;
+}
+
 export interface EngagementScope {
   customerId: string;
   toolsRelease: string;
+  environment?: EnvironmentBinding;
   functionalAgent: FunctionalAgentScope;
   technicalAgent: TechnicalAgentScope;
+  approvalPolicy?: ApprovalPolicy | null;
+  /** Enforced: mechanisms this company allows. Empty means nothing can run. */
+  mechanismsAllowed?: Mechanism[];
+  /** Enforced: the only tests Jade may run, with their declared side effects. */
+  testScope?: TestScope;
+  /** 0 means never saved. */
+  revision: number;
   /** Absent means "never configured" — distinct from an explicitly empty, saved scope. */
   updatedAt?: string;
+  /** The signed-in user who saved it -- set by the server. */
   updatedBy?: string;
 }
 
 export interface EngagementScopeUpdateInput {
   toolsRelease: string;
+  environment?: EnvironmentBinding;
   functionalAgent: FunctionalAgentScope;
   technicalAgent: TechnicalAgentScope;
-  updatedBy: string;
+  approvalPolicy?: ApprovalPolicy | null;
+  /** Enforced: mechanisms this company allows. Empty means nothing can run. */
+  mechanismsAllowed?: Mechanism[];
+  /** Enforced: the only tests Jade may run, with their declared side effects. */
+  testScope?: TestScope;
+  /** The revision this edit was based on (0 when creating). */
+  expectedRevision: number;
+}
+
+/**
+ * Dashboard KPI alert colours, shared by every user of the company and
+ * saved on the server (Admin only). configured=false means the defaults
+ * are in use and nothing has been saved yet.
+ */
+export interface DashboardThresholds {
+  /** A KPI count strictly above this turns orange. */
+  warnAt: number;
+  /** A KPI count strictly above this turns red (takes precedence over warnAt). */
+  criticalAt: number;
+  configured: boolean;
+  revision: number;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export interface DashboardThresholdsUpdateInput {
+  warnAt: number;
+  criticalAt: number;
+  expectedRevision: number;
 }
 
 /** One .claude/agents/*.md subagent's declared definition + the driver that invokes it, if any. */
@@ -805,6 +1039,8 @@ export interface JiraIntegrationConfig {
   jadeIdField: string;
   /** Optional Jira custom field id for JSM's own Request Type, imported into sourceMetadata for display only. */
   requestTypeField: string;
+  /** 0 means never saved. */
+  revision: number;
   updatedAt?: string;
   updatedBy?: string;
 }
@@ -816,7 +1052,7 @@ export interface JiraIntegrationConfigUpdateInput {
   postPickupStatus: string;
   jadeIdField: string;
   requestTypeField: string;
-  updatedBy: string;
+  expectedRevision: number;
 }
 
 /**
@@ -829,7 +1065,6 @@ export interface JiraIntegrationConfigUpdateInput {
 export interface JiraCredentialsUpdateInput {
   email: string;
   apiToken: string;
-  updatedBy: string;
 }
 
 /**
@@ -852,9 +1087,26 @@ export interface JiraTestConnectionResult {
 
 /** Status only — NEVER a credential. credentialsConfigured reflects THIS customer's own saved Jira credential, never its value. */
 export interface JiraConnectionStatus {
+  /** True only in explicit demo mode. */
   mockMode: boolean;
+  /**
+   * demo: simulated Jira, by explicit deployment setting · live · unavailable:
+   * real mode without a usable setup -- every Jira operation is blocked, never mocked.
+   */
+  state?: "demo" | "live" | "unavailable";
+  unavailableReason?: string;
   credentialsConfigured: boolean;
   configConfigured: boolean;
+  /** How the stored token is held -- never the token itself. */
+  credentialStorage?: "none" | "encrypted" | "plaintext (legacy)" | "unreadable";
+  /** Whether this server can save a credential at all (encryption key configured). */
+  credentialEncryptionAvailable?: boolean;
+}
+
+export interface PasswordResetLinkOut {
+  /** True once an email provider delivers it; false means previewUrl is for the Admin to hand over. */
+  sent: boolean;
+  previewUrl?: string | null;
 }
 
 export interface JiraSyncError {

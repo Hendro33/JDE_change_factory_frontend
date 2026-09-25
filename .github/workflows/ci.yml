@@ -1,0 +1,38 @@
+name: CI
+
+# Type-check and build on every pull request, on pushes to main and the
+# claude/** working branches, and by
+# hand. Deployment stays in deploy-pages.yml, which runs only on main.
+on:
+  pull_request:
+  push:
+    # Also the working branches, so a branch shows its status before a PR exists.
+    branches: [main, "claude/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type-check
+        run: npx tsc -b
+
+      - name: Build
+        run: npx vite build

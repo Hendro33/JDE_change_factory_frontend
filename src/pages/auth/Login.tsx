@@ -32,11 +32,11 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
     setError(null);
     setForgotSent(null);
     try {
-      const result = await authApi.forgotPassword(email.trim());
+      await authApi.forgotPassword(email.trim());
       setForgotSent(
-        result.previewUrl
-          ? `Dev preview (no email service is configured yet): ${result.previewUrl}`
-          : "If that email is registered, a reset link has been sent."
+        "If that email is registered and email delivery is set up, a reset link is on its way. " +
+          "No email service is configured on this server yet, so in practice: ask your company's Admin " +
+          "to create a reset link for you under Admin > Users."
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not request a password reset.");

@@ -33,10 +33,10 @@ const ev = (
  * seed (see the backend's pilot_business_domains_bicycleworks.py).
  */
 export const MOCK_BUSINESS_DOMAINS: BusinessDomain[] = [
-  { id: "DOM-VDB-1", customerId: "vdb", apqcCode: "4.4", name: "Manage Logistics & Warehousing", level: "4.4", description: "Warehouse stock visibility and inventory accuracy.", domainOwner: "", status: "active" },
-  { id: "DOM-VDB-2", customerId: "vdb", apqcCode: "4.4.3", name: "Order Fulfilment & Shipment Management", level: "4.4.3", description: "Sales order entry and shipment status.", domainOwner: "", status: "active" },
-  { id: "DOM-NHD-1", customerId: "nhd", apqcCode: "4.3", name: "Manufacture / Produce Product", level: "4.3", description: "Production scheduling and shop floor execution.", domainOwner: "", status: "active" },
-  { id: "DOM-MRV-1", customerId: "mrv", apqcCode: "9.3", name: "Manage Order-to-Cash / Credit & Collections", level: "9.3", description: "Customer credit limits and accounts receivable.", domainOwner: "", status: "active" },
+  { id: "DOM-VDB-1", customerId: "vdb", apqcCode: "4.4", name: "Manage Logistics & Warehousing", level: "4.4", description: "Warehouse stock visibility and inventory accuracy.", domainOwner: "", status: "active", revision: 1 },
+  { id: "DOM-VDB-2", customerId: "vdb", apqcCode: "4.4.3", name: "Order Fulfilment & Shipment Management", level: "4.4.3", description: "Sales order entry and shipment status.", domainOwner: "", status: "active", revision: 1 },
+  { id: "DOM-NHD-1", customerId: "nhd", apqcCode: "4.3", name: "Manufacture / Produce Product", level: "4.3", description: "Production scheduling and shop floor execution.", domainOwner: "", status: "active", revision: 1 },
+  { id: "DOM-MRV-1", customerId: "mrv", apqcCode: "9.3", name: "Manage Order-to-Cash / Credit & Collections", level: "9.3", description: "Customer credit limits and accounts receivable.", domainOwner: "", status: "active", revision: 1 },
 ];
 
 /**

@@ -1,4 +1,5 @@
 import type {
+  Customer,
   ActivityEntry,
   AgentDefinition,
   AgentHealth,
@@ -15,8 +16,13 @@ import type {
   DeliveryQueueEntry,
   DomainReview,
   DomainReviewStage,
+  DashboardThresholds,
+  DashboardThresholdsUpdateInput,
   EngagementScope,
   EngagementScopeUpdateInput,
+  PasswordResetLinkOut,
+  PreflightResult,
+  ReconcileResult,
   ErpLandscape,
   FactoryMetrics,
   FeedbackSummary,
@@ -39,6 +45,8 @@ import type {
 } from "../types/domain";
 import type { Session } from "../types/domain";
 import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
+import { DEFAULT_DASHBOARD_THRESHOLDS } from "./dashboardThresholds";
+import { nextRevision } from "./saveErrors";
 import { CUSTOMERS, getMockSession, identitiesForCustomer, setMockActiveCustomer } from "./session";
 import { MOCK_AGENTS, MOCK_BUSINESS_DOMAINS, MOCK_CAPABILITY_CATALOG, MOCK_CHANGES } from "./mockData";
 
@@ -121,6 +129,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
   private deliveryQueue: DeliveryQueueEntry[] = [];
   private businessDomains: BusinessDomain[] = JSON.parse(JSON.stringify(MOCK_BUSINESS_DOMAINS));
   private engagementScopes = new Map<string, EngagementScope>();
+  private dashboardThresholds = new Map<string, DashboardThresholds>();
   /** Keyed by agent name -- grows as the mock's own flows run, so Admin
    * > Agents' health view reflects what this session actually did,
    * same "derived, not hard-coded" rule as everything else here. */
@@ -156,7 +165,10 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
         displayName: identity.displayName,
         status: "active",
         roles: ["admin", "domain_owner", "product_manager", "dashboard_viewer"],
-        domainIds: [],
+        // Demo personas own every domain of their company, which is what
+        // lets them act as Domain Owner in the demo flows.
+        domainIds: this.businessDomains.filter((d) => d.customerId === customerId).map((d) => d.id),
+        revision: 1,
       }));
       this.companyMembers.set(customerId, members);
     }
@@ -334,6 +346,23 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
   async approveExactChange(id: string, input: DecisionInput): Promise<Change> {
     const change = this.scoped().find((c) => c.id === id);
     if (!change) throw new Error(`No change ${id}`);
+    // Same rule as the real gate: the company's approval policy decides
+    // who may approve, and without one nobody can.
+    const policy = this.engagementScopes.get(this.scope)?.approvalPolicy;
+    if (!policy) {
+      throw new Error(
+        "This company has no approval policy, so nobody is authorised to approve an exact change. " +
+          "An Admin must set one under Admin > ERP / JDE Landscape."
+      );
+    }
+    const session = getMockSession();
+    const roles = session.customers.find((c) => c.id === this.scope)?.roles ?? [];
+    if (!roles.some((r) => (policy.exactChangeApproverRoles as string[]).includes(r))) {
+      throw new Error(
+        `${session.displayName} does not hold a role this company's approval policy allows ` +
+          `(allowed: ${policy.exactChangeApproverRoles.join(", ")}).`
+      );
+    }
     change.changeApproval = {
       approvalId: `AP-${id}-C`,
       kind: "change",
@@ -341,7 +370,7 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       changeHash: "mock-hash-" + Math.random().toString(16).slice(2, 10),
       approvedBy: getMockSession().displayName,
       approvedAt: now(),
-      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      expiresAt: new Date(Date.now() + policy.approvalValidHours * 3600000).toISOString(),
       note: input.note,
     };
     change.state = "CHANGE_APPROVED";
@@ -506,7 +535,18 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
   }
 
   async listBusinessDomains(): Promise<BusinessDomain[]> {
-    return delay(this.businessDomains.filter((d) => d.customerId === this.scope));
+    // Same rule as the server: owners are the active Domain Owners assigned to the domain.
+    const members = this.ensureCompanyMembers(this.scope);
+    return delay(
+      this.businessDomains
+        .filter((d) => d.customerId === this.scope)
+        .map((d) => ({
+          ...d,
+          assignedOwners: members
+            .filter((m) => m.status === "active" && m.roles.includes("domain_owner") && m.domainIds.includes(d.id))
+            .map((m) => m.displayName),
+        }))
+    );
   }
 
   /** Same rule as every other metric: derived from real records, never hard-coded. */
@@ -933,6 +973,14 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
   /* Administration                                                    */
   /* ---------------------------------------------------------------- */
 
+  async updateCustomerProfile(): Promise<CustomerProfile> {
+    throw new Error("Editing a customer needs Jade's backend; this in-browser sample mode saves nothing.");
+  }
+
+  async createCustomer(): Promise<Customer> {
+    throw new Error("Creating a customer needs Jade's backend; this in-browser sample mode saves nothing.");
+  }
+
   async getCustomerProfile(): Promise<CustomerProfile> {
     const customer = CUSTOMERS.find((c) => c.id === this.scope);
     if (!customer) throw new Error(`No such customer: ${this.scope}`);
@@ -954,13 +1002,31 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       ais: { mockMode: true, baseUrlConfigured: false },
       engagementScopeConfigured: configured,
       scopeGloballySharedNote:
-        "mcp_server's JDE (AIS) connection and its scope.json engagement file are still a single, global " +
-        "configuration shared by every customer in this deployment -- they are not yet customer-specific. The " +
-        "Engagement Scope below is this customer's own intended configuration; it is the source an operator " +
-        "would export into scope.json for this engagement, but it is not yet wired into mcp_server's live " +
-        "enforcement. Making the JDE connection and scope genuinely per-customer is a larger change, out of " +
-        "scope here.",
+        "The Engagement Scope below is this company's own and is what the execution gate enforces for its " +
+        "stories: approved versions, dated spike experiments, the DEV environment binding and the approval " +
+        "policy. The JDE (AIS) connection itself is still one deployment-wide setting shared by every company; " +
+        "making it per-company is a later step.",
     });
+  }
+
+  /** The demo has no execution gate behind it; it says so instead of inventing a verdict. */
+  async getExecutionPreflight(changeId: string): Promise<PreflightResult> {
+    return delay({
+      changeId, mode: "unknown", executable: false, writeState: "ready", testState: "ready",
+      checks: [{
+        check: "Execution gate",
+        ok: false,
+        detail: "This is the demo. It has no execution gate behind it; connect to the real backend to see the gate's checks.",
+      }],
+    });
+  }
+
+  async reconcileExecution(): Promise<ReconcileResult> {
+    throw new Error("Reconciliation needs the real backend; the demo never executes anything.");
+  }
+
+  async reconcileTestRun(): Promise<ReconcileResult> {
+    throw new Error("Reconciliation needs the real backend; the demo never executes anything.");
   }
 
   async getEngagementScope(): Promise<EngagementScope> {
@@ -969,22 +1035,59 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     return delay({
       customerId: this.scope,
       toolsRelease: "",
-      functionalAgent: { approvedVersions: [], neverTouchCategories: [], approvers: [] },
+      functionalAgent: { approvedVersions: [], spikeExperiments: [], neverTouchCategories: [], neverTouchNotes: [], approvers: [] },
       technicalAgent: { authorizedObjectTypes: [], reservedProductCode: "", namingPrefix: "", approvers: [] },
+      mechanismsAllowed: [],
+      testScope: { approvedTests: [] },
+      revision: 0,
     });
   }
 
   async updateEngagementScope(input: EngagementScopeUpdateInput): Promise<EngagementScope> {
+    const existing = this.engagementScopes.get(this.scope);
+    const revision = nextRevision(existing?.revision, input.expectedRevision);
+    const actor = getMockSession().displayName;
+    const stamp = now();
     const scope: EngagementScope = {
       customerId: this.scope,
       toolsRelease: input.toolsRelease,
-      functionalAgent: input.functionalAgent,
+      environment: input.environment,
+      functionalAgent: {
+        ...input.functionalAgent,
+        spikeExperiments: (input.functionalAgent.spikeExperiments ?? []).map((s) => ({
+          ...s,
+          approvedBy: s.approvedBy ?? actor,
+          approvedAt: s.approvedAt ?? stamp,
+        })),
+      },
       technicalAgent: input.technicalAgent,
-      updatedAt: now(),
-      updatedBy: input.updatedBy,
+      approvalPolicy: input.approvalPolicy ?? null,
+      mechanismsAllowed: input.mechanismsAllowed ?? [],
+      testScope: input.testScope ?? { approvedTests: [] },
+      revision,
+      updatedAt: stamp,
+      updatedBy: actor,
     };
     this.engagementScopes.set(this.scope, scope);
     return delay(scope);
+  }
+
+  async getDashboardThresholds(): Promise<DashboardThresholds> {
+    return delay(this.dashboardThresholds.get(this.scope) ?? { ...DEFAULT_DASHBOARD_THRESHOLDS });
+  }
+
+  async updateDashboardThresholds(input: DashboardThresholdsUpdateInput): Promise<DashboardThresholds> {
+    const existing = this.dashboardThresholds.get(this.scope);
+    const thresholds: DashboardThresholds = {
+      warnAt: input.warnAt,
+      criticalAt: input.criticalAt,
+      configured: true,
+      revision: nextRevision(existing?.revision, input.expectedRevision),
+      updatedAt: now(),
+      updatedBy: getMockSession().displayName,
+    };
+    this.dashboardThresholds.set(this.scope, thresholds);
+    return delay(thresholds);
   }
 
   async listAgents(): Promise<AgentDefinition[]> {
@@ -1028,15 +1131,25 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       description: input.description ?? "",
       domainOwner: input.domainOwner ?? "",
       status: "active",
+      revision: 1,
+      updatedAt: now(),
+      updatedBy: getMockSession().displayName,
     };
     this.businessDomains = [...this.businessDomains, domain];
     return delay(domain);
   }
 
-  async updateBusinessDomainStatus(domainId: string, status: BusinessDomain["status"]): Promise<BusinessDomain> {
+  async updateBusinessDomainStatus(
+    domainId: string,
+    status: BusinessDomain["status"],
+    expectedRevision: number
+  ): Promise<BusinessDomain> {
     const domain = this.businessDomains.find((d) => d.id === domainId && d.customerId === this.scope);
     if (!domain) throw new Error(`No such business domain: ${domainId}`);
+    domain.revision = nextRevision(domain.revision, expectedRevision);
     domain.status = status;
+    domain.updatedAt = now();
+    domain.updatedBy = getMockSession().displayName;
     return delay(domain);
   }
 
@@ -1062,11 +1175,12 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     if (existing) return delay(existing);
     return delay({
       customerId: this.scope, baseUrl: "", projectKey: "", pickupStatus: "", postPickupStatus: "",
-      jadeIdField: "", requestTypeField: "",
+      jadeIdField: "", requestTypeField: "", revision: 0,
     });
   }
 
   async updateJiraIntegration(input: JiraIntegrationConfigUpdateInput): Promise<JiraIntegrationConfig> {
+    const revision = nextRevision(this.jiraConfigs.get(this.scope)?.revision, input.expectedRevision);
     const config: JiraIntegrationConfig = {
       customerId: this.scope,
       baseUrl: normalizeJiraBaseUrl(input.baseUrl),
@@ -1075,8 +1189,9 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
       postPickupStatus: input.postPickupStatus,
       jadeIdField: input.jadeIdField,
       requestTypeField: input.requestTypeField,
+      revision,
       updatedAt: now(),
-      updatedBy: input.updatedBy,
+      updatedBy: getMockSession().displayName,
     };
     this.jiraConfigs.set(this.scope, config);
     return delay(config);
@@ -1086,7 +1201,9 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     const config = this.jiraConfigs.get(this.scope);
     const creds = this.jiraCredentials.get(this.scope);
     return delay({
+      // The demo is, explicitly, demo mode.
       mockMode: true,
+      state: "demo",
       credentialsConfigured: !!creds && !!creds.email && !!creds.apiToken,
       configConfigured: !!config && jiraIsConfigured(config),
     });
@@ -1217,6 +1334,13 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     return invitation;
   }
 
+  async issuePasswordResetLink(): Promise<PasswordResetLinkOut> {
+    return delay({
+      sent: false,
+      previewUrl: `${window.location.origin}${window.location.pathname}?resetToken=mock-${Math.random().toString(16).slice(2, 10)}`,
+    });
+  }
+
   async resendInvitation(invitationId: string): Promise<InvitationOut> {
     const invitation = this.findInvitation(invitationId);
     invitation.status = "pending";
@@ -1253,21 +1377,24 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     const members = this.ensureCompanyMembers(this.scope);
     if (!input.roles.includes("admin")) this.assertNotLastActiveAdmin(members, membershipId);
     const member = this.findMembership(membershipId);
+    member.revision = nextRevision(member.revision, input.expectedRevision);
     member.roles = input.roles;
     member.domainIds = input.domainIds;
     return delay(member);
   }
 
-  async deactivateMembership(membershipId: string): Promise<MembershipOut> {
+  async deactivateMembership(membershipId: string, expectedRevision: number): Promise<MembershipOut> {
     const members = this.ensureCompanyMembers(this.scope);
     this.assertNotLastActiveAdmin(members, membershipId);
     const member = this.findMembership(membershipId);
+    member.revision = nextRevision(member.revision, expectedRevision);
     member.status = "inactive";
     return delay(member);
   }
 
-  async reactivateMembership(membershipId: string): Promise<MembershipOut> {
+  async reactivateMembership(membershipId: string, expectedRevision: number): Promise<MembershipOut> {
     const member = this.findMembership(membershipId);
+    member.revision = nextRevision(member.revision, expectedRevision);
     member.status = "active";
     return delay(member);
   }
