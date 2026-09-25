@@ -29,6 +29,9 @@ function RecordView({ rec, onNavigate }: { rec: AsBuiltRecord; onNavigate?: Navi
       {c.simulated_notice && <div className="callout" style={{ borderColor: "var(--warn)" }}><strong>{c.simulated_notice}</strong></div>}
       <section><h3>Delivery checkpoints</h3><Checkpoints items={c.checkpoints} /></section>
       <section><h3>Story</h3><p>{us?.statement ?? c.story?.title}</p>
+        {c.story_revision && <p className="hint">Story revision {c.story_revision.revision} by {c.story_revision.author_name}, applying {c.story_revision.applied_findings.length} finding(s);
+          process mapping revision {c.story_revision.process_refs?.mapping_revision ?? "none"}.</p>}
+        {us?.business_rules?.length > 0 && <ul>{us.business_rules.map((r: string) => <li key={r}>{r}</li>)}</ul>}
         {us?.acceptance_criteria?.length > 0 && <ul>{us.acceptance_criteria.map((a: any) => <li key={a.id}>{a.id}: {a.text}</li>)}</ul>}</section>
       <section><h3>Processes</h3>
         {!mapping ? <p className="notstated">No reviewer decision.</p> : mapping.status === "no_mapping"
@@ -57,15 +60,26 @@ function RecordView({ rec, onNavigate }: { rec: AsBuiltRecord; onNavigate?: Navi
           <p className="hint">{tech.format_label}</p>
           <details><summary>Exact change (diff)</summary><pre className="mono" style={{ fontSize: 12, overflowX: "auto" }}>{tech.diff}</pre></details>
           {tech.cnc_activation && <p>CNC activation of {tech.cnc_activation.package_name} by {tech.cnc_activation.by} ({tech.cnc_activation.evidence_reference}){tech.cnc_activation.simulated ? " -- SIMULATED" : ""}.</p>}
-        </>) : func ? <p>Exact change {func.exact_change.application}/{func.exact_change.version} option {func.exact_change.option} → {func.exact_change.proposed_value}</p>
-          : <p className="notstated">No implementation recorded.</p>}
+        </>) : func ? (<>
+          <p>Exact change <span className="mono">{func.change_id}</span> ({func.capability_id}), {func.environment}: <span className="mono">{func.operation.tool}</span>{" "}
+            {func.operation.application}/{func.operation.version} option {func.operation.option}:{" "}
+            <strong>{String(func.binding?.before_state?.value)} → {String(func.operation.value)}</strong></p>
+          <p>Approved by {func.approval?.approvedBy ?? func.approval?.approved_by} (roles {(func.approver_authority?.roles ?? []).join(", ")}).</p>
+          <ul>{(["write", "test"] as const).flatMap((k) => (func.attempts?.[k] ?? []).map((a: any) => (
+            <li key={a.attempt_id}>{k} attempt: <strong>{a.outcome}</strong> -- {a.detail}</li>)))}</ul>
+        </>) : <p className="notstated">No implementation recorded.</p>}
       </section>
       <section><h3>Verification</h3>
         {tech?.verification ? (
           <table className="grid"><thead><tr><th>Test</th><th>Kind</th><th>Result</th></tr></thead>
             <tbody>{tech.verification.results.map((r: any) => <tr key={r.name}><td>{r.name}</td><td>{r.kind}</td>
               <td><span className={`badge ${r.passed ? "ok" : "stop"}`}>{r.passed ? "passed" : "failed"}</span></td></tr>)}</tbody></table>
-        ) : <p className="notstated">No verification evidence.</p>}
+        ) : func ? (<>
+          <p>Test orchestration {func.test_orchestration}: {func.exact_change.execution.test_state}. <span className="hint">{func.test_note}</span></p>
+          <p>Read-back of the target: <strong>{String(func.readback?.value)}</strong>{" "}
+            <span className={`badge ${func.readback?.matches_approved ? "ok" : "stop"}`}>{func.readback?.matches_approved ? "matches the approved value" : "does not match"}</span>
+            <span className="hint"> {func.readback?.source}</span></p>
+        </>) : <p className="notstated">No verification evidence.</p>}
       </section>
       <section><h3>Deviations from the design</h3>{c.deviations.length ? <ul>{c.deviations.map((x: string, i: number) => <li key={i}>{x}</li>)}</ul> : <p>None found.</p>}</section>
       <section><h3>Unresolved limitations</h3>{c.limitations.length ? <ul>{c.limitations.map((x: string, i: number) => <li key={i}>{x}</li>)}</ul> : <p>None recorded.</p>}</section>

@@ -243,6 +243,21 @@ export function ProcessFramework({ navFilter, navToken, onNavigate }: Partial<Na
         <h1 style={{ marginTop: 0 }}>Process Framework</h1>
         <p className="hint">The company's business-process hierarchy that stories, process maps and designs refer to. Jade does
           not supply APQC content and never invents official identifiers: import content you are authorised to use, or your own hierarchy.</p>
+        {(() => {
+          const sel = list.frameworks.find((f) => f.framework_id === list.settings.selected_framework_id);
+          const apqc = list.frameworks.some((f) => f.source_kind === "apqc_authorised" && f.active_version);
+          return (
+            <div className="callout" style={{ borderColor: sel?.source_kind === "synthetic_fixture" ? "var(--warn)" : "var(--line)" }} aria-label="Framework status">
+              <strong>Framework status</strong>
+              <ul style={{ margin: "4px 0 0" }}>
+                <li>In use for this company: {sel ? <>{sel.name} v{sel.active_version} -- {kindBadge(sel.source_kind)}</> : "none selected"}</li>
+                <li>Official APQC content: {apqc ? "an authorised APQC import is active" : <strong>not loaded</strong>}. To use it, import the authorised
+                  workbook below as "APQC content the customer is authorised to use", with the licence reference.</li>
+                {sel?.source_kind === "synthetic_fixture" && <li>The SYN- identifiers are demonstration values, not APQC identifiers. Reviewing the journey with them is fine.</li>}
+              </ul>
+            </div>
+          );
+        })()}
         {notice && <div className="callout" style={{ borderColor: "var(--ok)" }}>{notice}</div>}
         {error && <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div>}
         {list.frameworks.length === 0 ? <p className="notstated">No framework imported yet.</p> : list.frameworks.map((f) => (

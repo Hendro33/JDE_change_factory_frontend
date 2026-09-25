@@ -88,6 +88,25 @@ export interface StoryProcessView {
   can_review: boolean;
 }
 
+export interface Finding {
+  finding_id: string; source: "refinement_agent" | "scripted_refinement" | "architect" | string; source_ref: string;
+  kind: "requirement" | "control" | "acceptance_criterion"; text: string;
+  status: "proposed" | "applied" | "rejected" | "deferred"; reason: string; decided_by: string | null;
+  decided_at: string | null; applied_in_revision: number | null;
+}
+export interface StoryRevision {
+  revision: number; source: "approved_story" | "process_refinement"; author_name: string; created_at: string; note: string;
+  applied_findings: { finding_id: string; kind: string; text: string; source: string; source_ref: string }[];
+  process_refs: { mapping_revision: number | null; status: string | null;
+                  refs: { framework_id: string; version: number; node_key: string; node_sha256: string; name: string }[] };
+  user_story: { statement: string; business_rules: string[]; acceptance_criteria: { id: string; text: string }[] };
+}
+export interface RefinementView {
+  findings: Finding[]; revisions: StoryRevision[]; current_revision: number; can_review: boolean;
+  story: { statement: string; business_rules: string[]; acceptance_criteria: { id: string; text: string }[] };
+}
+export interface DiffLine { section: string; op: " " | "+"; line: string; finding_id?: string }
+
 export interface Checkpoint { id: string; label: string; complete: boolean; detail: string }
 export interface AsBuiltRecord {
   story_id: string; version: number; status: "draft" | "final" | "superseded"; delivery_mode: "simulation" | "live";
@@ -176,6 +195,20 @@ export const processApi = {
       Promise<{ saved: MapVersion & { design_flagged: boolean }; view: StoryProcessView }> {
     return request(`/changes/${enc(storyId)}/process/maps/${kind}`, { method: "PUT", customerId: await customer(),
       body: { content, note, expectedVersion } });
+  },
+  async refinement(storyId: string): Promise<RefinementView> {
+    return request<RefinementView>(`/changes/${enc(storyId)}/process/refinement`, { customerId: await customer() });
+  },
+  async previewRefinement(storyId: string, findingIds: string[]): Promise<{ diff: DiffLine[] }> {
+    return request(`/changes/${enc(storyId)}/process/refinement/preview`, { method: "POST", customerId: await customer(), body: { findingIds } });
+  },
+  async applyRefinement(storyId: string, findingIds: string[], note: string, expectedRevision: number): Promise<RefinementView> {
+    return request<RefinementView>(`/changes/${enc(storyId)}/process/refinement/apply`, { method: "POST", customerId: await customer(),
+      body: { findingIds, note, expectedRevision } });
+  },
+  async setFindingStatus(storyId: string, findingId: string, status: "rejected" | "deferred" | "proposed", reason: string): Promise<RefinementView> {
+    return request<RefinementView>(`/changes/${enc(storyId)}/process/refinement/findings/${enc(findingId)}`, { method: "POST",
+      customerId: await customer(), body: { status, reason } });
   },
   async asBuilt(storyId: string): Promise<AsBuiltView> {
     return request<AsBuiltView>(`/changes/${enc(storyId)}/as-built`, { customerId: await customer() });

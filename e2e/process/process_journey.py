@@ -69,6 +69,8 @@ with sync_playwright() as p:
         expect(admin.locator("h3:has-text('SYN-5.2.2')")).to_be_visible()
         expect(admin.locator(f"li >> button:has-text('{STORY}')")).to_be_visible()
         check("a process node lists the stories mapped to it", admin.locator(f"li >> button:has-text('{STORY}')").count() == 1)
+        check("the status says official APQC content is not loaded",
+              admin.locator("[aria-label='Framework status'] >> text=not loaded").count() == 1)
         admin.screenshot(path=f"{SHOTS}/1-framework.png", full_page=True)
 
         # 2. Hierarchy -> story: mapping, suggestions labelled as scripted, maps and diagram.
@@ -113,6 +115,20 @@ with sync_playwright() as p:
               "status **FINAL**" in md and "SIMULATED DELIVERY" in md and "```mermaid" in md)
         admin.screenshot(path=f"{SHOTS}/3-as-built-final.png", full_page=True)
 
+        # 3b. The Functional route: a simulated processing-option change, into a finalised record.
+        admin.click("button:has-text('S-BW-RETURNTYPE')")
+        expect(admin.locator(".badge:has-text('complete')").first).to_be_visible()
+        admin.click("button:has-text('Generate new version')")
+        expect(admin.locator("h2:has-text('S-BW-RETURNTYPE as-built record')")).to_be_visible()
+        check("the Functional record shows the actual change and its read-back, labelled simulated",
+              admin.locator("strong:has-text('S3 → CR')").count() == 1
+              and admin.locator(".badge:has-text('matches the approved value')").count() == 1
+              and admin.locator("text=SIMULATED DELIVERY").count() >= 1)
+        admin.click("button:has-text('Finalise this version')")
+        expect(admin.locator(".badge:has-text('FINAL')")).to_be_visible()
+        check("the Functional as-built record is finalised", admin.locator("button:has-text('v1 · final')").count() == 1)
+        admin.screenshot(path=f"{SHOTS}/3b-functional-as-built.png", full_page=True)
+
         # 4. A framework update keeps historical references and flags the design.
         go(admin, "Admin", "Process Framework")
         admin.set_input_files("input[aria-label='Framework workbook']",
@@ -130,6 +146,23 @@ with sync_playwright() as p:
               and admin.locator("text=SYNTHETIC BicycleWorks process framework v1").count() >= 4)
         check("the design is flagged for reassessment", admin.locator("text=process framework revised").count() == 1)
         admin.screenshot(path=f"{SHOTS}/4-framework-v2-flags.png", full_page=True)
+
+        # 4b. Story refinement: a reviewed diff becomes an attributed story revision.
+        check("the seeded revision shows what the demo admin applied earlier",
+              admin.locator("#story-refinement >> text=by E2E Admin").count() == 1)
+        admin.check("input[aria-label='Select finding State who may override a classification']")
+        admin.click("button:has-text('Preview story changes (1)')")
+        expect(admin.locator("text=+ Requirement: State who may override a classification")).to_be_visible()
+        check("the proposed change is shown as a diff against the approved story",
+              admin.locator("text=Proposed change to the approved story (revision 2 → 3)").count() == 1)
+        admin.click("button:has-text('Apply as a new story revision')")
+        expect(admin.locator("text=Story revision 3 saved")).to_be_visible()
+        admin.fill("input[aria-label='Reason for State how long a return authorisation number stays valid']", "ask the dealer council first")
+        admin.click("tr:has-text('State how long a return authorisation number stays valid') >> button:has-text('Defer')")
+        expect(admin.locator(".badge:has-text('deferred')")).to_be_visible()
+        check("the revision is attributed and the design is flagged", admin.locator("text=story revised").count() >= 1
+              and admin.locator(".badge:has-text('applied in r3')").count() == 1)
+        admin.screenshot(path=f"{SHOTS}/4b-story-refinement.png", full_page=True)
 
         # 5. Another authorised browser: the Domain Owner assigned to the story's domain.
         do = login(browser, "do@e2e.local", DO_PW)
@@ -178,6 +211,11 @@ with sync_playwright() as p:
         check("a new draft lists the framework change as an unresolved limitation and cannot be finalised",
               admin.locator("text=Cannot finalise: required checkpoints are missing.").count() == 1
               and admin.locator("text=differs in active version 2").count() >= 1)
+        open_story(admin)
+        expect(admin.locator("#story-refinement >> .badge:has-text('deferred')")).to_be_visible()
+        check("after restart: story revisions and finding decisions survive",
+              admin.locator("#story-refinement >> text=r3").count() >= 1
+              and admin.locator("text=ask the dealer council first").count() == 1)
         admin.screenshot(path=f"{SHOTS}/6-after-restart.png", full_page=True)
     browser.close()
 

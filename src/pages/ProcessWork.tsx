@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { api, IS_MOCK_MODE } from "../services/api";
 import { saveErrorMessage } from "../services/saveErrors";
 import {
-  processApi, type FrameworkNode, type MapContent, type MapStep, type PinnedRef, type StoryProcessView,
+  processApi, type DiffLine, type FrameworkNode, type MapContent, type MapStep, type PinnedRef, type RefinementView,
+  type StoryProcessView,
 } from "../services/processApi";
 import type { Change } from "../types/domain";
 import type { Navigate, NavTarget } from "../types/nav";
@@ -51,7 +52,6 @@ function MappingSection({ view, nodes, onChanged, onNavigate }: { view: StoryPro
   const run = view.runs[0];
   const suggestions = run?.result.suggested_processes ?? [];
   const [chosen, setChosen] = useState<Record<string, boolean>>({});
-  const [accepted, setAccepted] = useState<Record<string, boolean>>({});
   const [extra, setExtra] = useState("");
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
@@ -76,10 +76,9 @@ function MappingSection({ view, nodes, onChanged, onNavigate }: { view: StoryPro
       ...suggestions.filter((s) => chosen[s.node_key]).map((s) => ({ framework_id: s.framework_id, version: s.version, node_key: s.node_key, rationale: s.rationale })),
       ...extra.split(/[,\s]+/).filter(Boolean).map((k) => ({ framework_id: fw.framework_id, version: fw.version, node_key: k, rationale: "added by the reviewer" })),
     ];
-    const accept = Object.fromEntries(findings.map(([key, , items]) => [key, items.filter((x) => accepted[`${key}:${x}`])]));
     try {
       await processApi.decide(view.story_id, { status, refs: status === "confirmed" ? refs : [], noMappingReason: reason,
-        findings: accept, analysisRunId: run?.run_id ?? null, note, expectedRevision: view.mapping?.revision ?? 0 });
+        findings: {}, analysisRunId: run?.run_id ?? null, note, expectedRevision: view.mapping?.revision ?? 0 });
       setExtra(""); setReason(""); onChanged();
     } catch (e) { setError(saveErrorMessage(e, "Refused.")); } finally { setBusy(false); }
   }
@@ -107,13 +106,9 @@ function MappingSection({ view, nodes, onChanged, onNavigate }: { view: StoryPro
             </label>
           ))}
           {(run.result.rejected_suggestions ?? []).length > 0 && <p className="hint">Rejected (not in the framework): {run.result.rejected_suggestions!.join("; ")}</p>}
-          {findings.map(([key, title, items]) => items.length > 0 && (
-            <div key={key}><strong>{title}</strong>{items.map((x) => (
-              <label key={x} style={{ display: "block" }}>
-                <input type="checkbox" disabled={!view.can_review} checked={!!accepted[`${key}:${x}`]}
-                       onChange={(e) => setAccepted({ ...accepted, [`${key}:${x}`]: e.target.checked })} /> {x}
-              </label>))}</div>
-          ))}
+          {findings.some(([, , items]) => items.length > 0) && (
+            <p className="hint">{findings.reduce((n, [, , items]) => n + items.length, 0)} missing requirement / control /
+              acceptance-criterion finding(s): reviewed as story changes in <a href="#story-refinement">Story refinement</a> below.</p>)}
         </div>
       )}
       {view.can_review && fw && (
@@ -154,6 +149,94 @@ function MappingSection({ view, nodes, onChanged, onNavigate }: { view: StoryPro
           <ul>{view.mapping_history.map((m) => <li key={m.revision}>r{m.revision} {m.status} by {m.reviewer_name} -- {m.refs.map((r) => `${r.node_key}@v${r.version}`).join(", ") || m.no_mapping_reason}</li>)}</ul>
         </details>
       )}
+    </section>
+  );
+}
+
+
+const sourceLabel: Record<string, JSX.Element> = {
+  scripted_refinement: <span className="badge warn">scripted stand-in</span>,
+  refinement_agent: <span className="badge grey">refinement agent</span>,
+  architect: <span className="badge grey">Architect</span>,
+};
+const statusTone2: Record<string, string> = { proposed: "warn", applied: "ok", rejected: "stop", deferred: "grey" };
+
+/** Accepted findings become a reviewed, attributed story revision -- agents never change the story themselves. */
+function StoryRefinement({ storyId, onChanged }: { storyId: string; onChanged: () => void }) {
+  const [v, setV] = useState<RefinementView | null>(null);
+  const [sel, setSel] = useState<Record<string, boolean>>({});
+  const [diff, setDiff] = useState<DiffLine[] | null>(null);
+  const [note, setNote] = useState("");
+  const [reason, setReason] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const load = () => processApi.refinement(storyId).then((x) => { setV(x); setSel({}); setDiff(null); })
+    .catch((e) => setError(saveErrorMessage(e, "Could not load findings.")));
+  useEffect(() => { load(); setNotice(null); }, [storyId]);
+  if (!v) return null;
+  const chosen = Object.keys(sel).filter((k) => sel[k]);
+  const open = (s: string) => s === "proposed" || s === "deferred";
+
+  async function act(fn: () => Promise<unknown>, msg?: string) {
+    setBusy(true); setError(null);
+    try { await fn(); if (msg) setNotice(msg); await load(); onChanged(); } catch (e) { setError(saveErrorMessage(e, "Refused.")); } finally { setBusy(false); }
+  }
+  return (
+    <section className="panel" id="story-refinement">
+      <h2 style={{ marginTop: 0 }}>Story refinement from findings</h2>
+      <p className="hint">Agents only propose. A reviewer selects findings, checks the exact change to the approved story, and applies it
+        as a new story revision. Applying one flags the design for reassessment and stops existing approvals from executing.</p>
+      {v.findings.length === 0 ? <p className="notstated">No findings yet.</p> : (
+        <table className="grid" style={{ fontSize: 13 }}>
+          <thead><tr><th></th><th>Finding</th><th>Kind</th><th>From</th><th>Status</th><th></th></tr></thead>
+          <tbody>{v.findings.map((f) => (
+            <tr key={f.finding_id}>
+              <td>{open(f.status) && v.can_review && <input type="checkbox" aria-label={`Select finding ${f.text}`} checked={!!sel[f.finding_id]}
+                     onChange={(e) => { setSel({ ...sel, [f.finding_id]: e.target.checked }); setDiff(null); }} />}</td>
+              <td>{f.text}</td><td>{f.kind.replace(/_/g, " ")}</td><td>{sourceLabel[f.source] ?? f.source}</td>
+              <td><span className={`badge ${statusTone2[f.status]}`}>{f.status}{f.applied_in_revision ? ` in r${f.applied_in_revision}` : ""}</span>
+                {f.reason && <div className="hint">{f.reason}{f.decided_by ? ` -- ${f.decided_by}` : ""}</div>}</td>
+              <td>{v.can_review && f.status !== "applied" && (
+                <span style={{ display: "inline-flex", gap: 4 }}>
+                  <input aria-label={`Reason for ${f.text}`} placeholder="reason" size={12} value={reason[f.finding_id] ?? ""}
+                         onChange={(e) => setReason({ ...reason, [f.finding_id]: e.target.value })} />
+                  {f.status !== "deferred" && <button className="btn small" disabled={busy} onClick={() => act(() => processApi.setFindingStatus(storyId, f.finding_id, "deferred", reason[f.finding_id] ?? ""))}>Defer</button>}
+                  {f.status !== "rejected" && <button className="btn small" disabled={busy} onClick={() => act(() => processApi.setFindingStatus(storyId, f.finding_id, "rejected", reason[f.finding_id] ?? ""))}>Reject</button>}
+                  {f.status !== "proposed" && <button className="btn small" disabled={busy} onClick={() => act(() => processApi.setFindingStatus(storyId, f.finding_id, "proposed", ""))}>Reopen</button>}
+                </span>)}</td>
+            </tr>))}</tbody>
+        </table>
+      )}
+      {v.can_review && (
+        <div className="btnrow" style={{ marginTop: 8 }}>
+          <button className="btn small" disabled={busy || chosen.length === 0}
+                  onClick={() => processApi.previewRefinement(storyId, chosen).then((d) => setDiff(d.diff)).catch((e) => setError(saveErrorMessage(e, "Refused.")))}>
+            Preview story changes ({chosen.length})</button>
+        </div>
+      )}
+      {diff && (
+        <div className="callout">
+          <strong>Proposed change to the approved story (revision {v.current_revision || 1} → {(v.current_revision || 1) + 1})</strong>
+          {["business_rules", "acceptance_criteria"].map((sec) => (
+            <div key={sec}><div className="hint">{sec === "business_rules" ? "Requirements and controls" : "Acceptance criteria"}</div>
+              <pre className="mono" style={{ fontSize: 12.5, margin: 0, whiteSpace: "pre-wrap" }}>{diff.filter((d) => d.section === sec).map((d, i) => (
+                <div key={i} style={{ color: d.op === "+" ? "var(--ok)" : undefined }}>{d.op} {d.line}</div>))}</pre></div>))}
+          <label>Note <input aria-label="Revision note" value={note} onChange={(e) => setNote(e.target.value)} /></label>
+          <div className="btnrow"><button className="btn primary" disabled={busy}
+            onClick={() => act(() => processApi.applyRefinement(storyId, chosen, note, v.current_revision),
+              `Story revision ${(v.current_revision || 1) + 1} saved; the design is flagged for reassessment.`)}>Apply as a new story revision</button></div>
+        </div>
+      )}
+      {notice && <div className="callout" style={{ borderColor: "var(--ok)" }}>{notice}</div>}
+      {error && <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div>}
+      {v.revisions.length > 0 && (
+        <details open><summary>Story revisions ({v.revisions.length})</summary>
+          <ul>{v.revisions.map((r) => (
+            <li key={r.revision}><strong>r{r.revision}</strong> {r.source === "approved_story" ? "the approved story before refinement"
+              : <>by {r.author_name} · {r.created_at.slice(0, 16).replace("T", " ")} · applied: {r.applied_findings.map((a) => a.text).join("; ")}</>}
+              <div className="hint">process mapping revision {r.process_refs.mapping_revision ?? "none"}: {r.process_refs.refs.map((x) => `${x.node_key}@v${x.version}`).join(", ") || "no processes"}</div></li>))}</ul>
+        </details>)}
     </section>
   );
 }
@@ -322,6 +405,7 @@ export function ProcessWork({ navFilter, navToken, onNavigate }: Partial<NavTarg
               <ul>{change.userStory.acceptanceCriteria.map((a) => <li key={a.id}>{a.id}: {a.text}</li>)}</ul></details>) : null}
         </section>
         <MappingSection view={view} nodes={nodes} onChanged={load} onNavigate={onNavigate} />
+        <StoryRefinement storyId={view.story_id} onChanged={() => { load(); api.listChanges().then((all) => setChanges((cur) => cur && all.filter((c) => cur.some((x) => x.id === c.id)))); }} />
         <section className="panel" id="process-maps">
           <h2 style={{ marginTop: 0 }}>Process maps</h2>
           <div className="btnrow">

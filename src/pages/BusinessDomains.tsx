@@ -73,8 +73,8 @@ export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
         <div>
           <h1>Business Domains</h1>
           <div className="sub">
-            The customer's own business taxonomy, classified against APQC — the ownership hook
-            for the User Stories raised against each one.
+            The customer's own business taxonomy — the ownership hook for the User Stories raised against each one.
+            Domain codes are the customer's own references; they are not verified against APQC content.
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -90,11 +90,11 @@ export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
           <h2>New business domain</h2>
           <div className="grid halves">
             <div className="field">
-              <label htmlFor="apqcCode">APQC code</label>
+              <label htmlFor="apqcCode">Domain code <span className="hint">(customer reference)</span></label>
               <input id="apqcCode" type="text" value={apqcCode} onChange={(e) => setApqcCode(e.target.value)} placeholder="4.4.1" />
             </div>
             <div className="field">
-              <label htmlFor="level">Level <span className="hint">(dotted depth, matches APQC code)</span></label>
+              <label htmlFor="level">Level <span className="hint">(dotted depth, matches the domain code)</span></label>
               <input id="level" type="text" value={level} onChange={(e) => setLevel(e.target.value)} placeholder="4.4.1" />
             </div>
           </div>
@@ -133,7 +133,7 @@ export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
         <section className="panel">
           <table className="data">
             <thead>
-              <tr><th>APQC code</th><th>Domain</th><th>Level</th><th>Domain Owner</th><th>Status</th></tr>
+              <tr><th>Domain code</th><th>Domain</th><th>Level</th><th>Domain Owner</th><th>Status</th></tr>
             </thead>
             <tbody>
               {domains.map((d) => (
