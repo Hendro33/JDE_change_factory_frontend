@@ -45,8 +45,7 @@ import type {
   MembershipOut,
   Session,
   UpdateMembershipInput,
-  UserStory,
-} from "../types/domain";
+  UserStory, CustomerInput, Customer } from "../types/domain";
 
 /**
  * The REST endpoints the FastAPI backend is expected to expose.
@@ -309,6 +308,10 @@ export interface ChangeFactoryApi {
 
   /** The active customer's profile plus who is entitled to it. */
   getCustomerProfile(): Promise<CustomerProfile>;
+  /** Admin: edit the active customer's own information. */
+  updateCustomerProfile(input: CustomerInput): Promise<CustomerProfile>;
+  /** Admin: create a new (real, non-demo) customer; the creator becomes its Admin. */
+  createCustomer(input: CustomerInput): Promise<Customer>;
   /** JDE connection + engagement-scope status. Never a credential value. */
   getErpLandscape(): Promise<ErpLandscape>;
   /** Read-only: what the execution gate would decide right now. */
@@ -420,6 +423,8 @@ export interface ChangeFactoryApi {
 import { MockChangeFactoryApi } from "./mockApi";
 import { HttpChangeFactoryApi } from "./httpApi";
 
-export const IS_MOCK_MODE = import.meta.env.VITE_USE_MOCK_API !== "false";
+// The real backend is the default. The in-browser sample-data mode runs only
+// when explicitly asked for (VITE_USE_MOCK_API=true), and says so on every page.
+export const IS_MOCK_MODE = import.meta.env.VITE_USE_MOCK_API === "true";
 
 export const api: ChangeFactoryApi = IS_MOCK_MODE ? new MockChangeFactoryApi() : new HttpChangeFactoryApi();

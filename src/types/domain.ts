@@ -28,6 +28,8 @@ export interface Customer {
   toolsRelease: string;
   /** Which JDE environment this engagement's pilot targets. */
   environment: string;
+  /** Demo customers hold test data only; simulated JDE exists only inside them. */
+  isDemo?: boolean;
   /**
    * This user's roles on THIS company specifically — a user can hold
    * different roles on different companies. See CompanyRole's own
@@ -664,6 +666,15 @@ export interface IdentitySummary {
 export interface CustomerProfile {
   customer: Customer;
   identities: IdentitySummary[];
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
+export interface CustomerInput {
+  name: string;
+  shortName: string;
+  toolsRelease: string;
+  environment: string;
 }
 
 /* ------------------------------------------------------------------ */

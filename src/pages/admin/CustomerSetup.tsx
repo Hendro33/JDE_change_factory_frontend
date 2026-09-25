@@ -6,10 +6,111 @@ import {
   readLegacyLocalThresholds,
 } from "../../services/dashboardThresholds";
 import { saveErrorMessage } from "../../services/saveErrors";
-import type { CustomerProfile, DashboardThresholds } from "../../types/domain";
+import type { CustomerInput, CustomerProfile, DashboardThresholds } from "../../types/domain";
+import type { Navigate } from "../../types/nav";
 import { ApiNote, Loading } from "../../components/ui";
 
-export function CustomerSetup() {
+const EMPTY: CustomerInput = { name: "", shortName: "", toolsRelease: "", environment: "" };
+
+/** Edit the active customer, or create a new one. Saved on the backend; Admin only. */
+function CustomerEditor({ profile, isAdmin, onSaved }: { profile: CustomerProfile; isAdmin: boolean; onSaved: (p: CustomerProfile) => void }) {
+  const c = profile.customer;
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<CustomerInput>({ name: c.name, shortName: c.shortName, toolsRelease: c.toolsRelease, environment: c.environment });
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState<CustomerInput>(EMPTY);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const field = (label: string, v: CustomerInput, set: (x: CustomerInput) => void, k: keyof CustomerInput, placeholder = "") => (
+    <label className="field">{label}<input aria-label={label} value={v[k]} placeholder={placeholder} onChange={(e) => set({ ...v, [k]: e.target.value })} /></label>
+  );
+  async function save() {
+    setBusy(true); setError(null); setNote(null);
+    try { onSaved(await api.updateCustomerProfile(form)); setEditing(false); setNote("Saved."); }
+    catch (e) { setError(saveErrorMessage(e, "Could not save the customer.")); }
+    finally { setBusy(false); }
+  }
+  async function create() {
+    setBusy(true); setError(null);
+    try { await api.createCustomer(draft); window.location.reload(); }
+    catch (e) { setError(saveErrorMessage(e, "Could not create the customer.")); setBusy(false); }
+  }
+  return (
+    <section className="panel">
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <h2 style={{ margin: 0 }}>{c.name} {c.isDemo && <span className="badge warn">DEMO customer — test data</span>}</h2>
+        {isAdmin && !editing && <div className="btnrow">
+          <button className="btn" onClick={() => setEditing(true)}>Edit customer</button>
+          <button className="btn" onClick={() => { setCreating(!creating); setDraft(EMPTY); }}>New customer</button>
+        </div>}
+      </div>
+      {!editing ? (
+        <dl className="facts">
+          <dt>Customer id</dt><dd className="mono">{c.id}</dd>
+          <dt>Short name</dt><dd>{c.shortName}</dd>
+          <dt>JDE Tools Release</dt><dd>{c.toolsRelease || <span className="notstated">not stated</span>}</dd>
+          <dt>JDE environment</dt><dd>{c.environment || <span className="notstated">not stated</span>}</dd>
+          <dt>Kind</dt><dd>{c.isDemo ? "Demo customer: test data; simulated JDE allowed" : "Real customer: live connections only, nothing simulated"}</dd>
+          <dt>Last changed</dt><dd>{profile.updatedAt ? `${new Date(profile.updatedAt).toLocaleString("en-GB")} by ${profile.updatedBy}` : <span className="notstated">not changed since it was created</span>}</dd>
+        </dl>
+      ) : (
+        <div className="stack">
+          <div className="grid halves">
+            {field("Customer name", form, setForm, "name")}
+            {field("Short name", form, setForm, "shortName")}
+            {field("JDE Tools Release", form, setForm, "toolsRelease", "e.g. 9.2.26.2")}
+            {field("JDE environment", form, setForm, "environment", "e.g. JPS920")}
+          </div>
+          <div className="btnrow">
+            <button className="btn primary" disabled={busy || !form.name.trim()} onClick={save}>Save customer</button>
+            <button className="btn" onClick={() => setEditing(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {creating && !editing && (
+        <div className="callout" style={{ marginTop: 12 }}>
+          <strong>New customer</strong>
+          <div className="hint">A real customer: its JDE and Jira connections are live only. You become its Admin and it opens straight away.</div>
+          <div className="grid halves">
+            {field("New customer name", draft, setDraft, "name")}
+            {field("New customer short name", draft, setDraft, "shortName")}
+            {field("New customer Tools Release", draft, setDraft, "toolsRelease", "e.g. 9.2.26.2")}
+            {field("New customer JDE environment", draft, setDraft, "environment", "e.g. JPS920")}
+          </div>
+          <div className="btnrow"><button className="btn primary" disabled={busy || !draft.name.trim()} onClick={create}>Create customer</button></div>
+        </div>
+      )}
+      {error && <div className="callout" role="alert" style={{ borderColor: "var(--stop)", marginTop: 8 }}>{error}</div>}
+      {note && <div className="hint" role="status">{note}</div>}
+      <ApiNote endpoint="GET/PUT /admin/customer-profile, POST /admin/customers" />
+    </section>
+  );
+}
+
+/** Where this customer's other configuration lives. */
+function CustomerConfigLinks({ onNavigate }: { onNavigate?: Navigate }) {
+  const links: [string, Parameters<Navigate>[0], string][] = [
+    ["Connected systems", "admin-integrations", "JD Edwards connection, Jira, test connections"],
+    ["ERP / JDE Landscape", "admin-erp", "Engagement scope, approval policy, DEV binding"],
+    ["Business Domains", "domains", "Domains and their owners"],
+    ["Process Framework", "admin-process", "Process framework import and versions"],
+    ["Agents", "admin-agents", "Which agents run for this customer"],
+    ["Users", "admin-users", "Members, roles, invitations"],
+    ["Requirements", "userstories", "This customer's requests"],
+    ["User Stories", "userstories", "This customer's user stories"],
+  ];
+  return (
+    <section className="panel">
+      <h2>This customer's configuration</h2>
+      <table className="data"><tbody>{links.map(([label, page, what]) => (
+        <tr key={label}><td><button className="linkish" onClick={() => onNavigate?.(page, label === "Requirements" ? { view: "requests" } : label === "User Stories" ? { view: "all" } : undefined)}>{label}</button></td>
+          <td className="hint">{what}</td></tr>))}</tbody></table>
+    </section>
+  );
+}
+
+export function CustomerSetup({ onNavigate }: { onNavigate?: Navigate }) {
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   // What the server holds (null until loaded) and the form's working copy.
@@ -84,7 +185,7 @@ export function CustomerSetup() {
       <div className="pagehead">
         <div>
           <h1>Customer Setup</h1>
-          <div className="sub">The active customer's profile and who is entitled to it.</div>
+          <div className="sub">The active customer's information, its configuration, and who can work on it.</div>
         </div>
       </div>
 
@@ -92,23 +193,13 @@ export function CustomerSetup() {
         <Loading what="the customer profile" />
       ) : (
         <div className="stack">
-          <section className="panel">
-            <h2>{profile.customer.name}</h2>
-            <dl className="facts">
-              <dt>Customer id</dt><dd className="mono">{profile.customer.id}</dd>
-              <dt>Short name</dt><dd>{profile.customer.shortName}</dd>
-              <dt>JDE Tools Release</dt><dd>{profile.customer.toolsRelease}</dd>
-              <dt>Environment</dt><dd>{profile.customer.environment}</dd>
-            </dl>
-            <ApiNote endpoint="GET /admin/customer-profile" />
-          </section>
+          <CustomerEditor profile={profile} isAdmin={isAdmin} onSaved={setProfile} />
+          <CustomerConfigLinks onNavigate={onNavigate} />
 
           <section className="panel">
-            <h2>Entitled identities</h2>
+            <h2>Members</h2>
             <div className="sub" style={{ marginBottom: 12 }}>
-              Who can reach this customer today. Identity/authorisation is still a documented
-              stand-in for real authentication — this list comes from a static entitlement table,
-              not a login system.
+              Who can sign in to this customer and with which roles. Manage them under Admin › Users.
             </div>
             <table className="data">
               <thead>

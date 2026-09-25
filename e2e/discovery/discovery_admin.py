@@ -47,6 +47,8 @@ with sync_playwright() as p:
 
     nav(page, "Admin", "Integrations")
     page.click("button:has-text('Set up')")
+    # A demo customer may choose the simulated endpoint; new connections default to Live.
+    page.click("label:has-text('(demo customers only)') >> input[type=radio]")
     page.get_by_label("Connection name").fill("BicycleWorks PS920 trial (simulated)")
     page.get_by_label("AIS HTTPS address").fill("https://ais-dev.customer.example:9302/jderest")
     page.get_by_label("JDE environment", exact=True).fill("PS920")

@@ -27,7 +27,7 @@ function blankConfig(): JdeProfileConfig {
   const start = new Date();
   const end = new Date(start.getTime() + 7 * 24 * 3600 * 1000);
   return {
-    connectionName: "", connectionMode: "simulation", aisBaseUrl: "https://", environment: "", environmentPurpose: "development",
+    connectionName: "", connectionMode: "live", aisBaseUrl: "https://", environment: "", environmentPurpose: "development",
     trialApprovalReference: "", role: "", expectedApplicationRelease: "", expectedToolsRelease: "", pathCode: "",
     authMethod: "ais_token_request", customerContact: "", cncContact: "", networkRoute: "", isolationEvidence: "",
     routingIsolationConfirmed: false, privilegeStatement: "", privilegeConfirmed: false, runtimeAttestationConfirmed: false,
@@ -285,6 +285,7 @@ export function JdeDiscoveryPanel() {
   const [activity, setActivity] = useState<ActivityRow[] | null>(null);
   const [documents, setDocuments] = useState<ArtifactView[]>([]);
   const [company, setCompany] = useState("");
+  const [isDemo, setIsDemo] = useState(false);
 
   const load = () => {
     discoveryApi.getProfile().then((v) => {
@@ -297,7 +298,11 @@ export function JdeDiscoveryPanel() {
   };
   useEffect(() => {
     load();
-    api.getSession().then((s) => setCompany(s.customers.find((c) => c.id === s.activeCustomerId)?.name ?? s.activeCustomerId));
+    api.getSession().then((s) => {
+      const c = s.customers.find((x) => x.id === s.activeCustomerId);
+      setCompany(c?.name ?? s.activeCustomerId);
+      setIsDemo(!!c?.isDemo);
+    });
   }, []);
 
   async function run(label: string, fn: () => Promise<unknown>) {
@@ -348,6 +353,12 @@ export function JdeDiscoveryPanel() {
         network controls must restrict it too.
       </div>
 
+      {view.configured && cfg && !live && !isDemo && (
+        <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}>
+          <strong>This connection is set to Simulation, which real customers cannot use.</strong> Choose Edit settings, select Live and
+          enter the customer's AIS address. Nothing is simulated for this customer.
+        </div>
+      )}
       {view.configured && cfg && (
         <div className="stack">
           <div style={{ fontSize: 15 }}>
@@ -481,8 +492,8 @@ export function JdeDiscoveryPanel() {
               <label className="field">Company<input value={company} disabled /></label>
             </div>
             <div role="radiogroup" aria-label="Connection mode" style={{ marginTop: 6 }}>
-              <label style={{ display: "block", fontWeight: 400 }}><input type="radio" checked={form.connectionMode === "simulation"} onChange={() => set("connectionMode", "simulation")} />{" "}
-                <strong>Simulation</strong> -- Jade's simulated AIS endpoint; nothing leaves the backend; results are labelled SIMULATION.</label>
+              {isDemo && <label style={{ display: "block", fontWeight: 400 }}><input type="radio" checked={form.connectionMode === "simulation"} onChange={() => set("connectionMode", "simulation")} />{" "}
+                <strong>Simulation</strong> (demo customers only) -- Jade's simulated AIS endpoint; nothing leaves the backend; results are labelled SIMULATION.</label>}
               <label style={{ display: "block", fontWeight: 400 }}><input type="radio" checked={form.connectionMode === "live"} onChange={() => set("connectionMode", "live")} />{" "}
                 <strong>Live</strong> -- the customer's AIS server, read-only. There is no fallback to simulation.
                 {!view.liveAllowedByDeployment && <span className="badge warn"> live access is not yet enabled on this server</span>}</label>

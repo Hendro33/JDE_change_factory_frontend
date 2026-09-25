@@ -37,8 +37,7 @@ import type {
   MeOut,
   Session,
   UpdateMembershipInput,
-  UserStory,
-} from "../types/domain";
+  UserStory, CustomerInput, Customer } from "../types/domain";
 import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
 import { RevisionConflictError } from "./saveErrors";
 
@@ -66,7 +65,7 @@ import { RevisionConflictError } from "./saveErrors";
  * client. Nothing here should be read as "the frontend decides access."
  */
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 const ACTIVE_CUSTOMER_KEY = "ciq_http_active_customer";
 
@@ -127,15 +126,20 @@ export async function request<T>(
     if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
   }
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers,
-    // The session cookie is httponly, set by /auth/login -- this is
-    // what actually sends it (and is required for it to be sent
-    // cross-origin, see config.py's cookie_samesite comment).
-    credentials: "include",
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers,
+      // The session cookie is httponly, set by /auth/login -- this is
+      // what actually sends it (and is required for it to be sent
+      // cross-origin, see config.py's cookie_samesite comment).
+      credentials: "include",
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    });
+  } catch {
+    throw new Error(`Cannot reach Jade's backend at ${BASE_URL}. Check that it is running (scripts/run_local_preview.sh) and try again.`);
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -453,6 +457,19 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
   async getCustomerProfile(): Promise<CustomerProfile> {
     const customerId = await this.activeCustomerId();
     return request<CustomerProfile>("/admin/customer-profile", { customerId });
+  }
+
+  async updateCustomerProfile(input: CustomerInput): Promise<CustomerProfile> {
+    const customerId = await this.activeCustomerId();
+    return request<CustomerProfile>("/admin/customer-profile", { method: "PUT", customerId, body: input });
+  }
+
+  async createCustomer(input: CustomerInput): Promise<Customer> {
+    const customerId = await this.activeCustomerId();
+    const created = await request<Customer>("/admin/customers", { method: "POST", customerId, body: input });
+    rememberActiveCustomer(created.id);
+    this.lastSession = null;
+    return created;
   }
 
   async getErpLandscape(): Promise<ErpLandscape> {

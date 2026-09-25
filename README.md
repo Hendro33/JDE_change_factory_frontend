@@ -1,9 +1,12 @@
-# Jade by ConsultIQ — front-end prototype
+# Jade by ConsultIQ — frontend
 
-React + TypeScript + Vite. **Front end only**: no Claude, no MCP, no JDE,
-no backend. All data comes from an in-memory mock behind a service
-interface, so the real ConsultIQ backend can be connected later without
-redesigning the UI.
+React + TypeScript + Vite. Talks to Jade's backend (the backend repository's
+`scripts/run_local_preview.sh` starts both, from the latest `main`). The
+footer shows the frontend and backend commits that are actually running.
+
+An in-browser sample-data mode still exists for UI development only. It runs
+only with `VITE_USE_MOCK_API=true`, and every page then carries a red
+"Demo mode" banner. It is never the default and is not deployed.
 
 ## Run it
 

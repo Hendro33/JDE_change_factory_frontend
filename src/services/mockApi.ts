@@ -1,4 +1,5 @@
 import type {
+  Customer,
   ActivityEntry,
   AgentDefinition,
   AgentHealth,
@@ -971,6 +972,14 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
   /* ---------------------------------------------------------------- */
   /* Administration                                                    */
   /* ---------------------------------------------------------------- */
+
+  async updateCustomerProfile(): Promise<CustomerProfile> {
+    throw new Error("Editing a customer needs Jade's backend; this in-browser sample mode saves nothing.");
+  }
+
+  async createCustomer(): Promise<Customer> {
+    throw new Error("Creating a customer needs Jade's backend; this in-browser sample mode saves nothing.");
+  }
 
   async getCustomerProfile(): Promise<CustomerProfile> {
     const customer = CUSTOMERS.find((c) => c.id === this.scope);
