@@ -217,6 +217,15 @@ with sync_playwright() as p:
               admin.locator("#story-refinement >> text=r3").count() >= 1
               and admin.locator("text=ask the dealer council first").count() == 1)
         admin.screenshot(path=f"{SHOTS}/6-after-restart.png", full_page=True)
+        go(admin, "Admin", "Process Framework")
+        expect(admin.locator("td >> .badge:has-text('active')").first).to_be_visible()
+        check("after restart: the company's framework setting survives", admin.locator("text=Selected for this company").count() == 1)
+        do = login(browser, "do@e2e.local", DO_PW)
+        open_story(do)
+        do.click("button:has-text('To-be (')")
+        expect(do.locator("button:has-text('v2')").first).to_be_visible()
+        check("after restart, in a second browser: the Domain Owner's account and saved map version survive",
+              do.locator("text=inspection step confirmed").count() >= 1)
     browser.close()
 
 passed = sum(ok for _, ok in results)
