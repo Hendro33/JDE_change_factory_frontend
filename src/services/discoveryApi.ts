@@ -22,11 +22,15 @@ export interface ApprovedRead {
   filterFields: string[];
 }
 
+export type EnvironmentPurpose = "development" | "isolated_trial";
+
 export interface JdeProfileConfig {
+  connectionName: string;
   connectionMode: ConnectionMode;
   aisBaseUrl: string;
   environment: string;
-  environmentType: "DEV";
+  environmentPurpose: EnvironmentPurpose;
+  trialApprovalReference: string;
   role: string;
   expectedApplicationRelease: string;
   expectedToolsRelease: string;
@@ -42,6 +46,7 @@ export interface JdeProfileConfig {
   /** CNC attestation of what the AIS contract does not expose: Tools release and path code. */
   runtimeAttestationConfirmed: boolean;
   runtimeAttestationEvidence: string;
+  evidenceArtifactIds: string[];
   approvedReads: ApprovedRead[];
   discoveryWindow: { startsAt: string; endsAt: string } | null;
   limits: { maxRecords: number; timeoutSeconds: number; concurrentRequests: 1 };
@@ -109,6 +114,21 @@ export interface JdeProfileView {
   liveAllowedByDeployment: boolean;
   updatedAt?: string | null;
   updatedBy?: string | null;
+  prerequisites: Prerequisite[];
+  serverPrerequisites: Prerequisite[];
+  ceilings: { max_records: number; max_timeout_seconds: number; max_window_days: number; concurrent_requests: number; max_filters: number };
+  authMethods: { id: string; supported: boolean; label: string; credentials: string[]; detail: string }[];
+  requestUrls: Record<string, string>;
+}
+
+export interface Prerequisite {
+  id: string; label: string; satisfied: boolean; detail: string; required?: boolean;
+  kind?: "customer_attestation" | "machine_verified" | "configuration" | "server_managed";
+}
+
+export interface SampleReadInput {
+  capabilityId: string; target: string; fields?: string[];
+  filters?: { field: string; op: string; value: string }[]; maxRecords: number;
 }
 
 export interface ActionResult {
@@ -257,9 +277,9 @@ export const discoveryApi = {
   async testConnection(): Promise<ActionResult> {
     return request<ActionResult>("/admin/jde/test-connection", { method: "POST", customerId: await customer() });
   },
-  async sampleRead(capabilityId: string): Promise<ActionResult> {
+  async sampleRead(input: SampleReadInput): Promise<ActionResult> {
     return request<ActionResult>("/admin/jde/sample-read", {
-      method: "POST", customerId: await customer(), body: { capabilityId },
+      method: "POST", customerId: await customer(), body: input,
     });
   },
   async enable(expectedRevision: number): Promise<ActionResult> {

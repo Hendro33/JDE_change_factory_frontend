@@ -247,7 +247,8 @@ export function ErpLandscape() {
               <dd>
                 {landscape.discoveryProfile?.configured ? (
                   <>
-                    {landscape.discoveryProfile.environment} · path code {landscape.discoveryProfile.pathCode} · application{" "}
+                    {landscape.discoveryProfile.connectionName ? <strong>{landscape.discoveryProfile.connectionName} · </strong> : null}
+                    {landscape.discoveryProfile.environment} ({landscape.discoveryProfile.environmentPurpose === "isolated_trial" ? "approved isolated trial" : "development"}) · path code {landscape.discoveryProfile.pathCode} · application{" "}
                     {landscape.discoveryProfile.applicationRelease}, Tools {landscape.discoveryProfile.toolsRelease} · revision{" "}
                     {landscape.discoveryProfile.revision}{" "}
                     <span className={`badge ${landscape.discoveryProfile.mode === "simulation" ? "warn" : "ok"}`}>

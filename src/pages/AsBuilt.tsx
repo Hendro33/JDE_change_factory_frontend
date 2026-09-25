@@ -75,7 +75,10 @@ function RecordView({ rec, onNavigate }: { rec: AsBuiltRecord; onNavigate?: Navi
             <tbody>{tech.verification.results.map((r: any) => <tr key={r.name}><td>{r.name}</td><td>{r.kind}</td>
               <td><span className={`badge ${r.passed ? "ok" : "stop"}`}>{r.passed ? "passed" : "failed"}</span></td></tr>)}</tbody></table>
         ) : func ? (<>
-          <p>Test orchestration {func.test_orchestration}: {func.exact_change.execution.test_state}. <span className="hint">{func.test_note}</span></p>
+          <div>Test orchestration {func.test_orchestration}: {func.exact_change.execution.test_state}{" "}
+            {func.test_is_stub && <span className="badge warn">SIMULATION STUB -- fixed PASS, not behavioural evidence</span>}
+            <div className="hint">{func.test_note}</div></div>
+          <p><strong>Verification (read-back)</strong></p>
           <p>Read-back of the target: <strong>{String(func.readback?.value)}</strong>{" "}
             <span className={`badge ${func.readback?.matches_approved ? "ok" : "stop"}`}>{func.readback?.matches_approved ? "matches the approved value" : "does not match"}</span>
             <span className="hint"> {func.readback?.source}</span></p>

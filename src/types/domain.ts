@@ -759,6 +759,8 @@ export interface AisConnectionStatus {
 /** Reference to the authoritative discovery profile (Admin > Integrations > JDE). */
 export interface DiscoveryProfileSummary {
   configured: boolean;
+  connectionName?: string | null;
+  environmentPurpose?: string | null;
   revision: number;
   environment?: string | null;
   pathCode?: string | null;

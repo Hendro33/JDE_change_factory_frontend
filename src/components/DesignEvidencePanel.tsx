@@ -3,7 +3,7 @@ import { discoveryApi, type DesignBaselineView } from "../services/discoveryApi"
 import { saveErrorMessage } from "../services/saveErrors";
 
 const statusTone: Record<string, string> = { current: "ok", needs_reassessment: "stop", superseded: "grey" };
-const basisTone: Record<string, string> = { observed: "ok", customer_attestation: "warn", assumption: "grey" };
+const basisTone: Record<string, string> = { observed: "ok", customer_attestation: "warn", process_reference: "ok", assumption: "grey" };
 
 /**
  * The evidence baseline behind the Architect's design: which environment

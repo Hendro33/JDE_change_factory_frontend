@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { api } from "../services/api";
 import {
   discoveryApi,
   fileToBase64,
@@ -12,6 +13,7 @@ import {
   type ExportFormat,
   type JdeProfileConfig,
   type JdeProfileView,
+  type Prerequisite,
   type RuntimeCorrespondence,
 } from "../services/discoveryApi";
 import { saveErrorMessage } from "../services/saveErrors";
@@ -23,30 +25,22 @@ function blankConfig(): JdeProfileConfig {
   const start = new Date();
   const end = new Date(start.getTime() + 7 * 24 * 3600 * 1000);
   return {
-    connectionMode: "simulation", aisBaseUrl: "https://", environment: "", environmentType: "DEV", role: "",
-    expectedApplicationRelease: "", expectedToolsRelease: "", pathCode: "", authMethod: "ais_token_request",
-    customerContact: "", cncContact: "", networkRoute: "", isolationEvidence: "", routingIsolationConfirmed: false,
-    privilegeStatement: "", privilegeConfirmed: false, runtimeAttestationConfirmed: false, runtimeAttestationEvidence: "",
-    approvedReads: [],
+    connectionName: "", connectionMode: "simulation", aisBaseUrl: "https://", environment: "", environmentPurpose: "development",
+    trialApprovalReference: "", role: "", expectedApplicationRelease: "", expectedToolsRelease: "", pathCode: "",
+    authMethod: "ais_token_request", customerContact: "", cncContact: "", networkRoute: "", isolationEvidence: "",
+    routingIsolationConfirmed: false, privilegeStatement: "", privilegeConfirmed: false, runtimeAttestationConfirmed: false,
+    runtimeAttestationEvidence: "", evidenceArtifactIds: [], approvedReads: [],
     discoveryWindow: { startsAt: start.toISOString(), endsAt: end.toISOString() },
     limits: { maxRecords: 10, timeoutSeconds: 15, concurrentRequests: 1 }, dataSharingPolicy: "metadata_only",
   };
 }
 
 const split = (v: string) => v.split(",").map((s) => s.trim()).filter(Boolean);
-
-/** One line per read: capability; targets; fields; filter fields (lists comma-separated).
- * ";" separates the columns because a target may itself contain "|" (application|version). */
-function readsToText(reads: ApprovedRead[]): string {
-  return reads.map((r) => [r.capabilityId, r.targets.join(","), r.fields.join(","), r.filterFields.join(",")].join("; ")).join("\n");
-}
-
-function readsFromText(text: string): ApprovedRead[] {
-  return text.split("\n").map((l) => l.trim()).filter(Boolean).map((line) => {
-    const [capabilityId = "", targets = "", fields = "", filterFields = ""] = line.split(";");
-    return { capabilityId: capabilityId.trim(), targets: split(targets), fields: split(fields), filterFields: split(filterFields) };
-  });
-}
+const localInput = (iso?: string) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
 
 function Check({ result }: { result?: CheckResult }) {
   const r = result ?? { state: "unknown", detail: "" };
@@ -97,46 +91,153 @@ function EnvironmentFacets({ result }: { result?: CheckResult }) {
   );
 }
 
+const KIND_LABEL: Record<string, string> = {
+  customer_attestation: "Customer attestation -- Jade cannot check this",
+  machine_verified: "Checked by Jade for this profile revision",
+  configuration: "Configuration",
+  server_managed: "Server-managed -- set by whoever runs the backend, not in this browser",
+};
+
+function Prerequisites({ items }: { items: Prerequisite[] }) {
+  const kinds = ["configuration", "customer_attestation", "machine_verified", "server_managed"];
+  return (
+    <div aria-label="Prerequisites">
+      <strong>Prerequisites for Architect discovery</strong>
+      {kinds.filter((k) => items.some((i) => i.kind === k)).map((k) => (
+        <div key={k} style={{ marginTop: 6 }}>
+          <div className="hint" style={{ fontWeight: 600 }}>{KIND_LABEL[k]}</div>
+          <ul style={{ listStyle: "none", paddingLeft: 0, margin: "2px 0" }}>
+            {items.filter((i) => i.kind === k).map((i) => (
+              <li key={i.id}>
+                <span className={`badge ${i.satisfied ? "ok" : i.required === false ? "grey" : "stop"}`}>
+                  {i.satisfied ? "satisfied" : i.required === false ? "optional" : "missing"}</span> {i.label}
+                <span className="hint"> -- {i.detail}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      <div className="hint">A successful Test Connection proves the backend can reach AIS and sign in; it does not verify that the
+        environment is isolated. Isolation is the customer's attestation.</div>
+    </div>
+  );
+}
+
+/** Structured editor for the approved reads -- capability, exact targets, columns, filter columns. */
+function ReadsEditor({ reads, onChange, view }: { reads: ApprovedRead[]; onChange: (r: ApprovedRead[]) => void; view: JdeProfileView }) {
+  const caps = view.capabilities.filter((c) => c.status !== "unavailable");
+  const upd = (i: number, patch: Partial<ApprovedRead>) => onChange(reads.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  return (
+    <div>
+      <table className="data" style={{ fontSize: 13 }}>
+        <thead><tr><th>Capability</th><th>Exact targets (comma-separated)</th><th>Columns returned</th><th>Columns that may be filtered</th><th></th></tr></thead>
+        <tbody>{reads.map((r, i) => {
+          const cap = view.capabilities.find((c) => c.capabilityId === r.capabilityId);
+          return (
+            <tr key={i}>
+              <td><select aria-label={`Read ${i + 1} capability`} value={r.capabilityId} onChange={(e) => upd(i, { capabilityId: e.target.value })}>
+                <option value="">choose…</option>
+                {caps.map((c) => <option key={c.capabilityId} value={c.capabilityId}>{c.title}</option>)}
+              </select>{cap && <div className="hint">{cap.targetKind === "none" ? "no target" : `target: ${cap.targetKind}`}</div>}</td>
+              <td><input aria-label={`Read ${i + 1} targets`} value={r.targets.join(", ")} disabled={cap?.targetKind === "none"}
+                         onChange={(e) => upd(i, { targets: split(e.target.value) })} placeholder={cap?.targetKind === "table" ? "F0101" : ""} /></td>
+              <td><input aria-label={`Read ${i + 1} fields`} value={r.fields.join(", ")} onChange={(e) => upd(i, { fields: split(e.target.value) })} /></td>
+              <td><input aria-label={`Read ${i + 1} filter fields`} value={r.filterFields.join(", ")} onChange={(e) => upd(i, { filterFields: split(e.target.value) })} /></td>
+              <td><button className="btn small" aria-label={`Remove read ${i + 1}`} onClick={() => onChange(reads.filter((_, j) => j !== i))}>×</button></td>
+            </tr>
+          );
+        })}</tbody>
+      </table>
+      <button className="btn small" onClick={() => onChange([...reads, { capabilityId: "", targets: [], fields: [], filterFields: [] }])}>Add approved read</button>
+      <div className="hint">Column names are JDE aliases (e.g. AN8, ALPH). There is no "all columns", no wildcard and no free-form query.</div>
+    </div>
+  );
+}
+
+/** One explicitly chosen, bounded sample read. */
+function SampleRead({ view, busy, run }: { view: JdeProfileView; busy: boolean; run: (label: string, fn: () => Promise<unknown>) => void }) {
+  const reads = view.config?.approvedReads ?? [];
+  const [capId, setCapId] = useState(reads[0]?.capabilityId ?? "");
+  const read = reads.find((r) => r.capabilityId === capId);
+  const [target, setTarget] = useState("");
+  const [max, setMax] = useState(1);
+  const [fField, setFField] = useState("");
+  const [fOp, setFOp] = useState("=");
+  const [fValue, setFValue] = useState("");
+  useEffect(() => { setTarget(read?.targets[0] ?? ""); setFField(""); }, [capId]);
+  const limit = Math.min(view.config?.limits.maxRecords ?? 1, view.ceilings.max_records);
+  return (
+    <div className="callout" style={{ marginTop: 6 }}>
+      <strong>3. Run Approved Sample Read</strong>
+      <div className="hint">One read of one approved target, approved columns only, at most the record limit. Requires a successful Test Connection for this revision. It confirms the capability works; it is not an Architect run.</div>
+      <div className="btnrow" style={{ flexWrap: "wrap", marginTop: 6 }}>
+        <select aria-label="Sample read capability" value={capId} onChange={(e) => setCapId(e.target.value)}>
+          {reads.map((r) => <option key={r.capabilityId} value={r.capabilityId}>{r.capabilityId}</option>)}
+        </select>
+        {read && read.targets.length > 0 && (
+          <select aria-label="Sample read target" value={target} onChange={(e) => setTarget(e.target.value)}>
+            {read.targets.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>)}
+        <label>max records <input aria-label="Sample read max records" type="number" min={1} max={limit} value={max}
+          onChange={(e) => setMax(Math.max(1, Math.min(limit, Number(e.target.value))))} style={{ width: 60 }} /></label>
+        {read && read.filterFields.length > 0 && (<>
+          <select aria-label="Sample read filter column" value={fField} onChange={(e) => setFField(e.target.value)}>
+            <option value="">no filter</option>{read.filterFields.map((f) => <option key={f}>{f}</option>)}
+          </select>
+          {fField && <><select aria-label="Sample read filter operator" value={fOp} onChange={(e) => setFOp(e.target.value)}>
+            {["=", "<>", "<", ">", "<=", ">=", "begins_with"].map((o) => <option key={o}>{o}</option>)}</select>
+            <input aria-label="Sample read filter value" value={fValue} onChange={(e) => setFValue(e.target.value)} size={10} /></>}
+        </>)}
+        <button className="btn" disabled={busy || !capId || (!!read?.targets.length && !target)}
+          onClick={() => run("Approved sample read", () => discoveryApi.sampleRead({ capabilityId: capId, target, maxRecords: max,
+            filters: fField ? [{ field: fField, op: fOp, value: fValue }] : [] }))}>Run Approved Sample Read</button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Admin > Integrations > JDE: the company's read-only discovery connection
- * for the Architect. Saving never contacts JDE. Test Connection, the
- * approved sample read, Enable and Disable are explicit actions.
+ * for the Architect. Everything here is saved on the backend; saving never
+ * contacts JDE. Test Connection, the sample read, Enable and Disable are
+ * separate, explicit actions.
  */
 export function JdeDiscoveryPanel() {
   const [view, setView] = useState<JdeProfileView | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<JdeProfileConfig>(blankConfig());
-  const [readsText, setReadsText] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: string; text: string } | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [sampleCapability, setSampleCapability] = useState("");
   const [activity, setActivity] = useState<ActivityRow[] | null>(null);
+  const [documents, setDocuments] = useState<ArtifactView[]>([]);
+  const [company, setCompany] = useState("");
 
   const load = () => {
     discoveryApi.getProfile().then((v) => {
       setView(v);
       setLoadError(null);
-      const cfg = v.config ?? blankConfig();
-      setForm(cfg);
-      setReadsText(readsToText(cfg.approvedReads));
-      setSampleCapability(cfg.approvedReads[0]?.capabilityId ?? "");
-    }).catch((e) => setLoadError(saveErrorMessage(e, "Could not load the JDE discovery profile.")));
+      setForm(v.config ?? blankConfig());
+    }).catch((e) => setLoadError(saveErrorMessage(e, "Could not load the JDE connection.")));
     discoveryApi.activity().then(setActivity).catch(() => setActivity(null));
+    discoveryApi.listArtifacts().then((a) => setDocuments(a.filter((x) => x.kind === "reference_document" && x.latest))).catch(() => setDocuments([]));
   };
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+    api.getSession().then((s) => setCompany(s.customers.find((c) => c.id === s.activeCustomerId)?.name ?? s.activeCustomerId));
+  }, []);
 
-  async function run(label: string, fn: () => Promise<{ outcome?: string; detail?: string; profile?: JdeProfileView } | JdeProfileView>) {
+  async function run(label: string, fn: () => Promise<unknown>) {
     setBusy(true);
     setMessage(null);
     try {
-      const r = await fn();
-      if ("outcome" in r && r.outcome !== undefined) {
+      const r = (await fn()) as { outcome?: string; detail?: string };
+      if (r && r.outcome !== undefined) {
         setMessage({ tone: r.outcome === "ok" ? "ok" : "stop", text: `${label}: ${r.outcome}${r.detail ? ` — ${r.detail}` : ""}` });
       } else {
-        setMessage({ tone: "ok", text: `${label}: done` });
+        setMessage({ tone: "ok", text: `${label}: saved` });
       }
       load();
     } catch (e) {
@@ -151,53 +252,66 @@ export function JdeDiscoveryPanel() {
   if (loadError) {
     return (
       <section className="panel">
-        <h2>JDE — Architect environment discovery</h2>
+        <h2>JDE connection</h2>
         <div className="callout">{loadError}</div>
       </section>
     );
   }
-  if (!view) return <Loading what="the JDE discovery profile" />;
+  if (!view) return <Loading what="the JDE connection" />;
   const cfg = view.config;
+  const live = cfg?.connectionMode === "live";
 
   return (
     <section className="panel">
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0 }}>JDE — Architect environment discovery</h2>
-        {!editing && <button className="btn" onClick={() => setEditing(true)}>{view.configured ? "Edit profile" : "Set up"}</button>}
+        <h2 style={{ margin: 0 }}>JDE connection — read-only discovery for the Architect</h2>
+        {!editing && <button className="btn" onClick={() => setEditing(true)}>{view.configured ? "Edit settings" : "Set up"}</button>}
       </div>
       <div className="sub" style={{ margin: "6px 0 12px" }}>
-        Read-only access the Architect uses to research this company's DEV installation. Separate from any future
-        execution credentials. Jade's read-only settings do not make an over-privileged JDE account safe: the
-        customer's JDE role and network controls must restrict it too.
+        Company <strong>{company}</strong>. Read-only access the Architect uses to research this company's JDE environment; all
+        writes to JDE stay disabled. Settings and the credential are stored on Jade's backend (the password encrypted, never shown
+        again). Requests are sent from the machine running Jade's backend -- not from your browser -- so any VPN or network route must
+        exist from that machine. Jade's read-only rules do not make an over-privileged JDE account safe: the customer's JDE role and
+        network controls must restrict it too.
       </div>
 
       {view.configured && cfg && (
         <div className="stack">
-          <div>
-            <span className={`badge ${cfg.connectionMode === "simulation" ? "warn" : "ok"}`}>{view.modeLabel}</span>{" "}
+          <div style={{ fontSize: 15 }}>
+            <span className={`badge ${live ? "stop" : "warn"}`} style={{ fontSize: 13 }}>{live ? "LIVE -- customer AIS endpoint" : view.modeLabel}</span>{" "}
             <span className={`badge ${view.discoveryEnabled ? "ok" : "grey"}`}>
-              {view.discoveryEnabled ? "Discovery enabled" : view.disabled ? "Connection disabled" : "Discovery off"}
+              {view.discoveryEnabled ? "Architect discovery enabled" : view.disabled ? "Connection disabled" : "Architect discovery off"}
             </span>{" "}
-            <span className="hint">Profile revision {view.revision}, saved by {view.updatedBy}</span>
+            <span className="hint">{cfg.connectionName || "(unnamed connection)"} · profile revision {view.revision}, saved by {view.updatedBy}
+              {view.updatedAt ? ` at ${new Date(view.updatedAt).toLocaleString("en-GB")}` : ""}</span>
           </div>
           <dl className="facts">
-            <dt>AIS endpoint</dt><dd className="mono">{cfg.aisBaseUrl}</dd>
-            <dt>Environment / role</dt><dd className="mono">{cfg.environment} ({cfg.environmentType}) / {cfg.role}</dd>
+            <dt>AIS address</dt><dd className="mono">{cfg.aisBaseUrl}
+              <div className="hint">Jade calls {view.requestUrls.token_request} (sign-in), {view.requestUrls.defaultconfig}, {view.requestUrls.dataservice} and {view.requestUrls.poservice} -- nothing else.</div></dd>
+            <dt>Environment</dt><dd><span className="mono">{cfg.environment}</span> -- {cfg.environmentPurpose === "isolated_trial"
+              ? <>approved isolated trial <span className="hint">({cfg.trialApprovalReference})</span></> : "development"}</dd>
+            <dt>Role</dt><dd className="mono">{cfg.role}</dd>
             <dt>Expected releases</dt><dd>Application {cfg.expectedApplicationRelease}, Tools {cfg.expectedToolsRelease}, path code <span className="mono">{cfg.pathCode}</span></dd>
-            <dt>Credential</dt>
-            <dd>{view.credentialConfigured ? <>{view.credentialUsernameMasked} <span className="badge grey">{view.credentialStorage}</span></> : <span className="notstated">none saved</span>}</dd>
+            <dt>Authentication</dt><dd>{view.authMethods.find((m) => m.id === cfg.authMethod)?.label} · {view.credentialConfigured
+              ? <>user {view.credentialUsernameMasked} <span className="badge grey">{view.credentialStorage}</span></> : <span className="notstated">no credential saved</span>}</dd>
             <dt>Customer / CNC</dt><dd>{cfg.customerContact || "—"} / {cfg.cncContact || "—"}</dd>
-            <dt>Network route</dt><dd>{cfg.networkRoute || <span className="notstated">not stated</span>}</dd>
-            <dt>Routing & isolation</dt><dd>{cfg.routingIsolationConfirmed ? "Confirmed by customer" : <span className="badge warn">not confirmed</span>} <span className="hint">{cfg.isolationEvidence}</span></dd>
-            <dt>Least privilege</dt><dd>{cfg.privilegeConfirmed ? "Confirmed by customer" : <span className="badge warn">not confirmed</span>} <span className="hint">{cfg.privilegeStatement}</span></dd>
-            <dt>Tools release & path code</dt><dd>{cfg.runtimeAttestationConfirmed ? "Attested by CNC (not verifiable through AIS)" : <span className="badge warn">not attested</span>} <span className="hint">{cfg.runtimeAttestationEvidence}</span></dd>
+            <dt>Network access</dt><dd>{cfg.networkRoute || <span className="notstated">not stated</span>}</dd>
             <dt>Window</dt><dd>{cfg.discoveryWindow ? `${new Date(cfg.discoveryWindow.startsAt).toLocaleString("en-GB")} – ${new Date(cfg.discoveryWindow.endsAt).toLocaleString("en-GB")}` : "none"}</dd>
-            <dt>Limits</dt><dd>{cfg.limits.maxRecords} records per query, one request at a time, {cfg.limits.timeoutSeconds}s timeout, no paging or retries</dd>
-            <dt>Data sharing with the model</dt><dd>{cfg.dataSharingPolicy.replace(/_/g, " ")}</dd>
+            <dt>Limits</dt><dd>{cfg.limits.maxRecords} records per query (server maximum {view.ceilings.max_records}), one request at a time, {cfg.limits.timeoutSeconds}s timeout (maximum {view.ceilings.max_timeout_seconds}s), no paging or retries</dd>
+            <dt>Customer data in AI prompts</dt><dd>{cfg.dataSharingPolicy.replace(/_/g, " ")}</dd>
           </dl>
 
+          <Prerequisites items={view.prerequisites} />
+          {live && view.serverPrerequisites.some((p) => !p.satisfied) && (
+            <div className="callout" style={{ borderColor: "var(--stop)" }}>
+              <strong>A server-managed prerequisite blocks this live endpoint.</strong> These are set by whoever runs Jade's backend
+              (not in this browser); Jade never disables certificate checks or allows arbitrary destinations.
+              <ul>{view.serverPrerequisites.filter((p) => !p.satisfied).map((p) => <li key={p.id}>{p.label}: {p.detail}</li>)}</ul>
+            </div>
+          )}
+
           <div>
-            <strong>Connection health</strong> <span className="hint">(manual checks; no background polling)</span>
+            <strong>Connection health</strong> <span className="hint">(checked only when you press Test Connection; no background polling)</span>
             <table className="data">
               <tbody>
                 {HEALTH_CHECKS.map(({ key, label }) => (
@@ -208,21 +322,28 @@ export function JdeDiscoveryPanel() {
             <EnvironmentFacets result={view.health.environment} />
           </div>
 
-          <div className="btnrow" style={{ flexWrap: "wrap" }}>
-            <button className="btn" disabled={busy} onClick={() => run("Test Connection", discoveryApi.testConnection)}>Test Connection</button>
-            <select value={sampleCapability} onChange={(e) => setSampleCapability(e.target.value)} aria-label="Capability for the sample read">
-              {cfg.approvedReads.map((r) => <option key={r.capabilityId} value={r.capabilityId}>{r.capabilityId}</option>)}
-            </select>
-            <button className="btn" disabled={busy || !sampleCapability} onClick={() => run("Approved sample read", () => discoveryApi.sampleRead(sampleCapability))}>Run Approved Sample Read</button>
-            <button className="btn primary" disabled={busy || view.enableBlockers.length > 0 || view.discoveryEnabled} onClick={() => run("Enable Discovery", () => discoveryApi.enable(view.revision))}>Enable Discovery</button>
-            <button className="btn" disabled={busy || view.disabled} onClick={() => run("Disable Connection", discoveryApi.disable)}>Disable Connection</button>
-          </div>
-          {view.enableBlockers.length > 0 && !view.discoveryEnabled && (
+          <div className="stack">
             <div className="callout">
-              <strong>Discovery cannot be enabled yet</strong>
-              <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>{view.enableBlockers.map((b) => <li key={b}>{b}</li>)}</ul>
+              <strong>2. Test Connection</strong>
+              <div className="hint">From the backend: reach the AIS address, sign in with the saved credential for the stated environment and
+                role, read the AIS server defaults, check the session's environment, role and release, then sign out. No business data is read.
+                Needs the customer's isolation and privilege confirmations and an open window first.</div>
+              <button className="btn" style={{ marginTop: 6 }} disabled={busy} onClick={() => run("Test Connection", discoveryApi.testConnection)}>Test Connection</button>
             </div>
-          )}
+            <SampleRead view={view} busy={busy} run={run} />
+            <div className="callout">
+              <strong>4. Enable Architect Discovery</strong>
+              <div className="hint">Lets the Architect use the approved, verified reads for this profile revision within the window. Any material change to these settings switches it off again.</div>
+              <button className="btn primary" style={{ marginTop: 6 }} disabled={busy || view.enableBlockers.length > 0 || view.discoveryEnabled}
+                onClick={() => run("Enable Architect Discovery", () => discoveryApi.enable(view.revision))}>Enable Architect Discovery</button>
+              {view.enableBlockers.length > 0 && !view.discoveryEnabled && <div className="hint">Blocked by: {view.enableBlockers.join("; ")}</div>}
+            </div>
+            <div className="callout">
+              <strong>5. Disable Connection</strong>
+              <div className="hint">Kill switch: stops every new or queued request immediately and clears the checks; re-enabling needs a fresh Test Connection.</div>
+              <button className="btn" style={{ marginTop: 6 }} disabled={busy || view.disabled} onClick={() => run("Disable Connection", discoveryApi.disable)}>Disable Connection</button>
+            </div>
+          </div>
 
           <div>
             <strong>Discovery capabilities</strong>
@@ -251,85 +372,138 @@ export function JdeDiscoveryPanel() {
           </div>
 
           <div>
-            <strong>Credential</strong> <span className="hint">(write-only; a new credential needs re-verification)</span>
+            <strong>Credential</strong> <span className="hint">(write-only: enter it here, it is encrypted on the server and never shown again.
+              Replacing it needs re-verification; editing other settings does not need it re-entered.)</span>
             <div className="grid halves">
               <input type="text" autoComplete="off" placeholder="JDE user" value={username} onChange={(e) => setUsername(e.target.value)} aria-label="JDE user" />
               <input type="password" autoComplete="new-password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label="JDE password" />
             </div>
             <button className="btn" style={{ marginTop: 6 }} disabled={busy || !username || !password}
-              onClick={() => run("Save credential", async () => {
+              onClick={() => run(view.credentialConfigured ? "Replace credential" : "Save credential", async () => {
                 const r = await discoveryApi.saveCredential(username, password, view.revision);
                 setPassword("");
                 return r;
-              })}>Save credential</button>
+              })}>{view.credentialConfigured ? "Replace credential" : "Save credential"}</button>
           </div>
         </div>
       )}
 
       {editing && (
         <div className="stack" style={{ marginTop: 16 }}>
-          <p className="hint">Saving stores a new profile revision and does not contact JDE. Any change except the contact names switches discovery off until it is re-tested and enabled again.</p>
-          <div className="grid halves">
-            <label className="field">Mode
-              <select value={form.connectionMode} onChange={(e) => set("connectionMode", e.target.value as JdeProfileConfig["connectionMode"])}>
-                <option value="simulation">Simulation (no customer JDE)</option>
-                <option value="live" disabled={!view.liveAllowedByDeployment}>Live customer AIS{view.liveAllowedByDeployment ? "" : " (switched off for this deployment)"}</option>
-              </select>
-            </label>
-            <label className="field">HTTPS AIS endpoint<input value={form.aisBaseUrl} onChange={(e) => set("aisBaseUrl", e.target.value)} /></label>
-            <label className="field">DEV environment<input value={form.environment} onChange={(e) => set("environment", e.target.value)} placeholder="JDV920" /></label>
-            <label className="field">JDE role (explicit)<input value={form.role} onChange={(e) => set("role", e.target.value)} placeholder="JADEDISC" /></label>
-            <label className="field">Application release<input value={form.expectedApplicationRelease} onChange={(e) => set("expectedApplicationRelease", e.target.value)} placeholder="9.2" /></label>
-            <label className="field">Tools release<input value={form.expectedToolsRelease} onChange={(e) => set("expectedToolsRelease", e.target.value)} placeholder="9.2.8.2" /></label>
-            <label className="field">Path code<input value={form.pathCode} onChange={(e) => set("pathCode", e.target.value)} placeholder="DV920" /></label>
-            <label className="field">Authentication<select value={form.authMethod} disabled><option value="ais_token_request">AIS token request</option></select></label>
-            <label className="field">Customer contact<input value={form.customerContact} onChange={(e) => set("customerContact", e.target.value)} /></label>
-            <label className="field">CNC contact<input value={form.cncContact} onChange={(e) => set("cncContact", e.target.value)} /></label>
-          </div>
-          <label className="field">Network route<input value={form.networkRoute} onChange={(e) => set("networkRoute", e.target.value)} /></label>
-          <label className="field">Isolation evidence<textarea value={form.isolationEvidence} onChange={(e) => set("isolationEvidence", e.target.value)} /></label>
-          <label style={{ display: "flex", gap: 6, fontWeight: 400 }}><input type="checkbox" checked={form.routingIsolationConfirmed} onChange={(e) => set("routingIsolationConfirmed", e.target.checked)} />The customer/CNC has confirmed the route reaches DEV only and the environment is isolated</label>
-          <label className="field">Privilege statement<textarea value={form.privilegeStatement} onChange={(e) => set("privilegeStatement", e.target.value)} /></label>
-          <label style={{ display: "flex", gap: 6, fontWeight: 400 }}><input type="checkbox" checked={form.privilegeConfirmed} onChange={(e) => set("privilegeConfirmed", e.target.checked)} />The customer has confirmed this JDE identity is narrowly privileged (read-only)</label>
-          <label className="field">Runtime attestation <span className="hint">(the AIS contract does not report the Tools release or path code a session runs on; record the CNC's statement)</span>
-            <textarea value={form.runtimeAttestationEvidence} onChange={(e) => set("runtimeAttestationEvidence", e.target.value)} placeholder="CNC (name, ticket): JDV920 runs path code DV920 on Tools 9.2.8.2" /></label>
-          <label style={{ display: "flex", gap: 6, fontWeight: 400 }}><input type="checkbox" checked={form.runtimeAttestationConfirmed} onChange={(e) => set("runtimeAttestationConfirmed", e.target.checked)} />The CNC has attested the Tools release and path code for this environment</label>
-          <label className="field">
-            Approved reads <span className="hint">(one per line: capability; targets; fields; filter fields — lists comma-separated, e.g. table_browse; F4211; DOCO,DCTO; DCTO or processing_option_values; P4210|CIQ0001)</span>
-            <textarea value={readsText} onChange={(e) => setReadsText(e.target.value)} rows={5} className="mono" />
-          </label>
-          <div className="grid halves">
-            <label className="field">Window starts<input type="datetime-local" value={form.discoveryWindow?.startsAt.slice(0, 16) ?? ""}
-              onChange={(e) => set("discoveryWindow", { startsAt: new Date(e.target.value).toISOString(), endsAt: form.discoveryWindow?.endsAt ?? new Date().toISOString() })} /></label>
-            <label className="field">Window ends<input type="datetime-local" value={form.discoveryWindow?.endsAt.slice(0, 16) ?? ""}
-              onChange={(e) => set("discoveryWindow", { startsAt: form.discoveryWindow?.startsAt ?? new Date().toISOString(), endsAt: new Date(e.target.value).toISOString() })} /></label>
-            <label className="field">Records per query (max 10)<input type="number" min={1} max={10} value={form.limits.maxRecords} onChange={(e) => set("limits", { ...form.limits, maxRecords: Number(e.target.value) })} /></label>
-            <label className="field">Timeout (seconds, max 30)<input type="number" min={1} max={30} value={form.limits.timeoutSeconds} onChange={(e) => set("limits", { ...form.limits, timeoutSeconds: Number(e.target.value) })} /></label>
-            <label className="field">Customer data in model prompts
-              <select value={form.dataSharingPolicy} onChange={(e) => set("dataSharingPolicy", e.target.value as DataSharingPolicy)}>
-                <option value="metadata_only">Metadata only (values and artifact content redacted)</option>
-                <option value="configuration_and_artifacts">Configuration values and artifacts; business data redacted</option>
-                <option value="full">Full values (customer has agreed)</option>
-              </select>
-            </label>
-          </div>
+          <p className="hint"><strong>1. Save</strong> stores a new profile revision on the backend and does not contact JDE. Any change except
+            the connection name and the contact names switches discovery off until it is re-tested and enabled again.</p>
+
+          <fieldset><legend>Connection</legend>
+            <div className="grid halves">
+              <label className="field">Connection name<input aria-label="Connection name" value={form.connectionName} onChange={(e) => set("connectionName", e.target.value)} placeholder="e.g. BicycleWorks PS920 trial" /></label>
+              <label className="field">Company<input value={company} disabled /></label>
+            </div>
+            <div role="radiogroup" aria-label="Connection mode" style={{ marginTop: 6 }}>
+              <label style={{ display: "block", fontWeight: 400 }}><input type="radio" checked={form.connectionMode === "simulation"} onChange={() => set("connectionMode", "simulation")} />{" "}
+                <strong>Simulation</strong> -- Jade's simulated AIS endpoint; nothing leaves the backend; results are labelled SIMULATION.</label>
+              <label style={{ display: "block", fontWeight: 400 }}><input type="radio" checked={form.connectionMode === "live"} onChange={() => set("connectionMode", "live")} />{" "}
+                <strong>Live</strong> -- the customer's AIS server, read-only. There is no fallback to simulation.
+                {!view.liveAllowedByDeployment && <span className="badge warn"> live access is not yet enabled on this server</span>}</label>
+            </div>
+          </fieldset>
+
+          <fieldset><legend>Endpoint and environment</legend>
+            <label className="field">AIS HTTPS address <span className="hint">(https://host[:port][/proxy-prefix] -- Jade appends /jderest/…; no credentials in the address)</span>
+              <input aria-label="AIS HTTPS address" value={form.aisBaseUrl} onChange={(e) => set("aisBaseUrl", e.target.value)} placeholder="https://ais.customer.example:9302" /></label>
+            <div className="grid halves">
+              <label className="field">JDE environment (exact name)<input aria-label="JDE environment" value={form.environment} onChange={(e) => set("environment", e.target.value)} placeholder="e.g. PS920 or JDV920" /></label>
+              <label className="field">Environment purpose <span className="hint">(stated by the customer; never inferred from the name)</span>
+                <select aria-label="Environment purpose" value={form.environmentPurpose} onChange={(e) => set("environmentPurpose", e.target.value as JdeProfileConfig["environmentPurpose"])}>
+                  <option value="development">Development</option>
+                  <option value="isolated_trial">Isolated trial environment, explicitly approved for this trial</option>
+                </select></label>
+              {form.environmentPurpose === "isolated_trial" && (
+                <label className="field">Trial approval reference <span className="hint">(who approved using this environment, and where)</span>
+                  <input aria-label="Trial approval reference" value={form.trialApprovalReference} onChange={(e) => set("trialApprovalReference", e.target.value)} placeholder="e.g. e-mail from the customer's IT lead, 2026-09-25" /></label>)}
+              <label className="field">JDE role (explicit)<input aria-label="JDE role" value={form.role} onChange={(e) => set("role", e.target.value)} placeholder="e.g. JADEREAD" /></label>
+              <label className="field">Application release<input aria-label="Application release" value={form.expectedApplicationRelease} onChange={(e) => set("expectedApplicationRelease", e.target.value)} placeholder="9.2" /></label>
+              <label className="field">Tools release<input aria-label="Tools release" value={form.expectedToolsRelease} onChange={(e) => set("expectedToolsRelease", e.target.value)} placeholder="9.2.8.2" /></label>
+              <label className="field">Path code<input aria-label="Path code" value={form.pathCode} onChange={(e) => set("pathCode", e.target.value)} placeholder="e.g. PS920" /></label>
+            </div>
+          </fieldset>
+
+          <fieldset><legend>Authentication</legend>
+            <label className="field">Method
+              <select aria-label="Authentication method" value={form.authMethod} onChange={(e) => set("authMethod", e.target.value as JdeProfileConfig["authMethod"])}>
+                {view.authMethods.map((m) => <option key={m.id} value={m.id} disabled={!m.supported}>{m.label}{m.supported ? "" : " -- not supported"}</option>)}
+              </select></label>
+            <ul className="hint">{view.authMethods.map((m) => <li key={m.id}><strong>{m.label}</strong>: {m.supported ? "supported. " : "not supported. "}{m.detail}</li>)}</ul>
+            <div className="hint">The JDE user and password are entered separately under Credential, after saving.</div>
+          </fieldset>
+
+          <fieldset><legend>Contacts and network access</legend>
+            <div className="grid halves">
+              <label className="field">Customer contact<input aria-label="Customer contact" value={form.customerContact} onChange={(e) => set("customerContact", e.target.value)} /></label>
+              <label className="field">CNC contact<input aria-label="CNC contact" value={form.cncContact} onChange={(e) => set("cncContact", e.target.value)} /></label>
+            </div>
+            <label className="field">Network access notes <span className="hint">(e.g. "VPN from the backend machine to ais.customer.example:9302")</span>
+              <input aria-label="Network access notes" value={form.networkRoute} onChange={(e) => set("networkRoute", e.target.value)} /></label>
+          </fieldset>
+
+          <fieldset><legend>Customer confirmations and evidence</legend>
+            <label className="field">Routing and isolation evidence<textarea aria-label="Isolation evidence" value={form.isolationEvidence} onChange={(e) => set("isolationEvidence", e.target.value)} /></label>
+            <label style={{ display: "flex", gap: 6, fontWeight: 400 }}><input type="checkbox" aria-label="Routing and isolation confirmed" checked={form.routingIsolationConfirmed} onChange={(e) => set("routingIsolationConfirmed", e.target.checked)} />The customer/CNC has confirmed the route reaches only this environment and it is isolated</label>
+            <label className="field">Privilege statement<textarea aria-label="Privilege statement" value={form.privilegeStatement} onChange={(e) => set("privilegeStatement", e.target.value)} /></label>
+            <label style={{ display: "flex", gap: 6, fontWeight: 400 }}><input type="checkbox" aria-label="Privilege confirmed" checked={form.privilegeConfirmed} onChange={(e) => set("privilegeConfirmed", e.target.checked)} />The customer has confirmed this JDE identity is narrowly privileged (read-only)</label>
+            <label className="field">Runtime attestation <span className="hint">(AIS does not report the Tools release or path code a session runs on; record the CNC's statement)</span>
+              <textarea aria-label="Runtime attestation" value={form.runtimeAttestationEvidence} onChange={(e) => set("runtimeAttestationEvidence", e.target.value)} placeholder="CNC (name, ticket): PS920 runs path code PS920 on Tools 9.2.x" /></label>
+            <label style={{ display: "flex", gap: 6, fontWeight: 400 }}><input type="checkbox" aria-label="Runtime attested" checked={form.runtimeAttestationConfirmed} onChange={(e) => set("runtimeAttestationConfirmed", e.target.checked)} />The CNC has attested the Tools release and path code for this environment</label>
+            <div className="field">Linked evidence documents <span className="hint">(import them below under Technical baseline as reference documents)</span>
+              {documents.length === 0 ? <div className="notstated">No reference documents imported yet.</div> : documents.map((d) => {
+                const ref = `${d.artifactId}@r${d.revision}`;
+                return (
+                  <label key={ref} style={{ display: "block", fontWeight: 400 }}>
+                    <input type="checkbox" checked={form.evidenceArtifactIds.includes(ref)} onChange={(e) => set("evidenceArtifactIds",
+                      e.target.checked ? [...form.evidenceArtifactIds, ref] : form.evidenceArtifactIds.filter((x) => x !== ref))} />{" "}
+                    <span className="mono">{ref}</span> {String(d.meta.title || d.meta.file_name || "")}
+                  </label>);
+              })}
+            </div>
+          </fieldset>
+
+          <fieldset><legend>Approved discovery reads</legend>
+            <ReadsEditor reads={form.approvedReads} onChange={(r) => set("approvedReads", r)} view={view} />
+          </fieldset>
+
+          <fieldset><legend>Authorisation window, limits and data sharing</legend>
+            <div className="grid halves">
+              <label className="field">Window starts<input aria-label="Window starts" type="datetime-local" value={localInput(form.discoveryWindow?.startsAt)}
+                onChange={(e) => set("discoveryWindow", { startsAt: new Date(e.target.value).toISOString(), endsAt: form.discoveryWindow?.endsAt ?? new Date().toISOString() })} /></label>
+              <label className="field">Window ends <span className="hint">(at most {view.ceilings.max_window_days} days)</span><input aria-label="Window ends" type="datetime-local" value={localInput(form.discoveryWindow?.endsAt)}
+                onChange={(e) => set("discoveryWindow", { startsAt: form.discoveryWindow?.startsAt ?? new Date().toISOString(), endsAt: new Date(e.target.value).toISOString() })} /></label>
+              <label className="field">Records per query (max {view.ceilings.max_records})<input aria-label="Records per query" type="number" min={1} max={view.ceilings.max_records} value={form.limits.maxRecords} onChange={(e) => set("limits", { ...form.limits, maxRecords: Number(e.target.value) })} /></label>
+              <label className="field">Request timeout, seconds (max {view.ceilings.max_timeout_seconds})<input aria-label="Request timeout" type="number" min={1} max={view.ceilings.max_timeout_seconds} value={form.limits.timeoutSeconds} onChange={(e) => set("limits", { ...form.limits, timeoutSeconds: Number(e.target.value) })} /></label>
+              <label className="field">Customer data in external AI prompts
+                <select aria-label="Customer data in AI prompts" value={form.dataSharingPolicy} onChange={(e) => set("dataSharingPolicy", e.target.value as DataSharingPolicy)}>
+                  <option value="metadata_only">Metadata only (values and artifact content withheld)</option>
+                  <option value="configuration_and_artifacts">Configuration values and artifacts; business data withheld</option>
+                  <option value="full">Full values (the customer has agreed)</option>
+                </select>
+              </label>
+            </div>
+          </fieldset>
           <div className="btnrow">
-            <button className="btn primary" disabled={busy} onClick={() => run("Save profile", async () => {
-              const r = await discoveryApi.saveProfile({ ...form, approvedReads: readsFromText(readsText) }, view.configured ? view.revision : null);
+            <button className="btn primary" disabled={busy} onClick={() => run("Save", async () => {
+              const r = await discoveryApi.saveProfile(form, view.configured ? view.revision : null);
               setEditing(false);
               return r;
-            })}>Save profile</button>
+            })}>Save</button>
             <button className="btn" onClick={() => { setEditing(false); load(); }}>Cancel</button>
           </div>
         </div>
       )}
 
-      {message && <div className="callout" style={{ marginTop: 12, borderColor: message.tone === "stop" ? "var(--stop)" : undefined }}>{message.text}</div>}
+      {message && <div className="callout" role="status" style={{ marginTop: 12, borderColor: message.tone === "stop" ? "var(--stop)" : undefined }}>{message.text}</div>}
 
       <TechnicalBaseline />
 
       <div style={{ marginTop: 16 }}>
-        <strong>Discovery activity</strong> <span className="hint">(sanitised: operation, target shape, counts and outcome — no credentials, tokens, filter values or business payloads)</span>
+        <strong>Discovery activity</strong> <span className="hint">(sanitised: time, profile revision, mode, operation, target, outcome and reason -- permitted and blocked requests; never credentials, tokens, filter values or business payloads)</span>
         {activity === null ? <p className="notstated">Admin only.</p> : activity.length === 0 ? <p className="notstated">No activity yet.</p> : (
           <table className="data">
             <thead><tr><th>When</th><th>Who / story / run</th><th>Operation</th><th>Outcome</th><th>Rows</th></tr></thead>
