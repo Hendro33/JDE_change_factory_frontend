@@ -5,6 +5,9 @@
 
 export type Page =
   | "dashboard"
+  | "admin-ai"
+  | "admin-agent-config"
+  | "admin-knowledge"
   | "userstories"
   | "userstoryreview"
   | "approval"

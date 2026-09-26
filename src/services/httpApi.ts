@@ -175,6 +175,25 @@ export async function request<T>(
   return res.json() as Promise<T>;
 }
 
+/** Downloads a file through the authenticated API (the session cookie is sent) and saves it. */
+export async function downloadFile(path: string, customerId: string, filename: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, { headers: { "X-Customer-Id": customerId }, credentials: "include" });
+  } catch {
+    throw new Error(unreachableMessage());
+  }
+  if (!res.ok) throw new HttpError(res.status, await res.text().catch(() => ""));
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function notImplemented(method: string): never {
   throw new Error(
     `HttpChangeFactoryApi.${method}() has no backend endpoint yet (Phase 1 is read-only + direct-entry intake). ` +
@@ -248,6 +267,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
         businessSource: input.source,
         sourceReference: input.sourceReference,
         rawContent: input.originalRequest,
+        attachmentIds: input.attachmentIds ?? [],
       },
     });
     // The API returns the ChangeRequest, not a Change -- fetch it back

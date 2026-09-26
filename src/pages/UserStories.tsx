@@ -1,5 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { api } from "../services/api";
+import { api, IS_MOCK_MODE } from "../services/api";
+import { DocumentCitations, DraftDocuments, RequestDocuments } from "../components/RequestDocuments";
+import type { Attachment } from "../services/aiApi";
+import { saveErrorMessage } from "../services/saveErrors";
 import type { BusinessDomain, Change, ChangeSource, JiraConnectionStatus, JiraSyncResult } from "../types/domain";
 import type { NavTarget } from "../types/nav";
 import {
@@ -63,6 +66,8 @@ export function UserStories({ onOpenChange, navFilter, navToken }: { onOpenChang
   const [source, setSource] = useState<ChangeSource>("Support / Topdesk");
   const [ref, setRef] = useState("");
   const [request, setRequest] = useState("");
+  const [docs, setDocs] = useState<Attachment[]>([]);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const [view, setView] = useState<View>("all");
   const [domainFilter, setDomainFilter] = useState("");
@@ -167,20 +172,38 @@ export function UserStories({ onOpenChange, navFilter, navToken }: { onOpenChang
   async function createStory() {
     if (!title.trim() || !request.trim()) return;
     setBusy(true);
-    const created = await api.createChange({
-      title: title.trim(), source, sourceReference: ref.trim(), originalRequest: request.trim(),
-    });
-    setTitle(""); setRef(""); setRequest(""); setCreating(false);
+    setCreateError(null);
+    let created;
+    try {
+      created = await api.createChange({
+        title: title.trim(), source, sourceReference: ref.trim(), originalRequest: request.trim(),
+        attachmentIds: docs.map((d) => d.id),
+      });
+    } catch (e) {
+      // Nothing is lost: the form and its uploaded documents stay as they are.
+      setCreateError(saveErrorMessage(e, "The request could not be created."));
+      setBusy(false);
+      return;
+    }
+    setTitle(""); setRef(""); setRequest(""); setDocs([]); setCreating(false);
     await reload();
     setView("all");
     setSelectedId(created.id);
     setBusy(false);
   }
 
+  const [enhanceError, setEnhanceError] = useState<string | null>(null);
+  useEffect(() => setEnhanceError(null), [selectedId]);
   async function enhance() {
     if (!selected) return;
     setBusy(true);
-    await api.enhanceStory(selected.id);
+    setEnhanceError(null);
+    try {
+      await api.enhanceStory(selected.id);
+    } catch (e) {
+      // e.g. no AI connection, no Start-up Pack, agent switched off: nothing was started.
+      setEnhanceError(saveErrorMessage(e, "The agents could not be started."));
+    }
     await reload();
     setBusy(false);
   }
@@ -267,6 +290,8 @@ export function UserStories({ onOpenChange, navFilter, navToken }: { onOpenChang
                 placeholder="Paste the ticket text or note exactly as it was written. Don't tidy it up — Jade works better with the original wording." />
             </div>
           </div>
+          {!IS_MOCK_MODE && <DraftDocuments value={docs} onChange={setDocs} />}
+          {createError && <div className="badge stop" role="alert">{createError}</div>}
           <div className="btnrow">
             <button className="btn primary" disabled={!title.trim() || !request.trim() || busy} onClick={createStory}>
               {busy ? "Creating…" : "Create story"}
@@ -332,6 +357,8 @@ export function UserStories({ onOpenChange, navFilter, navToken }: { onOpenChang
               </Provenance>
             </div>
 
+            {!IS_MOCK_MODE && <div style={{ marginTop: 12 }}><RequestDocuments requestId={selected.id} /></div>}
+
             {selected.sourceMetadata && Object.keys(selected.sourceMetadata).length > 0 && (
               <dl className="facts" style={{ marginTop: 12 }}>
                 {Object.entries(selected.sourceMetadata).map(([key, value]) => (
@@ -362,6 +389,12 @@ export function UserStories({ onOpenChange, navFilter, navToken }: { onOpenChang
                     </span>
                   </>
                 )}
+              </div>
+            )}
+            {enhanceError && (
+              <div className="callout" role="alert" style={{ marginTop: 14 }}>
+                <strong>Not started</strong>
+                {enhanceError}
               </div>
             )}
             {selected.processingStage === "failed" && (
@@ -448,6 +481,8 @@ export function UserStories({ onOpenChange, navFilter, navToken }: { onOpenChang
                   </Provenance>
                 </>
               )}
+
+              <DocumentCitations citations={selected.userStory.documentCitations} />
 
               {selected.state === "BACKLOG_READY" && (
                 <div className="callout" style={{ marginTop: 18 }}>

@@ -166,6 +166,14 @@ export interface UserStory {
   openQuestions: string[];
   qualityStatus: "draft" | "needs_revision" | "passed" | "needs_human_input";
   revisionCount: number;
+  /** Statements resting on a customer document; verified = Jade gave the agent that section in the run. */
+  documentCitations?: DocumentCitation[];
+}
+
+export interface DocumentCitation {
+  claim: string;
+  source: string;
+  verified: boolean;
 }
 
 /** Design doc Section 6.2. */

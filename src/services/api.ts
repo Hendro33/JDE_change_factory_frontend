@@ -156,6 +156,8 @@ export interface CreateChangeInput {
   source: ChangeSource;
   sourceReference: string;
   originalRequest: string;
+  /** Pending uploads (DraftDocuments) to attach; real backend only. */
+  attachmentIds?: string[];
 }
 
 export interface DecisionInput {
