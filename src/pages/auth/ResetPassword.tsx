@@ -1,3 +1,4 @@
+import { AuthBrand } from "./Login";
 import { useState } from "react";
 import { authApi } from "../../services/httpApi";
 
@@ -28,7 +29,7 @@ export function ResetPassword({ token, onDone }: { token: string; onDone: () => 
 
   return (
     <div className="authscreen">
-      <div className="authcard">
+      <div className="authcard"><AuthBrand />
         <h1 style={{ marginTop: 0 }}>Choose a new password</h1>
         {done ? (
           <>

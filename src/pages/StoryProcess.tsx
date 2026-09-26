@@ -8,6 +8,7 @@ import {
 import { Link } from "../router";
 import { Details, Loading } from "../components/design";
 import { ProcessMapDiagram } from "../components/ProcessMapDiagram";
+import { cleanAgentText } from "./stories/storyContext";
 
 const refTone: Record<string, string> = { current: "ok", unchanged: "ok", changed: "warn", removed: "stop", framework_inactive: "stop" };
 
@@ -17,7 +18,7 @@ export function RefList({ refs }: { refs: PinnedRef[] }) {
       <li key={`${r.framework_id}:${r.version}:${r.node_key}`}>
         <Link to={`/business?node=${encodeURIComponent(r.node_key)}`}>{r.path.map((p) => p.name).join(" › ")}</Link>
         {r.status_now && !["current", "unchanged"].includes(r.status_now.state) && <> <span className={`badge ${refTone[r.status_now.state] ?? "grey"}`} title={r.status_now.detail}>{r.status_now.state === "changed" ? "changed since" : r.status_now.state.replace("_", " ")}</span></>}
-        {r.rationale && <div className="hint">{r.rationale}</div>}
+        {r.rationale && <div className="hint">{cleanAgentText(r.rationale).text}</div>}
       </li>
     ))}</ul>
   );
@@ -72,12 +73,12 @@ export function MappingSection({ view, nodes, onChanged }: { view: StoryProcessV
             : <span className="badge grey">Process analysis</span>}
             {" "}<span className="hint">{run.status} · framework version {run.framework_version}</span></div>
           {run.error && <p style={{ color: "var(--stop)" }}>{run.error}</p>}
-          {run.result.summary && <p>{run.result.summary}</p>}
+          {run.result.summary && <p>{cleanAgentText(run.result.summary).text}</p>}
           {suggestions.map((s) => (
             <label key={s.node_key} style={{ display: "block" }}>
               <input type="checkbox" disabled={!view.can_review} checked={!!chosen[s.node_key]}
                      onChange={(e) => setChosen({ ...chosen, [s.node_key]: e.target.checked })} />{" "}
-              <span className="mono">{s.node_key}</span> {s.path.map((p) => p.name).join(" › ")} <span className="hint">({s.confidence}) {s.rationale}</span>
+              <span className="mono">{s.node_key}</span> {s.path.map((p) => p.name).join(" › ")} <span className="hint">({s.confidence}) {cleanAgentText(s.rationale).text}</span>
             </label>
           ))}
           {(run.result.rejected_suggestions ?? []).length > 0 && <p className="hint">Rejected (not in the framework): {run.result.rejected_suggestions!.join("; ")}</p>}

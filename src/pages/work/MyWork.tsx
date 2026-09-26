@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { recentStories } from "../../services/recent";
 import { api } from "../../services/api";
 import type { Change, IntegrationStatus } from "../../types/domain";
 import {
@@ -61,6 +62,7 @@ export function MyWorkPage() {
   const { decisions, otherTasks, newRequests, count } = attentionOf(work);
   const firstName = info.session.displayName.split(/\s+/)[0];
   const problems = integrations.filter((i) => !i.connected);
+  const recent = recentStories(info.session.activeCustomerId);
 
   return (
     <div className="mywork">
@@ -119,6 +121,11 @@ export function MyWorkPage() {
             <span className="stat-label">delivered in the last month</span>
           </Link>
           <Link className="btn wide" to="/stories/new">New request</Link>
+          {recent.length > 0 && (
+            <Section title="Recently viewed" quiet>
+              <ul className="quietlist">{recent.map((r) => <li key={r.id}><Link to={storyPath(r.id)}>{r.title}</Link></li>)}</ul>
+            </Section>
+          )}
           {info.has("admin") && problems.length > 0 && (
             <Section title="For administrators" quiet>
               <ul className="quietlist">{problems.map((i) => (

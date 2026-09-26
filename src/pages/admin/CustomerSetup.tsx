@@ -129,7 +129,7 @@ export function CustomerSetup() {
     api
       .getDashboardThresholds()
       .then((t) => { applyStored(t); setThresholdsError(null); })
-      .catch((e) => setThresholdsError(saveErrorMessage(e, "Could not load the dashboard thresholds.")));
+      .catch((e) => setThresholdsError(saveErrorMessage(e, "Could not load the report thresholds.")));
   }
 
   useEffect(() => {
@@ -151,7 +151,7 @@ export function CustomerSetup() {
       setTimeout(() => setSaved(false), 2000);
       return true;
     } catch (e) {
-      setThresholdsError(saveErrorMessage(e, "Could not save the dashboard thresholds."));
+      setThresholdsError(saveErrorMessage(e, "Could not save the report thresholds."));
       return false;
     } finally {
       setSaving(false);
@@ -215,9 +215,9 @@ export function CustomerSetup() {
           </section>
 
           <section className="panel">
-            <h2>Dashboard alert thresholds</h2>
+            <h2>Report alert thresholds</h2>
             <div className="sub" style={{ marginBottom: 12 }}>
-              When a KPI count on the Jade Dashboard should draw attention — a count above the
+              When a count in Reports (stories waiting for a decision, or blocked) should draw attention — a count above the
               first value turns orange, above the second turns red. Saved for this company and shared
               by everyone who uses it; only an Admin can change them.
             </div>

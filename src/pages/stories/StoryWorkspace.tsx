@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { rememberStory } from "../../services/recent";
 import { api, IS_MOCK_MODE } from "../../services/api";
 import { processApi, type StoryProcessView } from "../../services/processApi";
 import { technicalApi, type TechnicalWorkView } from "../../services/technicalApi";
@@ -47,6 +48,10 @@ export function StoryWorkspace({ storyId, tab }: { storyId: string; tab?: string
   useEffect(() => {
     api.getChange(storyId).then((c) => { setChange(c ?? null); setError(null); }).catch((e) => setError(e));
   }, [storyId, tick]);
+
+  useEffect(() => {
+    if (change) rememberStory(info.session.activeCustomerId, change.id, storyTitle(change));
+  }, [change?.id, info.session.activeCustomerId]);
 
   const isStory = !!change && !["RECEIVED", "REFINING"].includes(change.state);
   useEffect(() => {

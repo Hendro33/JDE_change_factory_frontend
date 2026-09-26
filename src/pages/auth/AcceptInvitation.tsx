@@ -1,3 +1,4 @@
+import { AuthBrand } from "./Login";
 import { useEffect, useState } from "react";
 import { authApi } from "../../services/httpApi";
 import type { InvitationPreview } from "../../types/domain";
@@ -53,7 +54,7 @@ export function AcceptInvitation({ token, onAccepted, onGoToLogin }: {
   if (loadError) {
     return (
       <div className="authscreen">
-        <div className="authcard">
+        <div className="authcard"><AuthBrand />
           <h1 style={{ marginTop: 0 }}>Invitation</h1>
           <div className="callout" style={{ borderColor: "var(--stop)" }}>{loadError}</div>
           <div className="btnrow"><button className="btn" onClick={onGoToLogin}>Go to sign in</button></div>
@@ -65,7 +66,7 @@ export function AcceptInvitation({ token, onAccepted, onGoToLogin }: {
   if (!preview) {
     return (
       <div className="authscreen">
-        <div className="authcard"><p>Loading invitation…</p></div>
+        <div className="authcard"><AuthBrand /><p>Loading invitation…</p></div>
       </div>
     );
   }
@@ -73,7 +74,7 @@ export function AcceptInvitation({ token, onAccepted, onGoToLogin }: {
   if (!preview.valid) {
     return (
       <div className="authscreen">
-        <div className="authcard">
+        <div className="authcard"><AuthBrand />
           <h1 style={{ marginTop: 0 }}>Invitation no longer valid</h1>
           <div className="callout" style={{ borderColor: "var(--stop)" }}>
             {preview.reason ?? "This invitation link can no longer be used."} Ask your company's Admin for a new one.
@@ -86,7 +87,7 @@ export function AcceptInvitation({ token, onAccepted, onGoToLogin }: {
 
   return (
     <div className="authscreen">
-      <div className="authcard">
+      <div className="authcard"><AuthBrand />
         <h1 style={{ marginTop: 0 }}>Join {preview.companyName}</h1>
         <p className="sub">
           {preview.email} has been invited with the role{preview.roles.length === 1 ? "" : "s"}:{" "}

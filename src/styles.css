@@ -103,12 +103,18 @@ a:hover { color: var(--jade-deep); }
 
 .appbar-tools { display: flex; align-items: center; gap: 12px; flex: none; }
 
+/* Search is a round button that opens leftwards over the navigation (press "/" anywhere).
+   Its net width stays 38px, so the navigation never moves or wraps. */
 .globalsearch {
   display: flex; align-items: center; gap: 8px; background: var(--wash); border: 1px solid transparent;
-  border-radius: 999px; padding: 0 12px; height: 38px; color: var(--muted); width: 220px;
+  border-radius: 999px; padding: 0 11px; height: 38px; color: var(--muted); width: 38px; cursor: text;
+  position: relative; z-index: 5; transition: width .15s ease, margin-left .15s ease;
 }
-.globalsearch:focus-within { border-color: var(--jade); background: var(--panel); box-shadow: var(--focus); }
-.globalsearch input { border: 0; background: none; outline: none; width: 100%; font-size: 14px; color: var(--ink); min-height: 0; padding: 0; box-shadow: none !important; }
+.globalsearch svg { flex: none; }
+.globalsearch input::placeholder { color: transparent; }
+.globalsearch:focus-within { width: 300px; margin-left: -262px; border-color: var(--jade); background: var(--panel); box-shadow: var(--focus), var(--shadow); }
+.globalsearch:focus-within input::placeholder { color: var(--muted); }
+.globalsearch input, .globalsearch input[type=search] { border: 0; background: none; outline: none; width: 100%; font-size: 14px; color: var(--ink); min-height: 0; padding: 0; box-shadow: none !important; }
 
 .iconbtn {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
@@ -189,6 +195,12 @@ a:hover { color: var(--jade-deep); }
 /* Auth screens keep the brand large and friendly. */
 .authscreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--canvas); padding: 20px; }
 .authcard { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 36px; max-width: 440px; width: 100%; }
+.authscreen { background: radial-gradient(1200px 500px at 50% -10%, var(--jade-pale), var(--canvas) 70%); }
+.authcard { border-top: 4px solid var(--jade); }
+.authbrand { display: grid; justify-items: start; gap: 8px; margin-bottom: 28px; }
+.authbrand-mark { height: 64px; width: auto; display: block; }
+.authbrand-tag { font-size: 13.5px; color: var(--muted); }
+.authbrand-tag b { color: var(--ink); }
 .brandmark { display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap; }
 .brandmark .logo { display: inline-block; font-size: 27px; font-weight: 400; letter-spacing: -0.01em; line-height: 1; text-transform: capitalize; }
 .brandmark .logo b { font-weight: 800; }
@@ -508,6 +520,10 @@ a.statcard:hover { border-color: var(--jade); color: var(--ink); }
 .stat-value { font-size: 30px; font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; }
 .stat-label { font-size: 13.5px; color: var(--muted); }
 .statcard.plain { box-shadow: none; }
+.statcard.warn { background: var(--warn-bg); border-color: #f0d68a; }
+.statcard.warn .stat-value, .statcard.warn .stat-label { color: var(--warn); }
+.statcard.stop { background: var(--stop-bg); border-color: #f3c9c6; }
+.statcard.stop .stat-value, .statcard.stop .stat-label { color: var(--stop); }
 
 .board { display: grid; grid-template-columns: repeat(8, minmax(170px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 8px; }
 .board-col { background: var(--wash); border-radius: var(--radius); padding: 10px; min-height: 200px; }
@@ -627,10 +643,6 @@ dl.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 /* Responsive: story reading, decisions and My Work work on a phone  */
 /* ---------------------------------------------------------------- */
 
-@media (max-width: 1500px) {
-  .globalsearch { width: 38px; padding: 0 11px; cursor: text; }
-  .globalsearch:focus-within { width: 220px; }
-  .globalsearch input::placeholder { color: transparent; }
 }
 @media (max-width: 1180px) {
   .appbar-row { gap: 16px; }

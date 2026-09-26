@@ -8,8 +8,10 @@ import {
 } from "../../components/design";
 import { Link, navigate, setQueryParam, storyPath, useLocation } from "../../router";
 
-const HEALTH_FILTERS: { key: Health | "attention"; label: string }[] = [
+const HEALTH_FILTERS: { key: Health | "attention" | "stuck"; label: string }[] = [
   { key: "attention", label: "Needs a person" },
+  { key: "waiting_decision", label: "Waiting for a decision" },
+  { key: "stuck", label: "Blocked or failed" },
   { key: "in_progress", label: "In progress" },
   { key: "blocked", label: "Blocked" },
   { key: "failed", label: "Needs attention" },
@@ -52,7 +54,8 @@ export function StoriesPage() {
       if (priority && c.priority !== priority) return false;
       if (owner && lc?.nextAction.owner !== owner) return false;
       if (health === "attention" && !(lc && lc.nextAction.owner !== "jade" && lc.nextAction.kind !== "none")) return false;
-      if (health && health !== "attention" && lc?.health !== health) return false;
+      if (health === "stuck" && lc?.health !== "blocked" && lc?.health !== "failed") return false;
+      if (health && health !== "attention" && health !== "stuck" && lc?.health !== health) return false;
       return true;
     });
   }, [data, q, phase, domain, health, owner, priority, showDone, info]);

@@ -6,6 +6,7 @@ import {
   EmptyState, ErrorState, HealthIndicator, Loading, PageHeader, PhaseLabel, Section, storyTitle, useAsync, useSessionInfo,
 } from "../../components/design";
 import { Link, navigate, storyPath } from "../../router";
+import { DEFAULT_DASHBOARD_THRESHOLDS, toneForValue } from "../../services/dashboardThresholds";
 
 /** One series, one hue: a labelled horizontal bar per row, each a link to the stories behind it. */
 function Bars({ rows, onRow, label }: { rows: { label: string; count: number; hint?: string }[]; onRow?: (i: number) => void; label: string }) {
@@ -26,6 +27,17 @@ function Bars({ rows, onRow, label }: { rows: { label: string; count: number; hi
   );
 }
 
+/** A count that turns orange or red above the customer's saved thresholds (Administration › Organisation). */
+function AlertStat({ value, label, to, thresholds }: { value: number; label: string; to: string; thresholds: { warnAt: number; criticalAt: number } }) {
+  const tone = toneForValue(value, thresholds);
+  return (
+    <Link to={to} className={`statcard${tone ? ` ${tone}` : ""}`}>
+      <span className="stat-value">{value}</span>
+      <span className="stat-label">{label}{tone && <> · <strong>{tone === "stop" ? "above the alert level" : "above the warning level"}</strong></>}</span>
+    </Link>
+  );
+}
+
 /**
  * Reports: where demand comes from, where stories sit and how delivery
  * performs -- moved off the landing page. Every number comes from the
@@ -36,6 +48,7 @@ export function ReportsPage() {
   const info = useSessionInfo();
   const { data: metrics, error } = useAsync<FactoryMetrics>(() => api.getMetrics(), []);
   const { data: changes } = useAsync(() => api.listChanges(), []);
+  const { data: thresholds } = useAsync(() => api.getDashboardThresholds().catch(() => DEFAULT_DASHBOARD_THRESHOLDS), []);
   const [queue, setQueue] = useState<DeliveryQueueEntry[]>([]);
   useEffect(() => { api.listDeliveryQueue().then(setQueue).catch(() => setQueue([])); }, []);
 
@@ -53,8 +66,10 @@ export function ReportsPage() {
 
       <div className="statrow">
         <div className="statcard"><span className="stat-value">{changes.filter((c) => c.lifecycle?.phase !== "done").length}</span><span className="stat-label">stories in progress</span></div>
-        <div className="statcard"><span className="stat-value">{changes.filter((c) => c.lifecycle?.health === "waiting_decision").length}</span><span className="stat-label">waiting for a decision</span></div>
-        <div className="statcard"><span className="stat-value">{changes.filter((c) => c.lifecycle?.health === "failed" || c.lifecycle?.health === "blocked").length}</span><span className="stat-label">blocked or needing attention</span></div>
+        <AlertStat to="/stories?health=waiting_decision" value={changes.filter((c) => c.lifecycle?.health === "waiting_decision").length}
+                   label="waiting for a decision" thresholds={thresholds ?? DEFAULT_DASHBOARD_THRESHOLDS} />
+        <AlertStat to="/stories?health=stuck" value={changes.filter((c) => c.lifecycle?.health === "failed" || c.lifecycle?.health === "blocked").length}
+                   label="blocked or needing attention" thresholds={thresholds ?? DEFAULT_DASHBOARD_THRESHOLDS} />
         <div className="statcard"><span className="stat-value">{changes.filter((c) => c.lifecycle?.outcome === "delivered").length}</span><span className="stat-label">delivered</span></div>
       </div>
 

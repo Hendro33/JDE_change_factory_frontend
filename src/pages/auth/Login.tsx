@@ -48,13 +48,7 @@ export function Login({ onSignedIn, notice }: { onSignedIn: () => void; notice?:
   return (
     <div className="authscreen">
       <div className="authcard">
-        <div className="brandmark" style={{ marginBottom: 24 }}>
-          <span className="logo">consult<b>IQ</b></span>
-          <span className="product">
-            <strong>Jade</strong>
-            <span>An AI delivery team for enterprise change</span>
-          </span>
-        </div>
+        <AuthBrand />
 
         {mode === "login" ? (
           <form
@@ -136,6 +130,16 @@ export function Login({ onSignedIn, notice }: { onSignedIn: () => void; notice?:
           </form>
         )}
       </div>
+    </div>
+  );
+}
+
+/** The Jade wordmark at the top of every sign-in, reset and invitation screen. */
+export function AuthBrand() {
+  return (
+    <div className="authbrand">
+      <img src={`${import.meta.env.BASE_URL}jade-wordmark.png`} alt="Jade" className="authbrand-mark" />
+      <span className="authbrand-tag">An AI delivery team for enterprise change · by consult<b>IQ</b></span>
     </div>
   );
 }
