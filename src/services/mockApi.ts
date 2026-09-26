@@ -45,6 +45,8 @@ import type {
 } from "../types/domain";
 import type { Session } from "../types/domain";
 import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
+import { mockMyWork, withMockLifecycle } from "./lifecycleMock";
+import type { AgentInventoryEntry, CompanyRole, MyWork } from "../types/domain";
 import { DEFAULT_DASHBOARD_THRESHOLDS } from "./dashboardThresholds";
 import { nextRevision } from "./saveErrors";
 import { CUSTOMERS, getMockSession, identitiesForCustomer, setMockActiveCustomer } from "./session";
@@ -212,13 +214,26 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
   }
 
   async listChanges(): Promise<Change[]> {
-    return delay([...this.scoped()]);
+    return delay(this.scoped().map(withMockLifecycle));
+  }
+
+  async getMyWork(): Promise<MyWork> {
+    // The demo persona sees every kind of work item.
+    const roles: CompanyRole[] = ["domain_owner", "product_manager", "admin", "cnc_operator"];
+    return delay(mockMyWork(this.scoped(), roles));
+  }
+
+  async listAgentInventory(): Promise<AgentInventoryEntry[]> {
+    const agents = await this.listAgents();
+    return agents.map((a) => ({ key: a.name, label: a.name, group: "Agents", purpose: a.description, enabled: true,
+      runsInJade: !!a.runtime, definition: a.name, note: "" }));
   }
 
   async getChange(id: string): Promise<Change | undefined> {
     // Scoped lookup: a change belonging to another customer is not
     // "forbidden", it simply does not exist for this caller.
-    return delay(this.scoped().find((c) => c.id === id));
+    const c = this.scoped().find((x) => x.id === id);
+    return delay(c ? withMockLifecycle(c) : undefined);
   }
 
   async createChange(input: CreateChangeInput): Promise<Change> {

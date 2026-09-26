@@ -37,7 +37,7 @@ import type {
   MeOut,
   Session,
   UpdateMembershipInput,
-  UserStory, CustomerInput, Customer } from "../types/domain";
+  UserStory, CustomerInput, Customer, MyWork, AgentInventoryEntry } from "../types/domain";
 import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
 import { RevisionConflictError } from "./saveErrors";
 
@@ -107,9 +107,37 @@ function messageFromErrorBody(status: number, body: string): string {
   return `HTTP ${status}: ${body}`;
 }
 
+/**
+ * What a person should read when a request fails: plain language first.
+ * The server's own wording stays available as `detail` (shown under
+ * "Technical details" by ErrorState) so nothing is hidden from an admin.
+ */
+function friendlyMessage(status: number, detail: string): string {
+  const d = detail.toLowerCase();
+  if (status === 401) return "Your session has ended. Sign in again to continue.";
+  if (status === 403) {
+    const m = detail.match(/requires one of these roles: (.*)/);
+    if (m) {
+      const labels: Record<string, string> = { product_manager: "Product Owner", domain_owner: "Domain Owner", admin: "Administrator",
+        cnc_operator: "CNC operator", dashboard_viewer: "Viewer" };
+      return `You don't have permission to do this. It needs the ${m[1].split(/,\s*/).map((r) => labels[r] ?? r).join(" or ")} role.`;
+    }
+    return "You don't have permission to do this.";
+  }
+  if (status === 404 || d.startsWith("no such ")) {
+    return "This could not be found. It may have been removed, or you may not have access to it.";
+  }
+  if (status >= 500) return "Something went wrong on the server. Try again; if it keeps happening, an administrator can check the backend log.";
+  return detail;
+}
+
 export class HttpError extends Error {
+  /** The server's own wording, for "Technical details". */
+  public detail: string;
   constructor(public status: number, public body: string) {
-    super(messageFromErrorBody(status, body));
+    const detail = messageFromErrorBody(status, body);
+    super(friendlyMessage(status, detail));
+    this.detail = detail;
   }
 }
 
@@ -245,6 +273,16 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
   async listChanges(): Promise<Change[]> {
     const customerId = await this.activeCustomerId();
     return request<Change[]>("/changes", { customerId });
+  }
+
+  async getMyWork(): Promise<MyWork> {
+    const customerId = await this.activeCustomerId();
+    return request<MyWork>("/work", { customerId });
+  }
+
+  async listAgentInventory(): Promise<AgentInventoryEntry[]> {
+    const customerId = await this.activeCustomerId();
+    return request<AgentInventoryEntry[]>("/admin/agent-inventory", { customerId });
   }
 
   async getChange(id: string): Promise<Change | undefined> {

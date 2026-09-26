@@ -45,7 +45,7 @@ import type {
   MembershipOut,
   Session,
   UpdateMembershipInput,
-  UserStory, CustomerInput, Customer } from "../types/domain";
+  UserStory, CustomerInput, Customer, MyWork, AgentInventoryEntry } from "../types/domain";
 
 /**
  * The REST endpoints the FastAPI backend is expected to expose.
@@ -61,6 +61,8 @@ export const API_ENDPOINTS = {
   getSession: "GET /session",
 
   listChanges: "GET /changes",
+  getMyWork: "GET /work",
+  listAgentInventory: "GET /admin/agent-inventory",
   createChange: "POST /changes",
   getChange: "GET /changes/{id}",
 
@@ -186,6 +188,10 @@ export interface ChangeFactoryApi {
 
   /** All methods below return data for the ACTIVE customer only. */
   listChanges(): Promise<Change[]>;
+  /** What needs the signed-in person, derived from the canonical lifecycle and their roles. */
+  getMyWork(): Promise<MyWork>;
+  /** The one canonical list of Jade's agents. */
+  listAgentInventory(): Promise<AgentInventoryEntry[]>;
   getChange(id: string): Promise<Change | undefined>;
   createChange(input: CreateChangeInput): Promise<Change>;
 

@@ -605,6 +605,88 @@ export interface Change {
   humanValidation?: { validatedBy: string; validatedAt: string; note: string };
   evidence: EvidenceRecord[];
   closure?: ClosureRecord;
+  /**
+   * The ONE canonical business lifecycle (backend services/lifecycle.py):
+   * phase, health and next action. Every screen shows this — never its
+   * own reading of the underlying records.
+   */
+  lifecycle?: Lifecycle;
+}
+
+/* ------------------------------------------------------------------ */
+/* Canonical lifecycle                                                  */
+/* ------------------------------------------------------------------ */
+
+export type Phase =
+  | "understand" | "story_review" | "solutioning" | "solution_review"
+  | "delivery" | "validation" | "release" | "done";
+
+export const PHASES: { key: Phase; label: string }[] = [
+  { key: "understand", label: "Understand" },
+  { key: "story_review", label: "Story Review" },
+  { key: "solutioning", label: "Solutioning" },
+  { key: "solution_review", label: "Solution Review" },
+  { key: "delivery", label: "Delivery" },
+  { key: "validation", label: "Validation" },
+  { key: "release", label: "Release" },
+  { key: "done", label: "Done" },
+];
+
+export type Health = "in_progress" | "waiting_decision" | "waiting" | "blocked" | "failed" | "done" | "closed";
+export type ActionOwner = "jade" | "domain_owner" | "product_manager" | "cnc_operator" | "admin" | "none";
+export type WorkspaceTab = "overview" | "story" | "solution" | "delivery" | "evidence" | "technical";
+
+export interface NextAction {
+  kind: "decision" | "task" | "none";
+  summary: string;
+  owner: ActionOwner;
+  ownerLabel: string;
+  action?: string | null;
+  tab: WorkspaceTab;
+  effect: string;
+}
+
+export interface LifecycleStep {
+  id: string;
+  label: string;
+  state: "done" | "current" | "todo" | "failed" | "skipped";
+  detail: string;
+}
+
+export interface Lifecycle {
+  phase: Phase;
+  phaseLabel: string;
+  phaseIndex: number;
+  health: Health;
+  healthLabel: string;
+  nextAction: NextAction;
+  outcome?: "delivered" | "rejected" | "resolved_without_change" | null;
+  deliverySteps: LifecycleStep[];
+  openItems: string[];
+  route?: string | null;
+  simulated: boolean;
+}
+
+/** GET /work — what needs the signed-in person, from the canonical lifecycle. */
+export interface MyWork {
+  needsYou: Change[];
+  waitingOnOthers: Change[];
+  jadeWorking: Change[];
+  inProgressCount: number;
+  completedThisMonth: Change[];
+  roles: CompanyRole[];
+}
+
+/** GET /admin/agent-inventory — the one canonical list of Jade's agents. */
+export interface AgentInventoryEntry {
+  key: string;
+  label: string;
+  group: string;
+  purpose: string;
+  enabled: boolean;
+  runsInJade: boolean;
+  definition?: string | null;
+  note: string;
 }
 
 /**
@@ -627,6 +709,9 @@ export interface FactoryMetrics {
   businessImpactBreakdown: { category: string; count: number }[];
   /** Distribution of current changes by business domain — empty where no domain governance data exists for this customer. */
   businessDomainBreakdown: { domainId: string | null; domainName: string; apqcCode: string; count: number }[];
+  /** Stories per canonical lifecycle phase / health (from the same lifecycle every story shows). */
+  phases?: { stage: string; count: number }[];
+  health?: { stage: string; count: number }[];
   performance: {
     averageCycleTimeDays: number;
     averageCycleTimeDelta: number;

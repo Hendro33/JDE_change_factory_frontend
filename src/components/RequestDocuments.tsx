@@ -1,3 +1,4 @@
+import { HttpError } from "../services/httpApi";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   aiApi,
@@ -140,6 +141,9 @@ export function RequestDocuments({ requestId, canEdit = true }: { requestId: str
     try {
       setItems((await aiApi.attachments(requestId)).attachments);
     } catch (e) {
+      // A story that never had a request of its own (e.g. entered straight
+      // into the backlog) simply has no documents -- not an error.
+      if (e instanceof HttpError && e.status === 404) { setItems([]); return; }
       setError(saveErrorMessage(e, "Documents could not be loaded."));
     }
   }, [requestId]);
