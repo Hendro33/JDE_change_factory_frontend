@@ -484,3 +484,5 @@ dl.facts dd { margin: 0; }
   cursor: pointer; font-size: 14px; text-align: left; width: fit-content;
 }
 .linklike:hover { color: var(--brand-dark); }
+
+.linkbtn { background: none; border: 0; padding: 0; color: var(--ink); text-decoration: underline; cursor: pointer; font: inherit; }

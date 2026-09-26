@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { ownersOf } from "./BusinessDomains";
 import { ExecutionPanel } from "../components/ExecutionPanel";
+import { DocumentCitations, RequestDocuments } from "../components/RequestDocuments";
+import { IS_MOCK_MODE } from "../services/api";
 import { saveErrorMessage } from "../services/saveErrors";
 import type { BusinessDomain, Change, DomainReview } from "../types/domain";
 import {
@@ -137,6 +139,8 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
             </Provenance>
           </section>
 
+          {!IS_MOCK_MODE && <RequestDocuments requestId={change.id} />}
+
           {domainReview && (
             <section className="panel">
               <h2>Business domain</h2>
@@ -185,6 +189,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                 <p style={{ margin: "0 0 10px", fontSize: 14.5, fontWeight: 700 }}>{change.userStory.statement}</p>
                 <p style={{ margin: 0, fontSize: 13.5 }}>{change.userStory.businessContext}</p>
               </Provenance>
+              <DocumentCitations citations={change.userStory.documentCitations} />
               {change.userStory.acceptanceCriteria.length > 0 && (
                 <table className="data" style={{ marginTop: 14 }}>
                   <thead><tr><th>#</th><th>Acceptance criterion</th><th>Verified by</th></tr></thead>

@@ -134,8 +134,9 @@ export function Agents() {
           <h1>Your Jade AI delivery team</h1>
           <div className="sub">
             The six agents that exist in Jade, what each does, and whether it runs for this customer. An Admin can switch an agent
-            off for this customer; a switched-off agent is never started. Agent instructions and platform safeguards are not
-            editable here.
+            off for this customer; a switched-off agent is never started. Whether an agent can actually run — this customer's
+            AI connection, its assigned Start-up Pack and its last real run — is shown under Admin › Agent Configuration,
+            where the instructions, skills and knowledge are managed. Platform safeguards are not editable.
           </div>
         </div>
       </div>

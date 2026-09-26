@@ -21,6 +21,9 @@ import { ChangeDetail } from "./pages/ChangeDetail";
 import { CustomerSetup } from "./pages/admin/CustomerSetup";
 import { ErpLandscape } from "./pages/admin/ErpLandscape";
 import { Agents } from "./pages/admin/Agents";
+import { AiConnections } from "./pages/admin/AiConnections";
+import { AgentConfiguration } from "./pages/admin/AgentConfiguration";
+import { KnowledgeLibrary } from "./pages/admin/KnowledgeLibrary";
 import { Integrations } from "./pages/admin/Integrations";
 import { Users } from "./pages/admin/Users";
 import { Login } from "./pages/auth/Login";
@@ -74,6 +77,9 @@ const ADMIN_GROUP: NavGroup = {
     { key: "admin-customer", label: "Customer Setup" },
     { key: "admin-erp", label: "ERP / JDE Landscape" },
     { key: "admin-agents", label: "Agents" },
+    { key: "admin-ai", label: "AI Connections" },
+    { key: "admin-agent-config", label: "Agent Configuration" },
+    { key: "admin-knowledge", label: "Knowledge Library" },
     { key: "admin-process", label: "Process Framework" },
     { key: "domains", label: "Business Domains" },
     { key: "admin-integrations", label: "Integrations" },
@@ -269,6 +275,12 @@ function MainApp({ onSignedOut, onSetupFinished }: { onSignedOut?: () => void; o
           <ErpLandscape />
         ) : page === "admin-agents" ? (
           <Agents />
+        ) : page === "admin-ai" ? (
+          <AiConnections />
+        ) : page === "admin-agent-config" ? (
+          <AgentConfiguration />
+        ) : page === "admin-knowledge" ? (
+          <KnowledgeLibrary />
         ) : page === "admin-integrations" ? (
           <Integrations />
         ) : page === "admin-users" ? (
