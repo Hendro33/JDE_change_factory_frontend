@@ -122,7 +122,8 @@ function friendlyMessage(status: number, detail: string): string {
         cnc_operator: "CNC operator", dashboard_viewer: "Viewer" };
       return `You don't have permission to do this. It needs the ${m[1].split(/,\s*/).map((r) => labels[r] ?? r).join(" or ")} role.`;
     }
-    return "You don't have permission to do this.";
+    // Governance refusals (e.g. an approval policy that does not allow this role) say exactly why.
+    return detail && !/^HTTP \d/.test(detail) ? detail : "You don't have permission to do this.";
   }
   if (status === 404 || d.startsWith("no such ")) {
     return "This could not be found. It may have been removed, or you may not have access to it.";

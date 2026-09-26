@@ -30,6 +30,19 @@ export function SolutionTab({ ctx }: { ctx: StoryCtx }) {
     discoveryApi.designEvidence(change.id).then((b) => setEvidence(b[0] ?? null)).catch(() => setEvidence(null));
   }, [change.id, ctx.run?.history.length]);
 
+  if (!decision && change.exactChange) {
+    // A proposed exact change without a recorded solution analysis (e.g. proposed directly):
+    // the exact change is the whole proposal.
+    return (
+      <div className="solution">
+        <Section title="Proposed solution" description="An exact, reviewable change. No wider solution analysis is recorded for this story.">
+          <ExactChangeSummary ctx={ctx} />
+        </Section>
+        <DecisionSection ctx={ctx} />
+      </div>
+    );
+  }
+
   if (!decision) {
     if (ctx.run?.stage === "analyzing") return <JadeWorking>JADE is researching the JD Edwards environment and preparing a solution.</JadeWorking>;
     return (
@@ -58,9 +71,6 @@ export function SolutionTab({ ctx }: { ctx: StoryCtx }) {
     ...(manifest?.confidence_limitations ?? []),
     ...(lc?.openItems ?? []),
   ];
-  const decided = change.changeApproval;
-  const designApproval = ctx.tech?.assignment?.design_approval;
-
   return (
     <div className="solution">
       <Section title="Proposed solution">
@@ -108,13 +118,7 @@ export function SolutionTab({ ctx }: { ctx: StoryCtx }) {
         )}
       </Section>
 
-      {(decided || designApproval) && (
-        <Section title="Decision">
-          {designApproval && <p>Solution approved for implementation by <strong>{designApproval.approved_by}</strong> on {formatDateTime(designApproval.approved_at)}.</p>}
-          {decided && <p>Exact change <strong>{decided.status}</strong> by {decided.approvedBy}{decided.approvedAt ? ` on ${formatDateTime(decided.approvedAt)}` : ""}.
-            {decided.note && <span className="muted"> “{decided.note}”</span>}</p>}
-        </Section>
-      )}
+      <DecisionSection ctx={ctx} />
 
       <div id="ask">
         <AskJadePanel
@@ -150,5 +154,19 @@ export function SolutionTab({ ctx }: { ctx: StoryCtx }) {
         </Details>
       )}
     </div>
+  );
+}
+
+/** Who approved the solution and its exact change, and when. */
+function DecisionSection({ ctx }: { ctx: StoryCtx }) {
+  const decided = ctx.change.changeApproval;
+  const designApproval = ctx.tech?.assignment?.design_approval;
+  if (!decided && !designApproval) return null;
+  return (
+    <Section title="Decision">
+      {designApproval && <p>Solution approved for implementation by <strong>{designApproval.approved_by}</strong> on {formatDateTime(designApproval.approved_at)}.</p>}
+      {decided && <p>Exact change <strong>{decided.status}</strong> by {decided.approvedBy}{decided.approvedAt ? ` on ${formatDateTime(decided.approvedAt)}` : ""}.
+        {decided.note && <span className="muted"> “{decided.note}”</span>}</p>}
+    </Section>
   );
 }

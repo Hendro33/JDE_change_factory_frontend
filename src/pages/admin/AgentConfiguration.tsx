@@ -29,8 +29,8 @@ function shortTool(t: string) {
  * earlier revision), and what each agent actually did.
  */
 /**
- * part="config": which instructions, skills and knowledge each agent runs with.
- * part="operations": agent health and what every run actually used.
+ * part="config": whether each agent can run, and which instructions, skills and knowledge it runs with.
+ * part="operations": whether each agent can run, and what every run actually used.
  */
 export function AgentConfiguration({ part = "all" }: { part?: "config" | "operations" | "all" } = {}) {
   const showOps = part !== "config";
@@ -73,7 +73,7 @@ export function AgentConfiguration({ part = "all" }: { part?: "config" | "operat
 
   return (
     <div className="stack" data-testid="agent-configuration">
-      {showOps && <section className="panel">
+      <section className="panel">
         <h2>Agent health</h2>
         <p className="hint" style={{ marginTop: 0 }}>
           From real configuration and run records. "Working" means the agent's last successful run was made with this
@@ -109,7 +109,7 @@ export function AgentConfiguration({ part = "all" }: { part?: "config" | "operat
             ))}
           </tbody>
         </table>
-      </section>}
+      </section>
 
       {showConfig && <><section className="panel">
         <h2>Assigned Start-up Packs</h2>

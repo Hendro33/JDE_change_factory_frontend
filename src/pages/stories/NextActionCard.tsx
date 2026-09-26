@@ -42,7 +42,10 @@ const DECISION_COPY: Record<string, { approve: string; ifApproved: string; ifRej
 function canOwn(owner: NextAction["owner"], has: (...r: CompanyRole[]) => boolean): boolean {
   if (owner === "jade" || owner === "none") return false;
   if (owner === "admin") return has("admin");
-  return has(owner as CompanyRole) || has("admin");
+  // Only a CNC operator can record an activation and only a Domain Owner reviews a story;
+  // an administrator may also run the Product Owner's operational steps.
+  if (owner === "product_manager") return has("product_manager", "admin");
+  return has(owner as CompanyRole);
 }
 
 /**
@@ -97,6 +100,7 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
       <section className={`nextcard done ${lc.outcome ?? ""}`} id="next-action" aria-label="Status">
         <div className="nextcard-kicker">{title}</div>
         <div className="nextcard-summary">{na.summary}</div>
+        {lc.openItems.length > 0 && <ul className="nextcard-items">{lc.openItems.map((i) => <li key={i}>{i}</li>)}</ul>}
         {lc.outcome === "delivered" && <Link to={storyPath(change.id, "delivery", "release")}>View the delivery and as-built record</Link>}
       </section>
     );
@@ -222,13 +226,22 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
       );
       break;
     case "start_technical_prepare":
-    case "start_technical_execute":
-    case "start_technical_verify": {
-      const purpose = na.action.replace("start_technical_", "") as "prepare" | "execute" | "verify";
-      const label = { prepare: "Prepare the implementation", execute: "Apply and build in DEV", verify: "Run validation" }[purpose];
-      controls = <button className="btn primary" disabled={busy} onClick={() => act(() => technicalApi.startRun(change.id, purpose))}>{label}</button>;
+      controls = <button className="btn primary" disabled={busy} onClick={() => act(() => technicalApi.startRun(change.id, "prepare"))}>Prepare the implementation</button>;
       break;
-    }
+    case "start_technical_execute":
+      // The approved package's own milestones, each re-checked by the gate: apply, then build.
+      controls = (
+        <button className="btn primary" disabled={busy || !currentPackage} onClick={() => act(async () => {
+          const st = currentPackage!.approval?.milestone_states;
+          if (st?.apply !== "applied") await technicalApi.milestone(change.id, currentPackage!.revision, "apply");
+          await technicalApi.milestone(change.id, currentPackage!.revision, "build");
+        })}>Apply and build in DEV</button>
+      );
+      break;
+    case "start_technical_verify":
+      controls = <button className="btn primary" disabled={busy || !currentPackage}
+                         onClick={() => act(() => technicalApi.milestone(change.id, currentPackage!.revision, "verify"))}>Run validation</button>;
+      break;
     case "record_cnc":
       controls = (
         <div className="inlineform">
