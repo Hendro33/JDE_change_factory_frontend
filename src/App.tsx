@@ -1,305 +1,231 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, IS_MOCK_MODE } from "./services/api";
 import { authApi } from "./services/httpApi";
-import type { Session } from "./types/domain";
-import type { NavFilter, NavTarget, Page } from "./types/nav";
+import type { BusinessDomain, CompanyRole, MyWork, Session } from "./types/domain";
 import { CustomerScope, PersonaSwitch } from "./components/CustomerScope";
 import { SetupHandover } from "./components/SetupHandover";
-import { Dashboard } from "./pages/Dashboard";
-import { UserStories } from "./pages/UserStories";
-import { UserStoryReview } from "./pages/UserStoryReview";
-import { ApprovalBacklog } from "./pages/ApprovalBacklog";
-import { ArchitectureReview } from "./pages/ArchitectureReview";
-import { TechnicalWork } from "./pages/TechnicalWork";
-import { ProcessWork } from "./pages/ProcessWork";
-import { AsBuilt } from "./pages/AsBuilt";
-import { ProcessFramework } from "./pages/admin/ProcessFramework";
-import { DeliveryQueuePage } from "./pages/DeliveryQueue";
-import { Pipeline } from "./pages/Pipeline";
-import { BusinessDomains } from "./pages/BusinessDomains";
-import { ChangeDetail } from "./pages/ChangeDetail";
-import { CustomerSetup } from "./pages/admin/CustomerSetup";
-import { ErpLandscape } from "./pages/admin/ErpLandscape";
-import { Agents } from "./pages/admin/Agents";
-import { AiConnections } from "./pages/admin/AiConnections";
-import { AgentConfiguration } from "./pages/admin/AgentConfiguration";
-import { KnowledgeLibrary } from "./pages/admin/KnowledgeLibrary";
-import { Integrations } from "./pages/admin/Integrations";
-import { Users } from "./pages/admin/Users";
+import { ROLE_LABEL, SessionContext, type SessionInfo, attentionOf, storyTitle, Loading } from "./components/design";
+import { GlobalSearch } from "./components/GlobalSearch";
+import { Link, match, navigate, storyPath, useLocation } from "./router";
+import { MyWorkPage } from "./pages/work/MyWork";
+import { StoriesPage } from "./pages/stories/Stories";
+import { NewRequestPage } from "./pages/stories/NewRequest";
+import { StoryWorkspace } from "./pages/stories/StoryWorkspace";
+import { BusinessArchitecturePage } from "./pages/business/BusinessArchitecture";
+import { KnowledgePage } from "./pages/knowledge/Knowledge";
+import { ReportsPage } from "./pages/reports/Reports";
+import { SearchPage } from "./pages/search/Search";
+import { AdministrationPage } from "./pages/admin/Administration";
+import { NotFoundPage } from "./pages/NotFound";
 import { Login } from "./pages/auth/Login";
 import { ResetPassword } from "./pages/auth/ResetPassword";
 import { AcceptInvitation } from "./pages/auth/AcceptInvitation";
 
-interface NavItem { key: Page; label: string; filter?: NavFilter }
-interface NavGroup { label: string; items: NavItem[]; align?: "right" }
-
-const NAV_GROUPS: NavGroup[] = [
-  { label: "Home", items: [{ key: "dashboard", label: "Dashboard" }] },
-  { label: "Demand", items: [
-    { key: "userstories", label: "Requests", filter: { view: "requests" } },
-    { key: "userstories", label: "Create Request", filter: { view: "requests", action: "create" } },
-    { key: "userstories", label: "User Stories", filter: { view: "all" } },
-  ] },
-  { label: "Governance", items: [
-    { key: "userstoryreview", label: "User Story Review" },
-    { key: "approval", label: "Backlog Review" },
-    { key: "architecture", label: "Architecture Review" },
-  ] },
-  { label: "Delivery", items: [
-    { key: "deliveryqueue", label: "Delivery Queue" },
-    { key: "process", label: "Process & Maps" },
-    { key: "technical", label: "Technical Work" },
-    { key: "asbuilt", label: "As-built Records" },
-    { key: "pipeline", label: "Active Changes", filter: { stage: "active" } },
-    { key: "pipeline", label: "Validation", filter: { stage: "validation" } },
-  ] },
-  { label: "Release", items: [
-    { key: "pipeline", label: "Ready for Release / CNC", filter: { stage: "release" } },
-  ] },
-  { label: "Knowledge", items: [
-    { key: "domains", label: "Business Domains" },
-  ] },
+/** The primary navigation: deliberately small. Workflow phases live in the Story Workspace. */
+const PRIMARY_NAV: { to: string; label: string; section: string }[] = [
+  { to: "/work", label: "My Work", section: "work" },
+  { to: "/stories", label: "Stories", section: "stories" },
+  { to: "/business", label: "Business Architecture", section: "business" },
+  { to: "/knowledge", label: "Knowledge", section: "knowledge" },
+  { to: "/reports", label: "Reports", section: "reports" },
 ];
 
-/**
- * Kept out of NAV_GROUPS on purpose and rendered after the `.spacer`,
- * in the same slot the inert "Settings" label used to occupy — an
- * administrative area is deliberately visually separate from the main
- * task-oriented groups, not just another item among them. `align:
- * "right"` keeps its dropdown anchored to the button's right edge
- * (it's the rightmost item in the bar) so the menu opens onto the
- * page rather than off the right edge of the viewport.
- */
-const ADMIN_GROUP: NavGroup = {
-  label: "Admin",
-  align: "right",
-  items: [
-    { key: "admin-customer", label: "Customer Setup" },
-    { key: "admin-erp", label: "ERP / JDE Landscape" },
-    { key: "admin-agents", label: "Agents" },
-    { key: "admin-ai", label: "AI Connections" },
-    { key: "admin-agent-config", label: "Agent Configuration" },
-    { key: "admin-knowledge", label: "Knowledge Library" },
-    { key: "admin-process", label: "Process Framework" },
-    { key: "domains", label: "Business Domains" },
-    { key: "admin-integrations", label: "Integrations" },
-    { key: "admin-users", label: "Users" },
-  ],
-};
+/** Which nav section a path belongs to -- exactly one, derived from the URL. */
+function sectionOf(path: string): string {
+  const first = path.split("/").filter(Boolean)[0] ?? "work";
+  return first === "search" ? "" : first;
+}
 
-function NavGroupMenu({
-  group, page, navFilter, onNavigate,
-}: {
-  group: NavGroup;
-  page: Page;
-  navFilter: NavFilter | undefined;
-  onNavigate: (p: Page, filter?: NavFilter) => void;
-}) {
-  const [open, setOpen] = useState(false);
+function useDismiss(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     if (!open) return;
-    const away = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const away = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) close(); };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && close();
     document.addEventListener("mousedown", away);
     document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
-  }, [open]);
+  }, [open, close]);
+  return ref;
+}
 
-  if (group.items.length === 1 && !group.items[0].filter) {
-    const only = group.items[0];
-    return (
-      <button className={page === only.key ? "on" : ""} onClick={() => onNavigate(only.key)}>
-        {group.label}
-      </button>
-    );
-  }
-
-  const activeItem = group.items.find((it) => it.key === page && sameFilter(it.filter, navFilter));
-  const groupActive = activeItem ?? group.items.find((it) => it.key === page);
-
+function Notifications({ work }: { work: MyWork | null }) {
+  const [open, setOpen] = useState(false);
+  const ref = useDismiss(open, () => setOpen(false));
+  const { decisions, otherTasks, newRequests, count } = attentionOf(work);
+  const items = [...decisions, ...otherTasks];
   return (
-    <div className={`navgroup${group.align === "right" ? " right" : ""}`} ref={ref}>
-      <button
-        className={groupActive ? "on" : ""}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-      >
-        {group.label}
-        <span aria-hidden="true" className="navgroup-caret">▾</span>
+    <div className="notif" ref={ref}>
+      <button className="iconbtn" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)}
+              aria-label={`${count} item${count === 1 ? "" : "s"} need your attention`}>
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.84V3a1.5 1.5 0 0 0-3 0v1.16A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>
+        {count > 0 && <span className="notif-count">{count}</span>}
       </button>
       {open && (
-        <ul className="navgroup-menu" role="menu">
-          {group.items.map((it, i) => (
-            <li key={`${it.key}-${i}`}>
-              <button
-                className={activeItem === it ? "on" : ""}
-                onClick={() => { setOpen(false); onNavigate(it.key, it.filter); }}
-              >
-                {it.label}
-              </button>
-            </li>
+        <div className="notif-menu" role="menu">
+          <div className="notif-head">{count === 0 ? "Nothing needs you right now" : `${count} thing${count === 1 ? "" : "s"} need${count === 1 ? "s" : ""} your attention`}</div>
+          {items.slice(0, 8).map((c) => (
+            <Link key={c.id} role="menuitem" className="notif-item" to={storyPath(c.id, c.lifecycle?.nextAction.tab, "next-action")} onClick={() => setOpen(false)}>
+              <span className="notif-title">{c.lifecycle?.nextAction.kind === "decision" ? "Decision needed" : "To do"} · {c.lifecycle?.phaseLabel}</span>
+              <span className="notif-story">{storyTitle(c)}</span>
+            </Link>
           ))}
-        </ul>
+          {newRequests.length > 0 && (
+            <Link role="menuitem" className="notif-item" to="/stories?phase=understand" onClick={() => setOpen(false)}>
+              <span className="notif-title">To do · Understand</span>
+              <span className="notif-story">{newRequests.length} new request{newRequests.length === 1 ? "" : "s"} to analyse</span>
+            </Link>
+          )}
+          <Link className="notif-all" to="/work" onClick={() => setOpen(false)}>Open My Work</Link>
+        </div>
       )}
     </div>
   );
 }
 
-function sameFilter(a: NavFilter | undefined, b: NavFilter | undefined): boolean {
-  if (!a && !b) return true;
-  if (!a || !b) return false;
-  const ak = Object.keys(a), bk = Object.keys(b);
-  return ak.length === bk.length && ak.every((k) => a[k] === b[k]);
+function UserMenu({ session, roles, onSignedOut }: { session: Session; roles: CompanyRole[]; onSignedOut?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useDismiss(open, () => setOpen(false));
+  const initials = session.displayName.split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+  return (
+    <div className="usermenu" ref={ref}>
+      <button className="avatar" onClick={() => setOpen((o) => !o)} aria-haspopup="true" aria-expanded={open} aria-label={`Account: ${session.displayName}`}>
+        {initials}
+      </button>
+      {open && (
+        <div className="usermenu-panel">
+          <div className="usermenu-name">{session.displayName}</div>
+          <div className="usermenu-mail">{session.email}</div>
+          <div className="usermenu-roles">{roles.map((r) => ROLE_LABEL[r] ?? r).join(" · ") || "No role on this customer"}</div>
+          {onSignedOut && (
+            <button className="btn" onClick={async () => { await authApi.logout(); onSignedOut(); }}>Sign out</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Routes() {
+  const { path } = useLocation();
+  useEffect(() => { if (path === "/") navigate("/work", { replace: true }); }, [path]);
+  let m: Record<string, string> | null;
+  if (path === "/") return null;
+  if (match("/work", path)) return <MyWorkPage />;
+  if (match("/stories", path)) return <StoriesPage />;
+  if (match("/stories/new", path)) return <NewRequestPage />;
+  if ((m = match("/stories/:id/:tab?", path))) return <StoryWorkspace key={m.id} storyId={m.id} tab={m.tab} />;
+  if ((m = match("/business/:domainId?", path))) return <BusinessArchitecturePage domainId={m.domainId} />;
+  if (match("/knowledge", path)) return <KnowledgePage />;
+  if (match("/reports", path)) return <ReportsPage />;
+  if (match("/search", path)) return <SearchPage />;
+  if ((m = match("/admin/:section?/:sub?", path))) return <AdministrationPage section={m.section} sub={m.sub} />;
+  return <NotFoundPage />;
 }
 
 function MainApp({ onSignedOut, onSetupFinished }: { onSignedOut?: () => void; onSetupFinished?: (email: string) => void }) {
-  const [page, setPage] = useState<Page>("dashboard");
-  const [detailId, setDetailId] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [navFilter, setNavFilter] = useState<NavFilter | undefined>(undefined);
-  /** Bumps on every navigate() call so a page can react even when re-navigated to itself with a new filter. */
-  const [navToken, setNavToken] = useState(0);
+  const [domains, setDomains] = useState<BusinessDomain[]>([]);
+  const [work, setWork] = useState<MyWork | null>(null);
   /** Bumping this remounts the page so it refetches for the new customer. */
   const [scopeKey, setScopeKey] = useState(0);
+  const { path } = useLocation();
 
   useEffect(() => { api.getSession().then(setSession); }, []);
-
-  function navigate(p: Page, filter?: NavFilter) {
-    setDetailId(null);
-    setPage(p);
-    setNavFilter(filter);
-    setNavToken((t) => t + 1);
-  }
+  useEffect(() => {
+    if (!session) return;
+    api.listBusinessDomains().then(setDomains).catch(() => setDomains([]));
+  }, [session?.activeCustomerId, scopeKey]);
+  // My Work drives the notification count; refreshed on every navigation.
+  useEffect(() => {
+    if (!session) return;
+    api.getMyWork().then(setWork).catch(() => setWork(null));
+  }, [session?.activeCustomerId, scopeKey, path]);
 
   async function switchCustomer(customerId: string) {
     const next = await api.setActiveCustomer(customerId);
     setSession(next);
-    // Leaving a change detail open across a customer switch would show
-    // a record that no longer belongs to the active scope.
-    setDetailId(null);
     setScopeKey((k) => k + 1);
+    // A story from the previous customer would not exist for this one.
+    if (path.startsWith("/stories/")) navigate("/stories");
   }
 
-  function reloadSession() {
-    api.getSession().then((s) => {
-      setSession(s);
-      setDetailId(null);
-      setScopeKey((k) => k + 1);
-    });
-  }
+  const info: SessionInfo | null = useMemo(() => {
+    if (!session) return null;
+    const active = session.customers.find((c) => c.id === session.activeCustomerId);
+    const roles = (active?.roles ?? []) as CompanyRole[];
+    const byId = new Map(domains.map((d) => [d.id, d]));
+    return {
+      session, roles, domains,
+      has: (...r: CompanyRole[]) => IS_MOCK_MODE || r.some((x) => roles.includes(x)),
+      technical: IS_MOCK_MODE || roles.some((r) => ["admin", "product_manager", "cnc_operator"].includes(r)),
+      domainName: (id?: string | null) => (id ? byId.get(id)?.name : undefined),
+      isDemoCustomer: !!active?.isDemo,
+    };
+  }, [session, domains]);
 
-  const navTarget: NavTarget = { navFilter, navToken };
+  const section = sectionOf(path);
+  const active = session?.customers.find((c) => c.id === session.activeCustomerId);
 
   return (
     <div className="app">
-      <header className="masthead">
-        <div className="masthead-brand">
-          <img src="/jade-wordmark-emerald-charcoal.png" alt="Jade" className="jade-wordmark" />
-          <span className="masthead-tagline">An AI delivery team for enterprise change</span>
-        </div>
-        <div className="who">
-          {session && <CustomerScope session={session} onSwitch={switchCustomer} />}
-          <span className="divider" />
-          <span>
-            {session?.displayName ?? "…"}
-            {session && <span className="role">{session.role}</span>}
-          </span>
-          {onSignedOut && (
-            <button
-              className="btn"
-              onClick={async () => {
-                await authApi.logout();
-                onSignedOut();
-              }}
-            >
-              Sign out
-            </button>
-          )}
+      <a className="skiplink" href="#main">Skip to content</a>
+      <header className="appbar">
+        <div className="appbar-row">
+          <Link to="/work" className="brand" aria-label="Jade — My Work">
+            <img src={`${import.meta.env.BASE_URL}jade-wordmark.png`} alt="Jade" className="brand-mark" />
+          </Link>
+          <nav className="primarynav" aria-label="Primary">
+            {PRIMARY_NAV.map((n) => (
+              <Link key={n.to} to={n.to} className={section === n.section ? "on" : ""} aria-current={section === n.section ? "page" : undefined}>
+                {n.label}
+              </Link>
+            ))}
+            <span className="navsep" aria-hidden="true" />
+            <Link to="/admin" className={section === "admin" ? "on" : ""} aria-current={section === "admin" ? "page" : undefined}>
+              Administration
+            </Link>
+          </nav>
+          <div className="appbar-tools">
+            <GlobalSearch />
+            <Notifications work={work} />
+            {session && <CustomerScope session={session} onSwitch={switchCustomer} />}
+            {session && info && <UserMenu session={session} roles={info.roles} onSignedOut={onSignedOut} />}
+          </div>
         </div>
       </header>
 
-      <nav className="mainnav">
-        {NAV_GROUPS.map((g) => (
-          <NavGroupMenu key={g.label} group={g} page={page} navFilter={navFilter} onNavigate={navigate} />
-        ))}
-        <span className="spacer" />
-        <NavGroupMenu group={ADMIN_GROUP} page={page} navFilter={navFilter} onNavigate={navigate} />
-      </nav>
-
-      <main className="page" key={scopeKey}>
+      <main className="page" id="main" key={scopeKey}>
         {onSetupFinished && <SetupHandover onDone={onSetupFinished} />}
         {IS_MOCK_MODE && (
-          <div className="callout" role="alert" style={{ borderColor: "var(--stop)", marginBottom: 12 }}>
-            <strong>Demo mode: sample data in this browser, not connected to Jade's backend.</strong> Nothing you see or save here is
-            real, and the JDE connection settings, process maps and as-built records are not shown. Start Jade with{" "}
-            <span className="mono">scripts/run_local_preview.sh</span> (backend repository) and sign in there.
+          <div className="noticebar stop" role="alert">
+            <strong>Demo mode:</strong> sample data in this browser, not connected to Jade's backend. Start Jade with{" "}
+            <span className="mono">scripts/run_local_preview.sh</span> and sign in there for the real application.
           </div>
         )}
-        {!IS_MOCK_MODE && session?.customers.find((c) => c.id === session.activeCustomerId)?.isDemo && (
-          <div className="callout" style={{ borderColor: "var(--warn)", marginBottom: 12 }}>
-            <strong>Demo customer — test data.</strong> Every requirement, user story and delivery record under this customer is
-            test/demo data, and its JDE connection may be simulated. Create or select a real customer under Admin › Customer Setup
-            for real work; real customers only ever use live connections.
+        {!IS_MOCK_MODE && active?.isDemo && (
+          <div className="noticebar">
+            <span className="tag sim">Demo customer</span> {active.name} holds test data; its JD Edwards is simulated.
+            Real customers are set up under <Link to="/admin/organisation">Administration › Organisation</Link>.
           </div>
         )}
-        {detailId ? (
-          <ChangeDetail changeId={detailId} onBack={() => setDetailId(null)} />
-        ) : page === "dashboard" ? (
-          <Dashboard onOpenChange={setDetailId} onNavigate={navigate} />
-        ) : page === "userstories" ? (
-          <UserStories onOpenChange={setDetailId} {...navTarget} />
-        ) : page === "userstoryreview" ? (
-          <UserStoryReview />
-        ) : page === "approval" ? (
-          <ApprovalBacklog {...navTarget} />
-        ) : page === "architecture" ? (
-          <ArchitectureReview {...navTarget} onNavigate={navigate} />
-        ) : page === "technical" ? (
-          <TechnicalWork {...navTarget} onNavigate={navigate} />
-        ) : page === "process" ? (
-          <ProcessWork {...navTarget} onNavigate={navigate} />
-        ) : page === "asbuilt" ? (
-          <AsBuilt {...navTarget} onNavigate={navigate} />
-        ) : page === "admin-process" ? (
-          <ProcessFramework {...navTarget} onNavigate={navigate} />
-        ) : page === "deliveryqueue" ? (
-          <DeliveryQueuePage onOpenChange={setDetailId} />
-        ) : page === "domains" ? (
-          <BusinessDomains onNavigate={navigate} />
-        ) : page === "admin-customer" ? (
-          <CustomerSetup onNavigate={navigate} />
-        ) : page === "admin-erp" ? (
-          <ErpLandscape />
-        ) : page === "admin-agents" ? (
-          <Agents />
-        ) : page === "admin-ai" ? (
-          <AiConnections />
-        ) : page === "admin-agent-config" ? (
-          <AgentConfiguration />
-        ) : page === "admin-knowledge" ? (
-          <KnowledgeLibrary />
-        ) : page === "admin-integrations" ? (
-          <Integrations />
-        ) : page === "admin-users" ? (
-          <Users />
-        ) : (
-          <Pipeline onOpenChange={setDetailId} {...navTarget} />
+        {!info ? <Loading what="Jade" /> : (
+          <SessionContext.Provider value={info}>
+            <Routes />
+          </SessionContext.Provider>
         )}
       </main>
 
       <footer className="sitefoot">
         <div className="footer-brand">
           <span className="logo">consult<b>IQ</b></span>
-          <span className="footer-tagline">Jade — a ConsultIQ product</span>
+          <span className="footer-tagline">Jade — an AI delivery team for enterprise change</span>
         </div>
         <span style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           {IS_MOCK_MODE ? (
             <>
-              <PersonaSwitch onChange={reloadSession} />
-              <span>Jade · v0.1 prototype · front-end only, mock data</span>
+              <PersonaSwitch onChange={() => api.getSession().then((s) => { setSession(s); setScopeKey((k) => k + 1); })} />
+              <span>Jade · prototype · front-end only, mock data</span>
             </>
           ) : (
             <BuildVersions />
@@ -323,10 +249,10 @@ function BuildVersions() {
 /**
  * Top-level dispatcher. In mock mode this is just MainApp -- the mock
  * service has no real login, only its own persona picker. In real
- * mode: password-reset and invitation-acceptance links (query params
- * on the root path -- this app has no client-side router, see
- * ResetPassword's own comment) take priority over everything else,
- * then a real session check gates the rest of the app behind Login.
+ * mode: password-reset and invitation-acceptance links (query params)
+ * take priority over everything else, then a real session check gates
+ * the rest of the app behind Login. The address the person opened is
+ * kept, so a shared story link still lands on that story after sign-in.
  */
 export default function App() {
   const params = new URLSearchParams(window.location.search);
@@ -345,7 +271,7 @@ export default function App() {
       .then(() => setAuthState("signed-in"))
       .catch(() => setAuthState("signed-out"));
     // Intentionally run once: resetToken/acceptToken don't change
-    // during this component's lifetime (no client-side navigation).
+    // during this component's lifetime.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

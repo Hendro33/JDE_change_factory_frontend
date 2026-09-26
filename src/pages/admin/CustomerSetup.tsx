@@ -7,7 +7,7 @@ import {
 } from "../../services/dashboardThresholds";
 import { saveErrorMessage } from "../../services/saveErrors";
 import type { CustomerInput, CustomerProfile, DashboardThresholds } from "../../types/domain";
-import type { Navigate } from "../../types/nav";
+import { Link } from "../../router";
 import { ApiNote, Loading } from "../../components/ui";
 
 const EMPTY: CustomerInput = { name: "", shortName: "", toolsRelease: "", environment: "" };
@@ -89,28 +89,25 @@ function CustomerEditor({ profile, isAdmin, onSaved }: { profile: CustomerProfil
 }
 
 /** Where this customer's other configuration lives. */
-function CustomerConfigLinks({ onNavigate }: { onNavigate?: Navigate }) {
-  const links: [string, Parameters<Navigate>[0], string][] = [
-    ["Connected systems", "admin-integrations", "JD Edwards connection, Jira, test connections"],
-    ["ERP / JDE Landscape", "admin-erp", "Engagement scope, approval policy, DEV binding"],
-    ["Business Domains", "domains", "Domains and their owners"],
-    ["Process Framework", "admin-process", "Process framework import and versions"],
-    ["Agents", "admin-agents", "Which agents run for this customer"],
-    ["Users", "admin-users", "Members, roles, invitations"],
-    ["Requirements", "userstories", "This customer's requests"],
-    ["User Stories", "userstories", "This customer's user stories"],
+function CustomerConfigLinks() {
+  const links: [string, string, string][] = [
+    ["Systems & Connections", "/admin/connections", "JD Edwards connection, Jira, test connections"],
+    ["Governance", "/admin/governance", "Engagement scope, approval policy, DEV binding"],
+    ["Business Model", "/admin/business-model", "Business domains, their owners and the process framework"],
+    ["Agents & AI", "/admin/agents", "Which agents run for this customer, AI connection and configuration"],
+    ["Users", "/admin/organisation/users", "Members, roles, invitations"],
+    ["Stories", "/stories", "This customer's requests and stories"],
   ];
   return (
     <section className="panel">
       <h2>This customer's configuration</h2>
-      <table className="data"><tbody>{links.map(([label, page, what]) => (
-        <tr key={label}><td><button className="linkish" onClick={() => onNavigate?.(page, label === "Requirements" ? { view: "requests" } : label === "User Stories" ? { view: "all" } : undefined)}>{label}</button></td>
-          <td className="hint">{what}</td></tr>))}</tbody></table>
+      <table className="data"><tbody>{links.map(([label, to, what]) => (
+        <tr key={label}><td><Link to={to}>{label}</Link></td><td className="hint">{what}</td></tr>))}</tbody></table>
     </section>
   );
 }
 
-export function CustomerSetup({ onNavigate }: { onNavigate?: Navigate }) {
+export function CustomerSetup() {
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   // What the server holds (null until loaded) and the form's working copy.
@@ -194,7 +191,7 @@ export function CustomerSetup({ onNavigate }: { onNavigate?: Navigate }) {
       ) : (
         <div className="stack">
           <CustomerEditor profile={profile} isAdmin={isAdmin} onSaved={setProfile} />
-          <CustomerConfigLinks onNavigate={onNavigate} />
+          <CustomerConfigLinks />
 
           <section className="panel">
             <h2>Members</h2>

@@ -594,6 +594,10 @@ export interface Change {
   businessDomainId?: string;
   domainReviewStage?: DomainReviewStage;
 
+  /** Live status of the solutioning (Architecture Review) run. */
+  architectureReviewStage?: "analyzing" | "done" | "failed";
+  architectureReviewError?: string;
+
   userStory?: UserStory;
   storyApproval?: ApprovalRecord;
   architectDecision?: ArchitectDecision;

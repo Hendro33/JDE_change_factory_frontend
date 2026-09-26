@@ -5,7 +5,7 @@ import {
   fileToBase64, processApi, type Framework, type FrameworkList, type FrameworkNode, type Inspection, type SourceKind,
   type VersionPreview,
 } from "../../services/processApi";
-import type { Navigate, NavTarget } from "../../types/nav";
+import { Link, useLocation } from "../../router";
 import { Loading } from "../../components/ui";
 
 const statusTone: Record<string, string> = { active: "ok", draft: "warn", superseded: "grey" };
@@ -48,7 +48,7 @@ function Hierarchy({ nodes, selected, onSelect }: { nodes: FrameworkNode[]; sele
   );
 }
 
-function NodeDetail({ fw, preview, nodeKey, onNavigate }: { fw: Framework; preview: VersionPreview; nodeKey: string; onNavigate?: Navigate }) {
+function NodeDetail({ fw, preview, nodeKey }: { fw: Framework; preview: VersionPreview; nodeKey: string }) {
   const node = preview.nodes.find((n) => n.node_key === nodeKey);
   const [stories, setStories] = useState<{ story_id: string; revision: number; versions: number[] }[] | null>(null);
   useEffect(() => { setStories(null); processApi.nodeStories(fw.framework_id, nodeKey).then(setStories).catch(() => setStories([])); }, [fw.framework_id, nodeKey]);
@@ -67,7 +67,7 @@ function NodeDetail({ fw, preview, nodeKey, onNavigate }: { fw: Framework; previ
       {stories === null ? <Loading what="stories" /> : stories.length === 0 ? <p className="notstated">None.</p> : (
         <ul>{stories.map((s) => (
           <li key={s.story_id}>
-            <button className="linkish" onClick={() => onNavigate?.("process", { story: s.story_id })}>{s.story_id}</button>
+            <Link to={`/stories/${encodeURIComponent(s.story_id)}/story#process`}>{s.story_id}</Link>
             {" "}(mapping revision {s.revision}, references version {s.versions.join(", ")})
           </li>
         ))}</ul>
@@ -206,7 +206,9 @@ function ImportPanel({ list, onDone }: { list: FrameworkList; onDone: (p: Versio
   );
 }
 
-export function ProcessFramework({ navFilter, navToken, onNavigate }: Partial<NavTarget> & { onNavigate?: Navigate }) {
+export function ProcessFramework() {
+  const { query } = useLocation();
+  const navFilter = { framework: query.get("framework") ?? undefined, version: query.get("version") ?? undefined, node: query.get("node") ?? undefined };
   const [list, setList] = useState<FrameworkList | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [open, setOpen] = useState<{ fid: string; version: number } | null>(null);
@@ -230,7 +232,7 @@ export function ProcessFramework({ navFilter, navToken, onNavigate }: Partial<Na
     api.getSession().then((s) => setIsAdmin((s.customers.find((c) => c.id === s.activeCustomerId)?.roles ?? []).includes("admin")));
     if (navFilter?.node) setNode(navFilter.node);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navToken]);
+  }, []);
   useEffect(() => { if (open) processApi.version(open.fid, open.version).then(setPreview).catch((e) => setError(saveErrorMessage(e, "Could not load the version."))); }, [open?.fid, open?.version]);
 
   if (IS_MOCK_MODE) return <section className="panel"><h1>Process Framework</h1><p className="notstated">Needs the real backend.</p></section>;
@@ -296,7 +298,7 @@ export function ProcessFramework({ navFilter, navToken, onNavigate }: Partial<Na
           <h2 style={{ marginTop: 0 }}>{fw.name} -- version {preview.version.version} <span className={`badge ${statusTone[preview.version.status]}`}>{preview.version.status}</span></h2>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1fr) minmax(280px, 1fr)", gap: 16 }}>
             <Hierarchy nodes={preview.nodes} selected={node} onSelect={setNode} />
-            {node ? <NodeDetail fw={fw} preview={preview} nodeKey={node} onNavigate={onNavigate} /> : <p className="hint">Select a process to see its details and the stories mapped to it.</p>}
+            {node ? <NodeDetail fw={fw} preview={preview} nodeKey={node} /> : <p className="hint">Select a process to see its details and the stories mapped to it.</p>}
           </div>
         </section>
       )}

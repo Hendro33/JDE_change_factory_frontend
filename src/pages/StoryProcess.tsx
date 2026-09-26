@@ -1,54 +1,29 @@
 import { useEffect, useState } from "react";
-import { api, IS_MOCK_MODE } from "../services/api";
+import { IS_MOCK_MODE } from "../services/api";
 import { saveErrorMessage } from "../services/saveErrors";
 import {
   processApi, type DiffLine, type FrameworkNode, type MapContent, type MapStep, type PinnedRef, type RefinementView,
   type StoryProcessView,
 } from "../services/processApi";
-import type { Change } from "../types/domain";
-import type { Navigate, NavTarget } from "../types/nav";
-import { Loading } from "../components/ui";
+import { Link } from "../router";
+import { Details, Loading } from "../components/design";
 import { ProcessMapDiagram } from "../components/ProcessMapDiagram";
 
 const refTone: Record<string, string> = { current: "ok", unchanged: "ok", changed: "warn", removed: "stop", framework_inactive: "stop" };
 
-/** The connected journey for one story, each stop a link. */
-export function JourneyBar({ storyId, at, onNavigate, frameworkId }: { storyId: string; at: string; onNavigate?: Navigate; frameworkId?: string }) {
-  const stops: [string, string, () => void][] = [
-    ["hierarchy", "Process hierarchy", () => onNavigate?.("admin-process", frameworkId ? { framework: frameworkId } : undefined)],
-    ["process", "Story & processes", () => onNavigate?.("process", { story: storyId })],
-    ["maps", "Process maps", () => onNavigate?.("process", { story: storyId, section: "maps" })],
-    ["design", "Design", () => onNavigate?.("architecture", { story: storyId })],
-    ["implementation", "Implementation", () => onNavigate?.("technical", { story: storyId })],
-    ["asbuilt", "As-built record", () => onNavigate?.("asbuilt", { story: storyId })],
-  ];
+export function RefList({ refs }: { refs: PinnedRef[] }) {
   return (
-    <nav aria-label="Story journey" className="btnrow" style={{ flexWrap: "wrap", gap: 4 }}>
-      {stops.map(([key, label, go], i) => (
-        <span key={key} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-          <button className={`btn small${at === key ? " primary" : ""}`} onClick={go}>{label}</button>
-          {i < stops.length - 1 && <span aria-hidden="true">→</span>}
-        </span>
-      ))}
-    </nav>
-  );
-}
-
-function RefList({ refs, onNavigate }: { refs: PinnedRef[]; onNavigate?: Navigate }) {
-  return (
-    <ul>{refs.map((r) => (
+    <ul className="compactlist">{refs.map((r) => (
       <li key={`${r.framework_id}:${r.version}:${r.node_key}`}>
-        <button className="linkish" onClick={() => onNavigate?.("admin-process", { framework: r.framework_id, version: String(r.version), node: r.node_key })}>
-          <span className="mono">{r.node_key}</span></button> {r.path.map((p) => p.name).join(" › ")}
-        <span className="hint"> · {r.framework_name} v{r.version}</span>
-        {r.status_now && <> <span className={`badge ${refTone[r.status_now.state] ?? "grey"}`} title={r.status_now.detail}>{r.status_now.state === "changed" ? "changed in the active version" : r.status_now.state.replace("_", " ")}</span></>}
+        <Link to={`/business?node=${encodeURIComponent(r.node_key)}`}>{r.path.map((p) => p.name).join(" › ")}</Link>
+        {r.status_now && !["current", "unchanged"].includes(r.status_now.state) && <> <span className={`badge ${refTone[r.status_now.state] ?? "grey"}`} title={r.status_now.detail}>{r.status_now.state === "changed" ? "changed since" : r.status_now.state.replace("_", " ")}</span></>}
         {r.rationale && <div className="hint">{r.rationale}</div>}
       </li>
     ))}</ul>
   );
 }
 
-function MappingSection({ view, nodes, onChanged, onNavigate }: { view: StoryProcessView; nodes: FrameworkNode[]; onChanged: () => void; onNavigate?: Navigate }) {
+export function MappingSection({ view, nodes, onChanged }: { view: StoryProcessView; nodes: FrameworkNode[]; onChanged: () => void }) {
   const run = view.runs[0];
   const suggestions = run?.result.suggested_processes ?? [];
   const [chosen, setChosen] = useState<Record<string, boolean>>({});
@@ -84,18 +59,18 @@ function MappingSection({ view, nodes, onChanged, onNavigate }: { view: StoryPro
   }
 
   return (
-    <section className="panel">
-      <h2 style={{ marginTop: 0 }}>Story finalisation: affected processes</h2>
-      {!fw ? <p className="notstated">No process framework is selected and active (Admin › Process Framework).</p> : (
+    <div className="subsection">
+      <h3 style={{ marginTop: 0 }}>Affected business processes</h3>
+      {!fw ? <p className="notstated">No process framework is active for this customer (Administration › Business Model).</p> : (
         <p className="hint">Framework: <strong>{fw.name}</strong> v{fw.version} · {fw.source_kind === "synthetic_fixture"
-          ? <span className="badge warn">SYNTHETIC fixture -- not APQC content</span> : fw.source_label}</p>
+          ? <span className="badge warn">Synthetic framework (test data)</span> : fw.source_label}</p>
       )}
-      <h3>Agent suggestions</h3>
+      <h4>JADE's suggestions</h4>
       {!run ? <p className="notstated">No process analysis yet.</p> : (
         <div className="callout">
-          <div>{run.scripted ? <span className="badge warn">SCRIPTED STAND-IN -- not a model run</span>
-            : <span className="badge grey">Refinement agent run{run.model ? ` (${run.model})` : ""}</span>}
-            {" "}<span className="hint">{run.run_id} · {run.status} · framework v{run.framework_version}</span></div>
+          <div>{run.scripted ? <span className="tag sim" title="Scripted demonstration, not a model run">Simulation</span>
+            : <span className="badge grey">Process analysis</span>}
+            {" "}<span className="hint">{run.status} · framework version {run.framework_version}</span></div>
           {run.error && <p style={{ color: "var(--stop)" }}>{run.error}</p>}
           {run.result.summary && <p>{run.result.summary}</p>}
           {suggestions.map((s) => (
@@ -114,16 +89,16 @@ function MappingSection({ view, nodes, onChanged, onNavigate }: { view: StoryPro
       {view.can_review && fw && (
         <div className="btnrow"><button className="btn small" disabled={busy || run?.status === "running"}
           onClick={() => processApi.startAnalysis(view.story_id).then(onChanged).catch((e) => setError(saveErrorMessage(e, "Refused.")))}>
-          Run refinement process analysis (real agent)</button>
-          <span className="hint">Needs the Claude CLI configured for the backend; results are suggestions only.</span></div>
+          Ask JADE to analyse the processes</button>
+          <span className="hint">Results are suggestions for you to confirm.</span></div>
       )}
 
-      <h3>Reviewer decision</h3>
+      <h4>Your decision</h4>
       {view.mapping ? (
         <div className="callout" style={{ borderColor: view.mapping.status === "confirmed" ? "var(--ok)" : "var(--warn)" }}>
           <strong>{view.mapping.status === "confirmed" ? "Processes confirmed" : "No process mapping applies"}</strong>
           {" "}by {view.mapping.reviewer_name} · revision {view.mapping.revision} · {view.mapping.created_at.slice(0, 16).replace("T", " ")}
-          {view.mapping.status === "confirmed" ? <RefList refs={view.mapping.refs} onNavigate={onNavigate} /> : <p>{view.mapping.no_mapping_reason}</p>}
+          {view.mapping.status === "confirmed" ? <RefList refs={view.mapping.refs} /> : <p>{view.mapping.no_mapping_reason}</p>}
           {Object.entries(view.mapping.findings).filter(([, v]) => v.length).map(([k, v]) => (
             <div key={k} className="hint">{k.replace(/_/g, " ")}: {v.join("; ")}</div>))}
         </div>
@@ -149,20 +124,20 @@ function MappingSection({ view, nodes, onChanged, onNavigate }: { view: StoryPro
           <ul>{view.mapping_history.map((m) => <li key={m.revision}>r{m.revision} {m.status} by {m.reviewer_name} -- {m.refs.map((r) => `${r.node_key}@v${r.version}`).join(", ") || m.no_mapping_reason}</li>)}</ul>
         </details>
       )}
-    </section>
+    </div>
   );
 }
 
 
 const sourceLabel: Record<string, JSX.Element> = {
-  scripted_refinement: <span className="badge warn">scripted stand-in</span>,
-  refinement_agent: <span className="badge grey">refinement agent</span>,
+  scripted_refinement: <span className="tag sim">Simulation</span>,
+  refinement_agent: <span className="badge grey">JADE</span>,
   architect: <span className="badge grey">Architect</span>,
 };
 const statusTone2: Record<string, string> = { proposed: "warn", applied: "ok", rejected: "stop", deferred: "grey" };
 
 /** Accepted findings become a reviewed, attributed story revision -- agents never change the story themselves. */
-function StoryRefinement({ storyId, onChanged }: { storyId: string; onChanged: () => void }) {
+export function StoryRefinement({ storyId, onChanged }: { storyId: string; onChanged: () => void }) {
   const [v, setV] = useState<RefinementView | null>(null);
   const [sel, setSel] = useState<Record<string, boolean>>({});
   const [diff, setDiff] = useState<DiffLine[] | null>(null);
@@ -183,10 +158,10 @@ function StoryRefinement({ storyId, onChanged }: { storyId: string; onChanged: (
     try { await fn(); if (msg) setNotice(msg); await load(); onChanged(); } catch (e) { setError(saveErrorMessage(e, "Refused.")); } finally { setBusy(false); }
   }
   return (
-    <section className="panel" id="story-refinement">
-      <h2 style={{ marginTop: 0 }}>Story refinement from findings</h2>
-      <p className="hint">Agents only propose. A reviewer selects findings, checks the exact change to the approved story, and applies it
-        as a new story revision. Applying one flags the design for reassessment and stops existing approvals from executing.</p>
+    <div className="subsection" id="story-refinement">
+      <h3 style={{ marginTop: 0 }}>Improve the story from findings</h3>
+      <p className="hint">JADE only proposes. Select findings, check the change to the approved story, and apply it as a new story revision.
+        Applying one sends the solution back for reassessment and pauses existing approvals.</p>
       {v.findings.length === 0 ? <p className="notstated">No findings yet.</p> : (
         <table className="grid" style={{ fontSize: 13 }}>
           <thead><tr><th></th><th>Finding</th><th>Kind</th><th>From</th><th>Status</th><th></th></tr></thead>
@@ -237,14 +212,14 @@ function StoryRefinement({ storyId, onChanged }: { storyId: string; onChanged: (
               : <>by {r.author_name} · {r.created_at.slice(0, 16).replace("T", " ")} · applied: {r.applied_findings.map((a) => a.text).join("; ")}</>}
               <div className="hint">process mapping revision {r.process_refs.mapping_revision ?? "none"}: {r.process_refs.refs.map((x) => `${x.node_key}@v${x.version}`).join(", ") || "no processes"}</div></li>))}</ul>
         </details>)}
-    </section>
+    </div>
   );
 }
 
 const blankStep = (i: number): MapStep => ({ id: `S${i}`, label: "", type: "task", actor: "", system: "", controls: [], node_ref: null,
   story_ids: [], basis: "assumption", confirmation_source: "", notes: "" });
 
-function MapEditor({ view, kind, nodes, onSaved }: { view: StoryProcessView; kind: "as_is" | "to_be"; nodes: FrameworkNode[]; onSaved: (msg: string) => void }) {
+export function MapEditor({ view, kind, nodes, onSaved }: { view: StoryProcessView; kind: "as_is" | "to_be"; nodes: FrameworkNode[]; onSaved: (msg: string) => void }) {
   const versions = view.maps[kind].versions;
   const [shown, setShown] = useState<number | null>(versions[0]?.version ?? null);
   const [draft, setDraft] = useState<MapContent | null>(null);
@@ -350,89 +325,67 @@ function MapEditor({ view, kind, nodes, onSaved }: { view: StoryProcessView; kin
   );
 }
 
-export function ProcessWork({ navFilter, navToken, onNavigate }: Partial<NavTarget> & { onNavigate?: Navigate }) {
-  const [changes, setChanges] = useState<Change[] | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
+/**
+ * Everything about a story's business processes, inside its workspace:
+ * the confirmed processes, JADE's suggestions and findings, and the
+ * as-is / to-be maps. Each control is the same governed flow as before.
+ */
+export function StoryProcessPanel({ storyId, onChanged }: { storyId: string; onChanged?: () => void }) {
   const [view, setView] = useState<StoryProcessView | null>(null);
   const [nodes, setNodes] = useState<FrameworkNode[]>([]);
   const [kind, setKind] = useState<"as_is" | "to_be">("to_be");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (IS_MOCK_MODE) return;
-    api.listChanges().then((all) => {
-      const list = all.filter((c) => c.userStory && !["RECEIVED", "REFINING", "REJECTED"].includes(c.state));
-      setChanges(list);
-      setOpenId((cur) => navFilter?.story ?? cur ?? list.find((c) => c.id === "S-BW-RETURNS")?.id ?? list[0]?.id ?? null);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navToken]);
   const load = () => {
-    if (!openId) return;
-    processApi.story(openId).then((v) => { setView(v); setError(null); }).catch((e) => setError(saveErrorMessage(e, "Could not load the story's processes.")));
+    processApi.story(storyId).then((v) => { setView(v); setError(null); })
+      .catch((e) => setError(saveErrorMessage(e, "Could not load the story's processes.")));
   };
-  useEffect(load, [openId]);
+  useEffect(load, [storyId]);
   useEffect(() => {
     if (view?.framework) processApi.version(view.framework.framework_id, view.framework.version).then((p) => setNodes(p.nodes)).catch(() => setNodes([]));
   }, [view?.framework?.framework_id, view?.framework?.version]);
-  useEffect(() => { if (navFilter?.section === "maps") document.getElementById("process-maps")?.scrollIntoView(); }, [view, navFilter?.section]);
 
-  if (IS_MOCK_MODE) return <section className="panel"><h1>Process & Maps</h1><p className="notstated">Needs the real backend.</p></section>;
-  if (!changes) return <Loading what="stories" />;
-  const change = changes.find((c) => c.id === openId);
-  const d = view?.design;
-
+  if (IS_MOCK_MODE) return <p className="notstated">Process mapping needs the real backend.</p>;
+  if (error) return <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div>;
+  if (!view) return <Loading what="processes" />;
+  const changed = () => { load(); onChanged?.(); };
+  const openFindings = (view.runs[0]?.result.missing_requirements?.length ?? 0) + (view.runs[0]?.result.missing_controls?.length ?? 0)
+    + (view.runs[0]?.result.missing_acceptance_criteria?.length ?? 0);
   return (
     <div className="stack">
-      <section className="panel">
-        <h1 style={{ marginTop: 0 }}>Process & Maps</h1>
-        <p className="hint">Finalise a story against the company's process framework, keep as-is and to-be maps beside it, and follow it through design and implementation to its as-built record.</p>
-        <div className="btnrow">{changes.map((c) => (
-          <button key={c.id} className={`btn small${c.id === openId ? " primary" : ""}`} onClick={() => { setOpenId(c.id); setNotice(null); }}>{c.id}</button>))}</div>
-      </section>
-      {error && <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div>}
-      {view && change && (<>
-        <section className="panel">
-          <JourneyBar storyId={view.story_id} at="process" onNavigate={onNavigate} frameworkId={view.framework?.framework_id} />
-          <h2>{view.story_id}: {change.userStory?.statement?.slice(0, 160) ?? view.title}</h2>
+      {view.mapping?.status === "confirmed" ? (
+        <div>
+          <div className="minihead">Confirmed processes</div>
+          <RefList refs={view.mapping.refs} />
+        </div>
+      ) : view.mapping?.status === "no_mapping" ? (
+        <p>No process mapping applies: {view.mapping.no_mapping_reason}</p>
+      ) : view.framework ? <p className="muted">The affected processes have not been confirmed yet.</p> : null}
+      <div id="process-maps">
+        <div className="btnrow">
+          <button className={`btn small${kind === "to_be" ? " primary" : ""}`} onClick={() => setKind("to_be")}>To-be ({view.maps.to_be.versions.length})</button>
+          <button className={`btn small${kind === "as_is" ? " primary" : ""}`} onClick={() => setKind("as_is")}>As-is ({view.maps.as_is.versions.length})</button>
+        </div>
+        {notice && <div className="callout" style={{ borderColor: "var(--ok)" }}>{notice}</div>}
+        <MapEditor key={kind} view={view} kind={kind} nodes={nodes} onSaved={(m) => { setNotice(m); changed(); }} />
+      </div>
+      <Details summary={view.mapping ? "Change the affected processes" : "Confirm the affected processes"} open={!view.mapping && !!view.framework}>
+        <MappingSection view={view} nodes={nodes} onChanged={changed} />
+      </Details>
+      <Details summary={`Improve the story from JADE's findings${openFindings ? ` (${openFindings})` : ""}`}>
+        <StoryRefinement storyId={storyId} onChanged={changed} />
+      </Details>
+      {view.design && (
+        <Details summary="How the solution used this process context" tone="technical">
           <dl className="facts">
-            <dt>Business domain</dt><dd>{view.business_domain_id ?? <span className="notstated">not assigned</span>}</dd>
-            <dt>Route</dt><dd>{view.route ?? <span className="notstated">no design yet</span>}</dd>
+            <dt>Design</dt><dd>revision {view.design.design_revision} · evidence baseline <span className="mono">{view.design.baseline_id}</span> · {view.design.status.replace(/_/g, " ")}</dd>
+            <dt>Process context</dt><dd>{view.design.process_context_consulted ? "consulted" : "not consulted"} ·{" "}
+              {view.design.process_context_recorded?.sha256 === view.fingerprint.sha256 ? "matches the story's processes now" : "differs from the story's processes now"}</dd>
           </dl>
-          {change.userStory?.acceptanceCriteria?.length ? (
-            <details><summary>Acceptance criteria ({change.userStory.acceptanceCriteria.length})</summary>
-              <ul>{change.userStory.acceptanceCriteria.map((a) => <li key={a.id}>{a.id}: {a.text}</li>)}</ul></details>) : null}
-        </section>
-        <MappingSection view={view} nodes={nodes} onChanged={load} onNavigate={onNavigate} />
-        <StoryRefinement storyId={view.story_id} onChanged={() => { load(); api.listChanges().then((all) => setChanges((cur) => cur && all.filter((c) => cur.some((x) => x.id === c.id)))); }} />
-        <section className="panel" id="process-maps">
-          <h2 style={{ marginTop: 0 }}>Process maps</h2>
-          <div className="btnrow">
-            <button className={`btn small${kind === "as_is" ? " primary" : ""}`} onClick={() => setKind("as_is")}>As-is ({view.maps.as_is.versions.length})</button>
-            <button className={`btn small${kind === "to_be" ? " primary" : ""}`} onClick={() => setKind("to_be")}>To-be ({view.maps.to_be.versions.length})</button>
-          </div>
-          {notice && <div className="callout" style={{ borderColor: "var(--ok)" }}>{notice}</div>}
-          <MapEditor key={kind} view={view} kind={kind} nodes={nodes} onSaved={(m) => { setNotice(m); load(); }} />
-        </section>
-        <section className="panel">
-          <h2 style={{ marginTop: 0 }}>Design</h2>
-          {!d ? <p className="notstated">No Architect design yet. The Architect receives this story's process context when it runs.</p> : (<>
-            <dl className="facts">
-              <dt>Design</dt><dd>revision {d.design_revision} · evidence baseline <span className="mono">{d.baseline_id}</span> ·{" "}
-                <span className={`badge ${d.status === "current" ? "ok" : "stop"}`}>{d.status.replace(/_/g, " ")}</span></dd>
-              <dt>Process context</dt><dd>{d.process_context_consulted ? "consulted by the Architect" : "not consulted"}{" · "}
-                {d.process_context_recorded?.sha256 === view.fingerprint.sha256 ? <span className="badge ok">matches the story's processes now</span>
-                  : <span className="badge warn">differs from the story's processes now</span>}</dd>
-            </dl>
-            {d.reassessment.length > 0 && (
-              <div className="callout" style={{ borderColor: "var(--stop)" }}><strong>Flagged for reassessment</strong>
-                <ul>{d.reassessment.map((r, i) => <li key={i}>{r.kind.replace(/_/g, " ")}: {r.detail}</li>)}</ul></div>)}
-            {d.architect_process_findings && Object.entries(d.architect_process_findings).some(([, v]) => v.length) && (
-              <div><strong>Architect's process findings</strong><ul>{Object.entries(d.architect_process_findings).flatMap(([k, v]) => v.map((x) => <li key={k + x}>{k.replace(/_/g, " ")}: {x}</li>))}</ul></div>)}
-          </>)}
-        </section>
-      </>)}
+          {view.design.reassessment.length > 0 && <ul>{view.design.reassessment.map((r, i) => <li key={i}>{r.kind.replace(/_/g, " ")}: {r.detail}</li>)}</ul>}
+        </Details>
+      )}
     </div>
   );
 }

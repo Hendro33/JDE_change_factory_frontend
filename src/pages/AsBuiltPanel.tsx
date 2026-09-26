@@ -1,14 +1,12 @@
 import { useEffect, useState } from "react";
-import { api, IS_MOCK_MODE } from "../services/api";
+import { IS_MOCK_MODE } from "../services/api";
 import { saveErrorMessage } from "../services/saveErrors";
 import { processApi, type AsBuiltRecord, type AsBuiltView, type Checkpoint, type MapVersion, type PinnedRef } from "../services/processApi";
-import type { Change } from "../types/domain";
-import type { Navigate, NavTarget } from "../types/nav";
-import { Loading } from "../components/ui";
+import { Link } from "../router";
+import { Details, Loading } from "../components/design";
 import { ProcessMapDiagram } from "../components/ProcessMapDiagram";
-import { JourneyBar } from "./ProcessWork";
 
-function Checkpoints({ items }: { items: Checkpoint[] }) {
+export function Checkpoints({ items }: { items: Checkpoint[] }) {
   return (
     <ul style={{ listStyle: "none", paddingLeft: 0 }}>{items.map((c) => (
       <li key={c.id}><span className={`badge ${c.complete ? "ok" : "stop"}`}>{c.complete ? "complete" : "missing"}</span> {c.label}
@@ -17,7 +15,7 @@ function Checkpoints({ items }: { items: Checkpoint[] }) {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-function RecordView({ rec, onNavigate }: { rec: AsBuiltRecord; onNavigate?: Navigate }) {
+export function RecordView({ rec }: { rec: AsBuiltRecord }) {
   const c = rec.content as any;
   const us = c.story?.user_story;
   const mapping = c.process?.mapping;
@@ -38,8 +36,8 @@ function RecordView({ rec, onNavigate }: { rec: AsBuiltRecord; onNavigate?: Navi
           ? <p>No mapping applies ({mapping.reviewer_name}): {mapping.no_mapping_reason}</p>
           : <><p className="hint">Confirmed by {mapping.reviewer_name}, mapping revision {mapping.revision}</p>
             <ul>{mapping.refs.map((r: PinnedRef) => (
-              <li key={r.node_key}><button className="linkish" onClick={() => onNavigate?.("admin-process", { framework: r.framework_id, version: String(r.version), node: r.node_key })}>
-                <span className="mono">{r.framework_id}@v{r.version}:{r.node_key}</span></button> {r.path.map((p) => p.name).join(" › ")}
+              <li key={r.node_key}><Link to={`/business?node=${encodeURIComponent(r.node_key)}`}>{r.path.map((p) => p.name).join(" › ")}</Link>
+                <span className="hint mono"> {r.node_key} v{r.version}</span>
                 {r.status_now && r.status_now.state !== "current" && r.status_now.state !== "unchanged" && <span className="badge warn"> {r.status_now.state}</span>}</li>))}</ul></>}
       </section>
       {(["as_is", "to_be"] as const).map((k) => {
@@ -91,78 +89,69 @@ function RecordView({ rec, onNavigate }: { rec: AsBuiltRecord; onNavigate?: Navi
   );
 }
 
-export function AsBuilt({ navFilter, navToken, onNavigate }: Partial<NavTarget> & { onNavigate?: Navigate }) {
-  const [changes, setChanges] = useState<Change[] | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
+/**
+ * Release: the as-built record of what was actually delivered, its
+ * required checkpoints, and finalising it (which completes the story).
+ */
+export function AsBuiltPanel({ storyId, onChanged }: { storyId: string; onChanged?: () => void }) {
   const [view, setView] = useState<AsBuiltView | null>(null);
   const [shown, setShown] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (IS_MOCK_MODE) return;
-    api.listChanges().then((all) => {
-      const list = all.filter((c) => c.architectDecision);
-      setChanges(list);
-      setOpenId((cur) => navFilter?.story ?? cur ?? list.find((c) => c.id === "S-BW-RETURNS")?.id ?? list[0]?.id ?? null);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navToken]);
   const load = (select?: number) => {
-    if (!openId) return;
-    processApi.asBuilt(openId).then((v) => { setView(v); setShown(select ?? v.records[0]?.version ?? null); setError(null); })
+    processApi.asBuilt(storyId).then((v) => { setView(v); setShown(select ?? v.records[0]?.version ?? null); setError(null); })
       .catch((e) => setError(saveErrorMessage(e, "Could not load the as-built record.")));
   };
-  useEffect(() => load(), [openId]);
+  useEffect(() => load(), [storyId]);
 
   async function act(fn: () => Promise<AsBuiltRecord>) {
     setBusy(true); setError(null);
-    try { const r = await fn(); load(r.version); } catch (e) { setError(saveErrorMessage(e, "Refused.")); } finally { setBusy(false); }
+    try { const r = await fn(); load(r.version); onChanged?.(); } catch (e) { setError(saveErrorMessage(e, "Refused.")); } finally { setBusy(false); }
   }
 
-  if (IS_MOCK_MODE) return <section className="panel"><h1>As-built Records</h1><p className="notstated">Needs the real backend.</p></section>;
-  if (!changes) return <Loading what="stories" />;
-  const rec = view?.records.find((r) => r.version === shown);
+  if (IS_MOCK_MODE) return <p className="notstated">As-built records need the real backend.</p>;
+  if (!view) return error ? <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div> : <Loading what="the as-built record" />;
+  const rec = view.records.find((r) => r.version === shown);
+  const missing = view.checkpoints_now.filter((c) => !c.complete);
 
   return (
     <div className="stack">
-      <section className="panel">
-        <h1 style={{ marginTop: 0 }}>As-built Records</h1>
-        <p className="hint">What was actually delivered: generated from the story, its confirmed processes and maps, the approved design,
-          the applied implementation and its verification evidence -- with deviations and open limitations. Finalised only when every required checkpoint is complete.</p>
-        <div className="btnrow">{changes.map((c) => (
-          <button key={c.id} className={`btn small${c.id === openId ? " primary" : ""}`} onClick={() => setOpenId(c.id)}>{c.id}</button>))}</div>
-      </section>
       {error && <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div>}
-      {view && openId && (<>
-        <section className="panel">
-          <JourneyBar storyId={openId} at="asbuilt" onNavigate={onNavigate} />
-          <h2>Checkpoints now {view.delivery_mode_now === "simulation" && <span className="badge warn">SIMULATED delivery</span>}</h2>
-          <Checkpoints items={view.checkpoints_now} />
-          <div className="btnrow"><button className="btn primary" disabled={busy} onClick={() => act(() => processApi.generateAsBuilt(openId))}>Generate new version</button></div>
-        </section>
-        {view.records.length > 0 && (
-          <section className="panel">
-            <div className="btnrow">{view.records.map((r) => (
-              <button key={r.version} className={`btn small${r.version === shown ? " primary" : ""}`} onClick={() => setShown(r.version)}>
-                v{r.version} · {r.status}</button>))}</div>
-            {rec && (<>
-              <h2>{openId} as-built record · version {rec.version}{" "}
-                <span className={`badge ${rec.status === "final" ? "ok" : rec.status === "draft" ? "warn" : "grey"}`}>{rec.status.toUpperCase()}</span></h2>
-              <p className="hint">Generated by {rec.generated_by} at {rec.generated_at.slice(0, 16).replace("T", " ")}
-                {rec.finalised_at && <> · finalised by {rec.finalised_by} at {rec.finalised_at.slice(0, 16).replace("T", " ")}</>}</p>
-              <div className="btnrow">
-                <button className="btn small" onClick={() => processApi.downloadMarkdown(openId, rec.version).catch((e) => setError(String(e)))}>Download Markdown</button>
-                {rec.status === "draft" && view.can_finalise && (
-                  <button className="btn primary" disabled={busy || !rec.content.all_checkpoints_complete}
-                          onClick={() => act(() => processApi.finaliseAsBuilt(openId, rec.version))}>Finalise this version</button>)}
-                {rec.status === "draft" && !rec.content.all_checkpoints_complete && <span className="hint">Cannot finalise: required checkpoints are missing.</span>}
-              </div>
-              <RecordView rec={rec} onNavigate={onNavigate} />
-            </>)}
-          </section>
-        )}
-      </>)}
+      <p style={{ margin: 0 }}>
+        {missing.length === 0
+          ? "Every required delivery checkpoint is complete."
+          : `${missing.length} required checkpoint${missing.length === 1 ? " is" : "s are"} not complete yet: ${missing.map((c) => c.label.toLowerCase()).join("; ")}.`}
+        {view.delivery_mode_now === "simulation" && <> <span className="tag sim">Simulation</span></>}
+      </p>
+      <Details summary={`Delivery checkpoints (${view.checkpoints_now.length - missing.length} of ${view.checkpoints_now.length} complete)`}>
+        <Checkpoints items={view.checkpoints_now} />
+      </Details>
+      <div className="btnrow">
+        <button className="btn" disabled={busy} onClick={() => act(() => processApi.generateAsBuilt(storyId))}>
+          {view.records.length ? "Generate a new version" : "Generate the as-built record"}</button>
+        {rec && rec.status === "draft" && view.can_finalise && (
+          <button className="btn primary" disabled={busy || !rec.content.all_checkpoints_complete}
+                  onClick={() => act(() => processApi.finaliseAsBuilt(storyId, rec.version))}>Finalise and complete the story</button>)}
+        {rec && rec.status === "draft" && !rec.content.all_checkpoints_complete && <span className="hint">Can be finalised once every checkpoint is complete.</span>}
+      </div>
+      {view.records.length > 0 && (
+        <div className="stack">
+          <div className="btnrow">{view.records.map((r) => (
+            <button key={r.version} className={`btn small${r.version === shown ? " primary" : ""}`} onClick={() => setShown(r.version)}>
+              Version {r.version} · {r.status}</button>))}</div>
+          {rec && (<>
+            <p className="hint" style={{ margin: 0 }}>Version {rec.version}{" "}
+              <span className={`badge ${rec.status === "final" ? "ok" : rec.status === "draft" ? "warn" : "grey"}`}>{rec.status}</span>
+              {" "}generated by {rec.generated_by} at {rec.generated_at.slice(0, 16).replace("T", " ")}
+              {rec.finalised_at && <> · finalised by {rec.finalised_by} at {rec.finalised_at.slice(0, 16).replace("T", " ")}</>}
+              {" "}· <button className="linkish" onClick={() => processApi.downloadMarkdown(storyId, rec.version).catch((e) => setError(String(e)))}>Download as Markdown</button></p>
+            <Details summary="Read the as-built record">
+              <RecordView rec={rec} />
+            </Details>
+          </>)}
+        </div>
+      )}
     </div>
   );
 }

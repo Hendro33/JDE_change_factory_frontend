@@ -54,8 +54,8 @@ export function AskJadePanel({
     <section className="panel">
       <h2>{title}</h2>
       <div className="sub" style={{ marginBottom: 12 }}>
-        Ask for an explanation, question something, or add information Jade missed. An explanation never
-        changes anything; new information becomes a proposed update for you to review, never applied on its own.
+        Ask why, question something, or add what JADE missed. Answers never change anything by themselves; new
+        information comes back as a proposed update for you to review.
       </div>
 
       {turns.length > 0 && (
@@ -64,18 +64,18 @@ export function AskJadePanel({
             <div key={t.turnId} style={{ borderLeft: "3px solid var(--line-strong)", paddingLeft: 12 }}>
               <div style={{ fontSize: 13, fontWeight: 700 }}>{t.askedBy} asked</div>
               <div style={{ fontSize: 13.5, marginBottom: 6 }}>{t.question}</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ai)" }}>Jade</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--jade-dark)" }}>JADE</div>
               <div style={{ fontSize: 13.5 }}>{t.answer}</div>
               {t.kind === "proposed_amendment" && t.proposedUserStory && (
                 <div className="callout" style={{ marginTop: 8 }}>
-                  <strong>Jade proposes an update to this requirement</strong>
+                  <strong>JADE proposes an update to the story</strong>
                   <p style={{ margin: "4px 0 8px", fontSize: 13.5, fontWeight: 700 }}>{t.proposedUserStory.statement}</p>
                   {renderAmendmentActions?.(t)}
                 </div>
               )}
               {t.kind === "recommend_reanalysis" && (
                 <div className="callout" style={{ marginTop: 8 }}>
-                  <strong>Jade recommends re-running Architecture Review</strong>
+                  <strong>JADE recommends running solutioning again</strong>
                   {renderRecommendReanalysisActions?.(t)}
                 </div>
               )}
@@ -85,19 +85,19 @@ export function AskJadePanel({
       )}
 
       <div className="field">
-        <label htmlFor="askjade-question">{title}</label>
+        <label htmlFor="askjade-question" className="sr-only">{title}</label>
         <textarea
           id="askjade-question"
           value={question}
           style={{ minHeight: 64 }}
-          placeholder="e.g. Why is this the recommended approach? Or: Weekends should also be excluded."
+          placeholder="e.g. Why is the risk medium? Explain this without JD Edwards terms. Weekends should also be excluded."
           onChange={(e) => setQuestion(e.target.value)}
         />
       </div>
       {error && <div className="callout" style={{ borderColor: "var(--stop)", marginBottom: 12 }}>{error}</div>}
       <div className="btnrow">
         <button className="btn primary" disabled={busy || !question.trim()} onClick={submit}>
-          {busy ? "Asking Jade…" : "Ask"}
+          {busy ? "Asking JADE…" : "Ask JADE"}
         </button>
       </div>
     </section>

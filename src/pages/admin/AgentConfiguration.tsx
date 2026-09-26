@@ -28,7 +28,13 @@ function shortTool(t: string) {
  * the packs themselves (draft → publish → assign; rollback = assign an
  * earlier revision), and what each agent actually did.
  */
-export function AgentConfiguration() {
+/**
+ * part="config": which instructions, skills and knowledge each agent runs with.
+ * part="operations": agent health and what every run actually used.
+ */
+export function AgentConfiguration({ part = "all" }: { part?: "config" | "operations" | "all" } = {}) {
+  const showOps = part !== "config";
+  const showConfig = part !== "operations";
   const [health, setHealth] = useState<RoleHealth[] | null>(null);
   const [roles, setRoles] = useState<RoleInfo[]>([]);
   const [packs, setPacks] = useState<PackSummary[]>([]);
@@ -67,7 +73,7 @@ export function AgentConfiguration() {
 
   return (
     <div className="stack" data-testid="agent-configuration">
-      <section className="panel">
+      {showOps && <section className="panel">
         <h2>Agent health</h2>
         <p className="hint" style={{ marginTop: 0 }}>
           From real configuration and run records. "Working" means the agent's last successful run was made with this
@@ -103,9 +109,9 @@ export function AgentConfiguration() {
             ))}
           </tbody>
         </table>
-      </section>
+      </section>}
 
-      <section className="panel">
+      {showConfig && <><section className="panel">
         <h2>Assigned Start-up Packs</h2>
         <p className="hint" style={{ marginTop: 0 }}>
           Each agent runs with exactly one published pack revision. A run keeps the revision it started with; a change
@@ -187,8 +193,9 @@ export function AgentConfiguration() {
         <PackEditor key={`${editing.packId}-${editing.revision}`} rev={editing} docs={docs} onClose={() => setEditing(null)}
           onSaved={(v) => { setEditing(v); load(); }} onError={setError} />
       )}
+      </>}
 
-      <section className="panel">
+      {showOps && <section className="panel">
         <h2>Agent runs</h2>
         <p className="hint" style={{ marginTop: 0 }}>
           What each run actually used. Token counts are reported by the provider through the runtime; cost is an estimate
@@ -224,7 +231,7 @@ export function AgentConfiguration() {
             </tbody>
           </table>
         )}
-      </section>
+      </section>}
     </div>
   );
 }

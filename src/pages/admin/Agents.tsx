@@ -3,7 +3,7 @@ import { saveErrorMessage } from "../../services/saveErrors";
 import { useEffect, useState } from "react";
 import type { SVGProps } from "react";
 import { api } from "../../services/api";
-import type { AgentDefinition, AgentHealth, Capability } from "../../types/domain";
+import type { AgentDefinition, AgentHealth, AgentInventoryEntry, Capability } from "../../types/domain";
 import { ApiNote, CapabilityStatusBadge, Loading, NotStated } from "../../components/ui";
 import {
   ArchitectIcon,
@@ -20,12 +20,9 @@ type AgentGroup = "Requirements" | "Solution" | "Delivery";
 type AgentStatus = "Active" | "Limited" | "Planned";
 
 /**
- * The conceptual Jade delivery team, independent of which
- * .claude/agents/*.md files happen to exist today (agent_registry_service.py
- * only ever lists real files -- it has no way to represent a role that
- * is planned but not yet built). internalName is null for exactly that
- * case: the Development Agent, honestly shown as Planned rather than
- * silently left off the page.
+ * The roster comes from the ONE canonical agent inventory
+ * (GET /admin/agent-inventory), so this page, the on/off switches and the
+ * AI configuration always list the same agents.
  */
 interface RosterEntry {
   key: string;
@@ -33,42 +30,25 @@ interface RosterEntry {
   purpose: string;
   group: AgentGroup;
   icon: (props: SVGProps<SVGSVGElement>) => JSX.Element;
-  /** Matches AgentDefinition.name from GET /admin/agents, or null if no backing file exists yet. */
+  /** Its definition file in .claude/agents (GET /admin/agents), if it has one. */
   internalName: string | null;
+  runsInJade: boolean;
+  note: string;
 }
 
-const ROSTER: RosterEntry[] = [
-  {
-    key: "receive", displayName: "Receive Agent", group: "Requirements", icon: ReceiveIcon,
-    purpose: "Normalises every incoming request into Jade's canonical requirement shape — structural only, no judgement calls.",
-    internalName: "receive-agent",
-  },
-  {
-    key: "improve", displayName: "Improve Agent", group: "Requirements", icon: ImproveIcon,
-    purpose: "Enriches the requirement with business context, acceptance criteria, business rules, assumptions and a test script.",
-    internalName: "improve-agent",
-  },
-  {
-    key: "requirements", displayName: "Requirements Agent", group: "Requirements", icon: RequirementsIcon,
-    purpose: "Works with the Domain Owner to get the requirement clear, complete and approvable.",
-    internalName: "check-agent",
-  },
-  {
-    key: "architect", displayName: "Architect Agent", group: "Solution", icon: ArchitectIcon,
-    purpose: "Analyses the JD Edwards estate and recommends how an approved requirement should be delivered.",
-    internalName: "architect",
-  },
-  {
-    key: "functional", displayName: "Functional Agent", group: "Delivery", icon: FunctionalIcon,
-    purpose: "Applies approved configuration changes in JD Edwards and verifies them.",
-    internalName: "functional-agent",
-  },
-  {
-    key: "technical", displayName: "Technical Agent", group: "Delivery", icon: DevelopmentIcon,
-    purpose: "Prepares the exact technical package (customer-owned development objects) for an approved design; applied only through the governed technical gate.",
-    internalName: "technical-agent",
-  },
-];
+const ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => JSX.Element> = {
+  "receive-agent": ReceiveIcon, "improve-agent": ImproveIcon, "check-agent": RequirementsIcon,
+  "process-analyst": RequirementsIcon, architect: ArchitectIcon, "functional-agent": FunctionalIcon,
+  "technical-agent": DevelopmentIcon,
+};
+
+function toRoster(inv: AgentInventoryEntry[]): RosterEntry[] {
+  return inv.map((e) => ({
+    key: e.key, displayName: e.label, purpose: e.purpose,
+    group: (["Requirements", "Solution", "Delivery"].includes(e.group) ? e.group : "Delivery") as AgentGroup,
+    icon: ICONS[e.key] ?? RequirementsIcon, internalName: e.definition ?? null, runsInJade: e.runsInJade, note: e.note,
+  }));
+}
 
 const GROUPS: AgentGroup[] = ["Requirements", "Solution", "Delivery"];
 const GROUP_TONE: Record<AgentGroup, string> = { Requirements: "info", Solution: "ai", Delivery: "ok" };
@@ -83,10 +63,9 @@ const STATUS_NOTE: Record<AgentStatus, string> = {
 const capabilityName = (c: Capability) => String(c.identity["description"] ?? c.capabilityId);
 
 function statusFor(entry: RosterEntry, byName: Map<string, AgentDefinition>): AgentStatus {
-  if (!entry.internalName) return "Planned";
-  const agent = byName.get(entry.internalName);
-  if (!agent) return "Planned"; // defensive: expected file genuinely missing
-  return agent.runtime ? "Active" : "Limited";
+  if (entry.runsInJade) return "Active";
+  if (entry.internalName && byName.get(entry.internalName)) return byName.get(entry.internalName)!.runtime ? "Active" : "Limited";
+  return "Planned";
 }
 
 export function Agents() {
@@ -95,10 +74,12 @@ export function Agents() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [agents, setAgents] = useState<AgentDefinition[] | null>(null);
   const [healthByAgent, setHealthByAgent] = useState<Record<string, AgentHealth>>({});
-  const [selected, setSelected] = useState<string>(ROSTER[0].key);
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [selected, setSelected] = useState<string>("receive-agent");
   const [capabilities, setCapabilities] = useState<Capability[] | null>(null);
 
   useEffect(() => {
+    api.listAgentInventory().then((inv) => setRoster(toRoster(inv))).catch(() => setRoster([]));
     api.listAgents().then(async (list) => {
       setAgents(list);
       // Every card needs its own real health snapshot, not just the
@@ -119,10 +100,11 @@ export function Agents() {
     try { setSettings(await agentSettingsApi.save(disabled, settings.revision)); }
     catch (e) { setSettingsError(saveErrorMessage(e, "Could not save the agent settings.")); }
   }
-  const enabledFor = (internalName: string | null) => settings?.agents.find((a) => a.name === internalName)?.enabled;
+  const enabledFor = (key: string | null) => settings?.agents.find((a) => a.name === key)?.enabled;
 
   const byName = new Map((agents ?? []).map((a) => [a.name, a]));
-  const openEntry = ROSTER.find((r) => r.key === selected)!;
+  const openEntry = roster.find((r) => r.key === selected) ?? roster[0];
+  if (!openEntry) return <Loading what="the agent team" />;
   const openAgent = openEntry.internalName ? byName.get(openEntry.internalName) : undefined;
   const openHealth = openEntry.internalName ? healthByAgent[openEntry.internalName] : undefined;
   const openStatus = statusFor(openEntry, byName);
@@ -131,12 +113,10 @@ export function Agents() {
     <>
       <div className="pagehead">
         <div>
-          <h1>Your Jade AI delivery team</h1>
+          <h2 style={{ margin: 0 }}>Your JADE agents</h2>
           <div className="sub">
-            The six agents that exist in Jade, what each does, and whether it runs for this customer. An Admin can switch an agent
-            off for this customer; a switched-off agent is never started. Whether an agent can actually run — this customer's
-            AI connection, its assigned Start-up Pack and its last real run — is shown under Admin › Agent Configuration,
-            where the instructions, skills and knowledge are managed. Platform safeguards are not editable.
+            The {roster.length} agents in JADE, what each does, and whether it runs for this customer. A switched-off agent is never
+            started. Platform safeguards are not editable.
           </div>
         </div>
       </div>
@@ -150,7 +130,7 @@ export function Agents() {
               <div key={group}>
                 <div className="agentgroup-label">{group}</div>
                 <div className="agentgrid">
-                  {ROSTER.filter((r) => r.group === group).map((entry) => {
+                  {roster.filter((r) => r.group === group).map((entry) => {
                     const h = entry.internalName ? healthByAgent[entry.internalName] : undefined;
                     const status = statusFor(entry, byName);
                     const totalRuns = h ? Object.values(h.runCounts).reduce((n, c) => n + c, 0) : undefined;
@@ -171,7 +151,7 @@ export function Agents() {
                           <div>
                             <div className="agentcard-name">{entry.displayName}</div>
                             <span className={`badge ${STATUS_BADGE[status]}`}>{status}</span>{" "}
-                            {enabledFor(entry.internalName) === false && <span className="badge stop">Off for this customer</span>}
+                            {enabledFor(entry.key) === false && <span className="badge stop">Off for this customer</span>}
                           </div>
                         </div>
                         <div className="agentcard-role">{entry.purpose}</div>
@@ -216,11 +196,11 @@ export function Agents() {
                 <h2 style={{ margin: 0 }}>{openEntry.displayName}</h2>
               </div>
               <p style={{ marginTop: 10 }}>{openEntry.purpose}</p>
-              {settings && openEntry.internalName && (
+              {settings && (
                 <label style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 400 }}>
                   <input type="checkbox" aria-label={`${openEntry.displayName} enabled for this customer`} disabled={!isAdmin}
-                    checked={enabledFor(openEntry.internalName) !== false}
-                    onChange={(e) => toggle(openEntry.internalName!, e.target.checked)} />
+                    checked={enabledFor(openEntry.key) !== false}
+                    onChange={(e) => toggle(openEntry.key, e.target.checked)} />
                   Runs for this customer{!isAdmin && <span className="hint"> (only an Admin can change this)</span>}
                   {settings.updatedAt && <span className="hint"> · last changed by {settings.updatedBy}, {new Date(settings.updatedAt).toLocaleString("en-GB")}</span>}
                 </label>

@@ -12,7 +12,7 @@ const FORMAT_BY_EXT: Record<string, ExportFormat> = { pdf: "pdf", docx: "docx", 
  * Start-up Pack references them. Every upload is an immutable revision
  * with its checksum; nothing is overwritten.
  */
-export function KnowledgeLibrary() {
+export function KnowledgeLibrary({ readOnly = false }: { readOnly?: boolean } = {}) {
   const [docs, setDocs] = useState<ArtifactView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -56,12 +56,10 @@ export function KnowledgeLibrary() {
   return (
     <div className="stack" data-testid="knowledge-library">
       <section className="panel">
-        <h2>Knowledge Library</h2>
+        <h2>Reference documents</h2>
         <p style={{ marginTop: 0 }}>
-          Reference documents agents can use when their Start-up Pack names them (Admin › Agent Configuration). An agent
-          only sees the documents its pack references, only for this customer, and reads their text only if the
-          document policy permits it (Admin › AI Connections). Document text is treated as evidence, never as
-          instructions, and is cited with page or section.
+          Manuals, standards and specifications JADE can cite. An agent only reads the documents its configuration names,
+          for this customer only, and treats their text as evidence, never as instructions.
         </p>
         <table className="data">
           <thead><tr><th>Document</th><th>Revision</th><th>Readable by agents</th><th>Added</th></tr></thead>
@@ -86,7 +84,7 @@ export function KnowledgeLibrary() {
           </tbody>
         </table>
       </section>
-      <section className="panel">
+      {!readOnly && <section className="panel">
         <h2>Add a document</h2>
         <p className="hint" style={{ marginTop: 0 }}>
           PDF, DOCX, TXT or Markdown. The same title again adds a new revision. Password-protected and scanned PDFs are
@@ -106,7 +104,7 @@ export function KnowledgeLibrary() {
         </div>
         {notice && <div className="badge ok" role="status">{notice}</div>}
         {error && <div className="badge stop" role="alert">{error}</div>}
-      </section>
+      </section>}
     </div>
   );
 }

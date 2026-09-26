@@ -1,19 +1,15 @@
 import { useEffect, useState } from "react";
-import { api, IS_MOCK_MODE } from "../services/api";
+import { IS_MOCK_MODE } from "../services/api";
 import { saveErrorMessage } from "../services/saveErrors";
 import { technicalApi, type PackageView, type TechnicalWorkView } from "../services/technicalApi";
-import type { Change, CompanyRole } from "../types/domain";
-import { Loading } from "../components/ui";
-import type { Navigate, NavTarget } from "../types/nav";
-import { JourneyBar } from "./ProcessWork";
-
-const TECHNICAL_ROUTES = new Set(["Technical Agent", "Mixed", "Clarification Required"]);
+import type { CompanyRole } from "../types/domain";
+import { Loading } from "../components/design";
 
 type StepState = "done" | "failed" | "waiting" | "blocked" | "unknown" | "todo";
 const stepTone: Record<StepState, string> = { done: "ok", failed: "stop", waiting: "warn", blocked: "stop", unknown: "stop", todo: "grey" };
 
 /** Each milestone separately -- never collapsed into one success. */
-function milestoneSteps(p: PackageView): { label: string; state: StepState; detail?: string }[] {
+export function milestoneSteps(p: PackageView): { label: string; state: StepState; detail?: string }[] {
   const a = p.approval;
   const s = a?.milestone_states;
   const stateOf = (v: string | undefined, ok: string): StepState =>
@@ -32,7 +28,7 @@ function milestoneSteps(p: PackageView): { label: string; state: StepState; deta
   ];
 }
 
-function DiffView({ diff }: { diff: string }) {
+export function DiffView({ diff }: { diff: string }) {
   return (
     <pre className="mono" style={{ fontSize: 12.5, overflowX: "auto", background: "var(--wash)", padding: 10, borderRadius: 6 }}>
       {diff.split("\n").map((line, i) => (
@@ -43,7 +39,7 @@ function DiffView({ diff }: { diff: string }) {
   );
 }
 
-function PackageCard({ storyId, p, roles, onChanged }: { storyId: string; p: PackageView; roles: CompanyRole[]; onChanged: () => void }) {
+export function PackageCard({ storyId, p, roles, onChanged }: { storyId: string; p: PackageView; roles: CompanyRole[]; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -166,125 +162,99 @@ function PackageCard({ storyId, p, roles, onChanged }: { storyId: string; p: Pac
 }
 
 /**
- * Technical work: the approved Architect design and its evidence baseline,
- * the Technical Agent's runs and package revisions, exact approval and
- * eligibility, and every milestone separately. Everything is SIMULATION.
+ * The full technical record of a story's implementation (Technical tab):
+ * the design and evidence baseline, the Technical Agent's runs, every
+ * package revision with its diff, sources, toolchain, eligibility and
+ * milestones, the human actions and the simulated DEV estate. Every
+ * control is the same governed action as before.
  */
-export function TechnicalWork({ navFilter, navToken, onNavigate }: Partial<NavTarget> & { onNavigate?: Navigate } = {}) {
-  const [changes, setChanges] = useState<Change[] | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
+export function TechnicalWorkPanel({ storyId, roles, onChanged }: { storyId: string; roles: CompanyRole[]; onChanged?: () => void }) {
   const [view, setView] = useState<TechnicalWorkView | null>(null);
-  const [roles, setRoles] = useState<CompanyRole[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    api.listChanges().then((all) => {
-      const list = all.filter((c) => TECHNICAL_ROUTES.has(c.architectDecision?.recommendedRoute ?? ""));
-      setChanges(list);
-      setOpenId((cur) => (navFilter?.story && list.some((c) => c.id === navFilter.story) ? navFilter.story : cur ?? list[0]?.id ?? null));
-    });
-    api.getSession().then((s) => setRoles(s.customers.find((c) => c.id === s.activeCustomerId)?.roles ?? []));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navToken]);
-
   const load = () => {
-    if (!openId) { setView(null); return; }
-    technicalApi.work(openId).then((v) => { setView(v); setError(null); })
+    technicalApi.work(storyId).then((v) => { setView(v); setError(null); })
       .catch((e) => setError(saveErrorMessage(e, "Could not load the technical work.")));
   };
-  useEffect(load, [openId]);
+  useEffect(load, [storyId]);
 
   async function act(fn: () => Promise<unknown>) {
     setBusy(true); setError(null);
-    try { await fn(); load(); } catch (e) { setError(saveErrorMessage(e, "Refused.")); } finally { setBusy(false); }
+    try { await fn(); load(); onChanged?.(); } catch (e) { setError(saveErrorMessage(e, "Refused.")); } finally { setBusy(false); }
   }
 
-  if (IS_MOCK_MODE) return <section className="panel"><h1>Technical Work</h1><p className="notstated">Technical work needs the real backend; the demo never simulates the Technical Agent.</p></section>;
-  if (!changes) return <Loading what="technical work" />;
-  const a = view?.assignment;
+  if (IS_MOCK_MODE) return <p className="notstated">Technical work needs the real backend.</p>;
+  if (!view) return error ? <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div> : <Loading what="technical work" />;
+  const a = view.assignment;
   const canApprove = roles.includes("product_manager") || roles.includes("admin") || roles.includes("domain_owner");
+  const changed = () => { load(); onChanged?.(); };
 
   return (
     <div className="stack">
+      {error && <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div>}
+      <div className="callout" style={{ borderColor: "var(--warn)" }}>
+        <strong>{view.simulation_label ?? "LIVE"}</strong>
+        <div>{view.format_label}</div>
+        <div className="hint">Capability {view.capability.capability_id}: {view.capability.status} -- {view.capability.technical_validation}</div>
+      </div>
       <section className="panel">
-        <h1 style={{ marginTop: 0 }}>Technical Work</h1>
-        <p className="hint">From an approved Architect design to a verified change in the <strong>simulated</strong> DEV estate. The Technical Agent prepares;
-          people approve the design and each exact package revision; a human CNC activates; Jade's executor re-checks everything before each milestone.</p>
-        {changes.length === 0 ? <p className="notstated">No story has a design routed to the Technical Agent.</p> : (
-          <div className="btnrow">{changes.map((c) => (
-            <button key={c.id} className={`btn small${c.id === openId ? " primary" : ""}`} onClick={() => setOpenId(c.id)}>{c.id}</button>
-          ))}</div>
+        <h2 style={{ marginTop: 0 }}>Architect design and evidence baseline</h2>
+        {!a ? <p className="notstated">{view.assignment_problem}</p> : (
+          <dl className="facts">
+            <dt>Design</dt><dd>revision {a.design_revision} · route <strong style={{ display: "inline" }}>{a.route}</strong></dd>
+            <dt>Evidence baseline</dt><dd><span className="mono">{a.baseline_id}</span> · sha256 {a.manifest_sha256.slice(0, 12)}… ·{" "}
+              <span className={`badge ${a.baseline_status === "current" ? "ok" : "stop"}`}>{a.baseline_status?.replace(/_/g, " ")}</span></dd>
+            <dt>Affected objects</dt><dd>{a.architect_decision.objects_affected.join(", ") || "—"}</dd>
+            <dt>Specification</dt><dd>{a.implementation_spec.sequence.join("; ")}</dd>
+            <dt>Target environment</dt><dd>{a.target_environment}</dd>
+            <dt>Design approval</dt>
+            <dd>{a.design_approval ? <>Approved by {a.design_approval.approved_by} ({new Date(a.design_approval.approved_at).toLocaleString("en-GB")}) for revision {a.design_approval.design_revision}</>
+              : canApprove && (a.route === "Technical Agent" || a.route === "Mixed") ? (
+                <button className="btn primary" disabled={busy} onClick={() => act(() => technicalApi.approveDesign(view.story_id, a.design_revision, "approved from the Technical view"))}>Approve design revision {a.design_revision}</button>
+              ) : <span className="notstated">not approved{a.route === "Clarification Required" ? " -- the Architect needs a business answer first" : ""}</span>}</dd>
+          </dl>
         )}
       </section>
-      {error && <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div>}
-      {view && (
-        <>
-          {openId && <JourneyBar storyId={openId} at="implementation" onNavigate={onNavigate} />}
-          <div className="callout" style={{ borderColor: "var(--warn)" }}>
-            <strong>{view.simulation_label ?? "LIVE"}</strong>
-            <div>{view.format_label}</div>
-            <div className="hint">Capability {view.capability.capability_id}: {view.capability.status} -- {view.capability.technical_validation}</div>
+      <section className="panel">
+        <h2 style={{ marginTop: 0 }}>Technical Agent runs</h2>
+        {a?.design_approval && (
+          <div className="btnrow" style={{ marginBottom: 8 }}>
+            {(["prepare", "execute", "verify"] as const).map((p) => (
+              <button key={p} className="btn small" disabled={busy} onClick={() => act(() => technicalApi.startRun(view.story_id, p))}>Start: {p}</button>
+            ))}
           </div>
-          <section className="panel">
-            <h2 style={{ marginTop: 0 }}>Architect design and evidence baseline</h2>
-            {!a ? <p className="notstated">{view.assignment_problem}</p> : (
-              <dl className="facts">
-                <dt>Design</dt><dd>revision {a.design_revision} · route <strong style={{ display: "inline" }}>{a.route}</strong></dd>
-                <dt>Evidence baseline</dt><dd><span className="mono">{a.baseline_id}</span> · sha256 {a.manifest_sha256.slice(0, 12)}… ·{" "}
-                  <span className={`badge ${a.baseline_status === "current" ? "ok" : "stop"}`}>{a.baseline_status?.replace(/_/g, " ")}</span></dd>
-                <dt>Affected objects</dt><dd>{a.architect_decision.objects_affected.join(", ") || "—"}</dd>
-                <dt>Specification</dt><dd>{a.implementation_spec.sequence.join("; ")}</dd>
-                <dt>Target environment</dt><dd>{a.target_environment}</dd>
-                <dt>Design approval</dt>
-                <dd>{a.design_approval ? <>Approved by {a.design_approval.approved_by} ({new Date(a.design_approval.approved_at).toLocaleString("en-GB")}) for revision {a.design_approval.design_revision}</>
-                  : canApprove && (a.route === "Technical Agent" || a.route === "Mixed") ? (
-                    <button className="btn primary" disabled={busy} onClick={() => act(() => technicalApi.approveDesign(view.story_id, a.design_revision, "approved from the Technical work screen"))}>Approve design revision {a.design_revision}</button>
-                  ) : <span className="notstated">not approved{a.route === "Clarification Required" ? " -- the Architect needs a business answer first" : ""}</span>}</dd>
-              </dl>
-            )}
-          </section>
-          <section className="panel">
-            <h2 style={{ marginTop: 0 }}>Technical Agent runs</h2>
-            {a?.design_approval && (
-              <div className="btnrow" style={{ marginBottom: 8 }}>
-                {(["prepare", "execute", "verify"] as const).map((p) => (
-                  <button key={p} className="btn small" disabled={busy} onClick={() => act(() => technicalApi.startRun(view.story_id, p))}>Start: {p}</button>
-                ))}
-              </div>
-            )}
-            {view.runs.length === 0 ? <p className="notstated">No runs yet.</p> : (
-              <table className="data"><thead><tr><th>Run</th><th>Purpose</th><th>Status</th><th>Outcome</th><th>Model / cost</th><th>When</th></tr></thead>
-                <tbody>{view.runs.map((r) => (
-                  <tr key={r.run_id}><td className="mono">{r.run_id}</td><td>{r.purpose}</td>
-                    <td><span className={`badge ${r.status === "completed" ? "ok" : r.status === "failed" ? "stop" : "warn"}`}>{r.status}</span>{r.error && <div className="hint">{r.error}</div>}</td>
-                    <td>{r.outcome.kind?.replace(/_/g, " ") ?? "—"}{r.outcome.questions?.map((q) => <div key={q} className="hint">Q: {q}</div>)}</td>
-                    <td className="hint">{r.model ?? "—"}{r.usage.total_cost_usd != null ? ` · USD ${r.usage.total_cost_usd.toFixed(3)}` : ""}</td>
-                    <td className="hint">{new Date(r.started_at).toLocaleString("en-GB")}</td></tr>
-                ))}</tbody></table>
-            )}
-          </section>
-          {view.packages.map((p) => <PackageCard key={p.revision} storyId={view.story_id} p={p} roles={roles} onChanged={load} />)}
-          <section className="panel">
-            <h2 style={{ marginTop: 0 }}>Human actions</h2>
-            {view.human_actions.length === 0 ? <p className="notstated">None yet.</p> : (
-              <ul>{view.human_actions.map((h, i) => (
-                <li key={i}><strong style={{ display: "inline" }}>{h.action.replace(/_/g, " ")}</strong> by {h.by} -- {h.detail}{h.simulated ? " (simulated hand-off)" : ""}</li>
-              ))}</ul>
-            )}
-          </section>
-          {view.estate && (
-            <section className="panel">
-              <h2 style={{ marginTop: 0 }}>Simulated DEV estate {view.estate.environment} (revision {view.estate.revision})</h2>
-              <table className="data"><thead><tr><th>Object</th><th>Active runtime</th><th>Checked in (not active)</th><th>Last build</th></tr></thead>
-                <tbody>{Object.entries(view.estate.objects).map(([k, o]) => (
-                  <tr key={k}><td className="mono">{k}</td><td className="mono">{o.active_sha256.slice(0, 12)}… ({o.active_package})</td>
-                    <td className="mono">{o.checked_in_sha256 ? `${o.checked_in_sha256.slice(0, 12)}…` : "—"}</td>
-                    <td>{o.build ? <span className={`badge ${o.build.status === "built" ? "ok" : "stop"}`}>{o.build.status}</span> : "—"}</td></tr>
-                ))}</tbody></table>
-            </section>
-          )}
-        </>
+        )}
+        {view.runs.length === 0 ? <p className="notstated">No runs yet.</p> : (
+          <table className="data"><thead><tr><th>Run</th><th>Purpose</th><th>Status</th><th>Outcome</th><th>Model / cost</th><th>When</th></tr></thead>
+            <tbody>{view.runs.map((r) => (
+              <tr key={r.run_id}><td className="mono">{r.run_id}</td><td>{r.purpose}</td>
+                <td><span className={`badge ${r.status === "completed" ? "ok" : r.status === "failed" ? "stop" : "warn"}`}>{r.status}</span>{r.error && <div className="hint">{r.error}</div>}</td>
+                <td>{r.outcome.kind?.replace(/_/g, " ") ?? "—"}{r.outcome.questions?.map((q) => <div key={q} className="hint">Q: {q}</div>)}</td>
+                <td className="hint">{r.model ?? "—"}{r.usage.total_cost_usd != null ? ` · USD ${r.usage.total_cost_usd.toFixed(3)}` : ""}</td>
+                <td className="hint">{new Date(r.started_at).toLocaleString("en-GB")}</td></tr>
+            ))}</tbody></table>
+        )}
+      </section>
+      {view.packages.map((p) => <PackageCard key={p.revision} storyId={view.story_id} p={p} roles={roles} onChanged={changed} />)}
+      <section className="panel">
+        <h2 style={{ marginTop: 0 }}>Human actions</h2>
+        {view.human_actions.length === 0 ? <p className="notstated">None yet.</p> : (
+          <ul>{view.human_actions.map((h, i) => (
+            <li key={i}><strong style={{ display: "inline" }}>{h.action.replace(/_/g, " ")}</strong> by {h.by} -- {h.detail}{h.simulated ? " (simulated hand-off)" : ""}</li>
+          ))}</ul>
+        )}
+      </section>
+      {view.estate && (
+        <section className="panel">
+          <h2 style={{ marginTop: 0 }}>Simulated DEV estate {view.estate.environment} (revision {view.estate.revision})</h2>
+          <table className="data"><thead><tr><th>Object</th><th>Active runtime</th><th>Checked in (not active)</th><th>Last build</th></tr></thead>
+            <tbody>{Object.entries(view.estate.objects).map(([k, o]) => (
+              <tr key={k}><td className="mono">{k}</td><td className="mono">{o.active_sha256.slice(0, 12)}… ({o.active_package})</td>
+                <td className="mono">{o.checked_in_sha256 ? `${o.checked_in_sha256.slice(0, 12)}…` : "—"}</td>
+                <td>{o.build ? <span className={`badge ${o.build.status === "built" ? "ok" : "stop"}`}>{o.build.status}</span> : "—"}</td></tr>
+            ))}</tbody></table>
+        </section>
       )}
     </div>
   );

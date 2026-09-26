@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import type { BusinessDomain } from "../types/domain";
-import type { Navigate } from "../types/nav";
+import { navigate } from "../router";
 import { ApiNote, Loading, NotStated } from "../components/ui";
 import { saveErrorMessage } from "../services/saveErrors";
 
@@ -21,7 +21,7 @@ export function ownersOf(d: BusinessDomain | undefined) {
   return owners.length ? owners.join(", ") : <span className="notstated">none assigned — nobody can approve</span>;
 }
 
-export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
+export function BusinessDomains() {
   const [domains, setDomains] = useState<BusinessDomain[] | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -137,7 +137,7 @@ export function BusinessDomains({ onNavigate }: { onNavigate: Navigate }) {
             </thead>
             <tbody>
               {domains.map((d) => (
-                <tr key={d.id} className="clickable" onClick={() => onNavigate("userstories", { view: "all", domainId: d.id })}>
+                <tr key={d.id} className="clickable" onClick={() => navigate(`/business/${encodeURIComponent(d.id)}`)}>
                   <td className="mono">{d.apqcCode}</td>
                   <td>
                     <div>{d.name}</div>
