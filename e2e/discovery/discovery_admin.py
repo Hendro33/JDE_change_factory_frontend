@@ -31,9 +31,29 @@ def check(name, cond):
     print(("PASS " if cond else "FAIL ") + name)
 
 
+# Every screen has its own address; the old menu labels map onto them.
+ROUTES = {
+    ("Admin", "Customer Setup"): "/admin/organisation",
+    ("Admin", "Users"): "/admin/organisation/users",
+    ("Admin", "Agents"): "/admin/agents",
+    ("Admin", "Agent Configuration"): "/admin/agents/configuration",
+    ("Admin", "AI Connections"): "/admin/agents/ai",
+    ("Admin", "Knowledge Library"): "/knowledge",
+    ("Admin", "Integrations"): "/admin/connections/jde",
+    ("Admin", "Jira"): "/admin/connections/jira",
+    ("Admin", "Connections"): "/admin/connections",
+    ("Admin", "ERP / JDE Landscape"): "/admin/governance",
+    ("Admin", "Business Domains"): "/admin/business-model",
+    ("Demand", "Create Request"): "/stories/new",
+    ("Demand", "Requests"): "/stories?phase=understand",
+    ("Demand", "User Stories"): "/stories",
+}
+
+
 def nav(page, group, label):
-    page.click(f"button:has-text('{group}')")
-    page.click(f".navgroup >> text={label}")
+    page.goto(BASE + ROUTES[(group, label)])
+    page.wait_for_selector(".appbar")
+    page.wait_for_timeout(600)
 
 
 with sync_playwright() as p:
@@ -43,7 +63,7 @@ with sync_playwright() as p:
     page.fill("#loginEmail", EMAIL)
     page.fill("#loginPassword", PW)
     page.click("button[type=submit]")
-    page.wait_for_selector("text=Jade Dashboard")
+    page.wait_for_selector(".appbar")
 
     nav(page, "Admin", "Integrations")
     page.click("button:has-text('Set up')")
@@ -98,6 +118,8 @@ with sync_playwright() as p:
     page.get_by_label("JDE password").fill(DISCOVERY_PW)
     page.click("button:has-text('Save credential')")
     expect(page.locator("text=Save credential: saved")).to_be_visible()
+    # The saved connection's details sit in a drawer; open it to read them.
+    page.eval_on_selector("details:has(> summary:has-text('Connection details'))", "d => d.open = true")
     page.locator("text=JA••••••").first.wait_for(timeout=10_000)
     check("credential saved, username masked, password field cleared",
           page.locator("text=JA••••••").count() >= 1 and page.get_by_label("JDE password").input_value() == ""
@@ -148,11 +170,16 @@ with sync_playwright() as p:
           page.locator("text=discovery enabled").count() == 1 and page.locator("text=AIS base URL").count() == 0
           and page.locator("text=approved isolated trial").count() == 1)
     page.screenshot(path=f"{SHOTS}/2-erp-landscape-reference.png", full_page=True)
-    nav(page, "Admin", "Integrations")
+    nav(page, "Admin", "Connections")
     expect(page.locator("text=JD Edwards discovery (Architect)")).to_be_visible()
-    check("the integrations summary shows discovery as its own, simulated connection",
+    check("the connections overview shows discovery as its own, simulated connection",
           page.locator("text=SIMULATION, PS920, profile revision").count() == 1
           and page.locator("text=JD Edwards execution gate").count() == 1)
+    if os.environ.get("JADE_E2E_KEEP_DISCOVERY_ENABLED"):
+        # discovery_evidence.py's seed needs discovery on; skip the kill-switch demonstration.
+        browser.close()
+        sys.exit(1 if any(not ok for _, ok in results) else 0)
+    nav(page, "Admin", "Integrations")
     page.click("button:has-text('Disable Connection')")
     expect(page.locator(".badge:has-text('Connection disabled')")).to_be_visible()
     check("Disable is a kill switch: discovery off, checks cleared, Enable needs a fresh test",

@@ -38,9 +38,20 @@ def check(name, cond):
     print(("PASS " if cond else "FAIL ") + name, flush=True)
 
 
+# Every screen has its own address; the old menu labels map onto them.
+ROUTES = {
+    ("Admin", "Customer Setup"): "/admin/organisation",
+    ("Admin", "Agent Configuration"): "/admin/agents/configuration",
+    ("Admin", "AI Connections"): "/admin/agents/ai",
+    ("Admin", "Knowledge Library"): "/knowledge",
+    ("Demand", "User Stories"): "/stories",
+    ("Demand", "Create Request"): "/stories/new",
+}
+
+
 def nav(page, group, label):
-    page.click(f"button:has-text('{group}')")
-    page.click(f".navgroup >> text={label}")
+    page.goto(BASE + ROUTES[(group, label)])
+    page.wait_for_selector(".appbar")
     page.wait_for_timeout(900)
 
 
@@ -95,29 +106,37 @@ def switch_customer(page, name):
 
 
 def open_request(page, title):
+    """Open the request's Story Workspace, on its Business Story tab (the request, its documents and the story)."""
     nav(page, "Demand", "User Stories")
-    page.click(f"text={title}")
+    page.fill("input[aria-label='Search stories']", title)
+    page.click(f"a.storylink:has-text('{title}')")
+    page.wait_for_selector("#next-action, .nextcard")
+    page.click(".tabs >> text=Business Story")
     page.wait_for_timeout(800)
 
 
 def create_request(page, title, files=()):
     nav(page, "Demand", "Create Request")
-    page.fill("#t", title)
-    page.fill("#req", "SYNTHETIC: the promised delivery date is wrong. See the attached standard.")
+    page.fill("#nr-title", title)
+    page.fill("#nr-req", "SYNTHETIC: the promised delivery date is wrong. See the attached standard.")
+    page.uncheck("text=Start JADE's analysis straight away")
     if files:
         page.set_input_files("input[aria-label='Add documents']", list(files))
         page.wait_for_selector("[data-testid='draft-documents'] >> text=Ready", timeout=30000)
     shot(page, f"req-{title[:12].replace(' ', '_')}")
-    page.click("button:has-text('Create story')")
-    page.wait_for_timeout(1500)
+    page.click("button:has-text('Create request')")
+    page.wait_for_selector(".storyheader")
+    page.wait_for_timeout(800)
 
 
 def enhance_and_wait(page, timeout_s=240):
-    page.click("button:has-text('Enhance story')")
+    """Start JADE's analysis from the story's Next Action card and wait for its outcome."""
+    page.click("#next-action >> button:has-text('Start analysis')")
     for _ in range(timeout_s):
         page.wait_for_timeout(1000)
-        if page.locator("text=Not started").count() or page.locator("text=Enhancement failed").count() \
-                or page.locator("text=Enhanced story").count() or page.locator("[data-testid='document-citations']").count():
+        if page.locator("#next-action >> text=Not done").count() or page.locator(".storyheader .phase-strong:has-text('Story Review')").count() \
+                or page.locator("#next-action >> text=could not finish analysing").count() \
+                or page.locator("[data-testid='document-citations']").count():
             break
 
 
@@ -148,7 +167,7 @@ def run_phase(page):
         open_request(page, "Blocked request")
         enhance_and_wait(page, 10)
         check("refining without an AI connection is refused and explained",
-              page.locator("text=Not started").count() == 1 and page.locator("text=no AI connection").count() >= 1)
+              page.locator("#next-action >> text=Not done").count() == 1 and page.locator("text=no AI connection").count() >= 1)
         shot(page, "02-blocked-no-connection")
 
         # 2. AI connection (saving never contacts the provider; the test is explicit).
@@ -252,7 +271,7 @@ def run_phase(page):
         open_request(page, "Second request")
         enhance_and_wait(page, 10)
         check("a disabled pack blocks the agent with the reason",
-              page.locator("text=Not started").count() == 1 and page.locator("text=is disabled").count() >= 1)
+              page.locator("#next-action >> text=Not done").count() == 1 and page.locator("text=is disabled").count() >= 1)
         nav(page, "Admin", "Agent Configuration")
         page.locator("tr:has-text('Synthetic Parts improve') >> button:has-text('Enable')").click()
         page.wait_for_timeout(900)
@@ -263,7 +282,7 @@ def run_phase(page):
         open_request(page, "Second request")
         enhance_and_wait(page, 10)
         check("a revoked key blocks the agents with the reason",
-              page.locator("text=Not started").count() == 1 and page.locator("text=revoked").count() >= 1)
+              page.locator("#next-action >> text=Not done").count() == 1 and page.locator("text=revoked").count() >= 1)
         shot(page, "08-blocked-revoked")
         nav(page, "Admin", "AI Connections")
         page.fill("#ai-key", KEY)
@@ -290,6 +309,9 @@ def run_phase(page):
         check("the request's document and the citations survived",
               page.locator("[data-testid='request-documents'] >> text=delivery-standard.pdf").count() == 1
               and page.locator("[data-testid='document-citations'] >> text=Verified source").count() >= 1)
+        src = page.locator("details:has(> summary:has-text('View the original request'))").first
+        if src.get_attribute("open") is None:
+            src.locator("> summary").click()
         with page.expect_download() as dl:
             page.locator("[data-testid='request-documents'] >> button:has-text('Download')").first.click()
         check("the original can be downloaded unchanged", open(dl.value.path(), "rb").read() == synthetic_pdf())
@@ -301,8 +323,12 @@ def run_phase(page):
         r = api(page, "GET", f"/change-requests/{req_id}/attachments", None, other)
         check("under another customer the request's documents do not exist (404)", r["status"] == 404)
         r = api(page, "GET", "/admin/ai/connection", None, other)
-        check("another customer's AI connection is separate (not configured there)",
-              r["status"] == 200 and json.loads(r["body"])["configured"] is False)
+        other_conn = json.loads(r["body"]) if r["status"] == 200 else {}
+        # The demo customer has its own placeholder connection (seeded for the scripted demo stories); either way it
+        # is never this customer's connection or key.
+        check("another customer's AI connection is separate (not configured, or its own key)",
+              r["status"] == 200 and (other_conn.get("configured") is False
+                                      or not (other_conn.get("credentialHint") or "").endswith(KEY[-4:])))
 
 
 with sync_playwright() as p:

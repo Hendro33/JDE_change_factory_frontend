@@ -21,9 +21,29 @@ def check(name, cond):
     print(("PASS " if cond else "FAIL ") + name)
 
 
+# Every screen has its own address; the old menu labels map onto them.
+ROUTES = {
+    ("Admin", "Customer Setup"): "/admin/organisation",
+    ("Admin", "Users"): "/admin/organisation/users",
+    ("Admin", "Agents"): "/admin/agents",
+    ("Admin", "Agent Configuration"): "/admin/agents/configuration",
+    ("Admin", "AI Connections"): "/admin/agents/ai",
+    ("Admin", "Knowledge Library"): "/knowledge",
+    ("Admin", "Integrations"): "/admin/connections/jde",
+    ("Admin", "Jira"): "/admin/connections/jira",
+    ("Admin", "Connections"): "/admin/connections",
+    ("Admin", "ERP / JDE Landscape"): "/admin/governance",
+    ("Admin", "Business Domains"): "/admin/business-model",
+    ("Demand", "Create Request"): "/stories/new",
+    ("Demand", "Requests"): "/stories?phase=understand",
+    ("Demand", "User Stories"): "/stories",
+}
+
+
 def nav(page, group, label):
-    page.click(f"button:has-text('{group}')")
-    page.click(f".navgroup >> text={label}")
+    page.goto(BASE + ROUTES[(group, label)])
+    page.wait_for_selector(".appbar")
+    page.wait_for_timeout(600)
 
 
 with sync_playwright() as p:
@@ -33,19 +53,19 @@ with sync_playwright() as p:
     page.fill("#loginEmail", EMAIL)
     page.fill("#loginPassword", PW)
     page.click("button[type=submit]")
-    page.wait_for_selector("text=Jade Dashboard")
+    page.wait_for_selector(".appbar")
 
     # 1. No approval policy yet: the ERP screen says so.
     nav(page, "Admin", "ERP / JDE Landscape")
     expect(page.locator("text=Nobody can approve an exact change for this company")).to_be_visible()
     check("missing policy is shown as 'nobody can approve'", True)
 
-    # 2. Approving the pending exact change is refused, visibly.
-    nav(page, "Governance", "Architecture Review")
-    page.click("text=S12-DEMO-1")
-    page.click("button:has-text('Approve exact change')")
-    page.locator(".modal button:has-text('Approve exact change'), [role=dialog] button:has-text('Approve exact change')").last.click()
-    expect(page.locator("text=has no approval policy")).to_be_visible()
+    # 2. Approving the pending exact change (from the story's Decision card) is refused, visibly.
+    page.goto(BASE + "/stories/S12-DEMO-1")
+    page.click("#next-action >> button:has-text('Approve solution')")
+    page.locator(".modal button:has-text('Approve solution')").last.click()
+    # The gate refuses with its own reason: no saved scope, or a scope without an approval policy.
+    expect(page.locator("#next-action >> text=/has no (approval policy|saved engagement scope)/")).to_be_visible()
     check("approval refused without a policy, with a visible reason", True)
     page.screenshot(path=f"{SHOTS}/4-approval-refused-no-policy.png", full_page=True)
 
@@ -62,14 +82,16 @@ with sync_playwright() as p:
     check("isolation stays unconfirmed until ticked", page.locator("text=Not confirmed").count() == 1)
 
     # 4. The same approval now succeeds, recorded under the signed-in name.
-    nav(page, "Governance", "Architecture Review")
-    page.click("text=S12-DEMO-1")
-    page.click("button:has-text('Approve exact change')")
-    page.locator(".modal button:has-text('Approve exact change'), [role=dialog] button:has-text('Approve exact change')").last.click()
+    page.goto(BASE + "/stories/S12-DEMO-1")
+    page.click("#next-action >> button:has-text('Approve solution')")
+    page.locator(".modal button:has-text('Approve solution')").last.click()
+    expect(page.locator("#next-action >> text=Decision needed")).to_have_count(0)
+    page.goto(BASE + "/stories/S12-DEMO-1/solution")
     expect(page.locator(f"text=Exact change approved by {ADMIN_NAME}")).to_be_visible()
     check("approval accepted once a policy allows the approver's role", True)
 
-    # 5. Approved is not the same as executable: the gate's preflight says why not.
+    # 5. Approved is not the same as executable: the gate's preflight (Technical view) says why not.
+    page.goto(BASE + "/stories/S12-DEMO-1/technical")
     expect(page.locator("text=Would the execution gate allow this write now?")).to_be_visible()
     expect(page.locator("text=DEV environment bound and isolation confirmed")).to_be_visible()
     check("preflight lists the gate's remaining blockers after approval",

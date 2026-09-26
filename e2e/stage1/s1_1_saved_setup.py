@@ -26,12 +26,16 @@ def login(page):
     page.fill("#loginEmail", EMAIL)
     page.fill("#loginPassword", PW)
     page.click("button[type=submit]")
-    page.wait_for_selector("text=Jade Dashboard", timeout=15000)
+    page.wait_for_selector(".appbar", timeout=15000)
+
+
+ADMIN_ROUTES = {"Customer Setup": "/admin/organisation", "ERP / JDE Landscape": "/admin/governance",
+                "Business Domains": "/admin/business-model"}
 
 
 def admin(page, label):
-    page.click("button:has-text('Admin')")
-    page.click(f".navgroup >> text={label}")
+    page.goto(BASE + ADMIN_ROUTES[label])
+    page.wait_for_selector(".appbar")
 
 
 with sync_playwright() as p:

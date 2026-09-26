@@ -62,13 +62,42 @@ expected to expose are listed in `API_ENDPOINTS` in the same file.
 ## Structure
 
 ```
-src/types/domain.ts        Change, UserStory, ApprovalRecord, EvidenceRecord, ...
-src/services/              api interface, mock implementation, mock records
-src/components/ui.tsx      badges, KPI, charts, provenance blocks, timeline, modal
-src/pages/                 Dashboard, StoryEnhancement, ApprovalBacklog,
-                           BuildStatus, ChangeDetail
-src/styles.css             ConsultIQ brand: white, #FFCC00, black, Arial
+src/types/domain.ts        Change, Lifecycle, NextAction, MyWork, UserStory, ...
+src/services/              api interface, HTTP and mock implementations
+src/router.tsx             small History-API router (hash mode for file:// builds)
+src/components/design.tsx  page building blocks: headers, sections, drawers,
+                           lifecycle stepper, health, empty/error/loading states
+src/components/ui.tsx      provenance blocks, modal, older shared widgets
+src/pages/stories/         the Story Workspace (Overview, Business Story,
+                           Solution, Delivery, Evidence & History, Technical)
+src/pages/work/            My Work
+src/pages/admin/           Administration, grouped by responsibility
+src/styles.css             design tokens: ConsultIQ yellow for decisions,
+                           Jade emerald for navigation and progress
 ```
+
+## Routes
+
+Every screen has a permanent address, so a link can be shared and the
+browser's Back button works:
+
+| Address | Screen |
+|---|---|
+| `/` | My Work: what needs you, what waits on others, what JADE is doing |
+| `/stories` | All stories (list or board; filters are in the address) |
+| `/stories/new` | New request |
+| `/stories/:id[/business\|solution\|delivery\|evidence\|technical]` | Story Workspace and its tabs |
+| `/business`, `/business/:domain` | Business Architecture |
+| `/knowledge`, `/reports`, `/search?q=` | Knowledge, Reports, Search |
+| `/admin/:section[/:tab]` | Administration (organisation, connections, agents, business-model, governance, operations) |
+
+Each story's phase, health and next step come from one place: the
+backend's canonical lifecycle (`change.lifecycle`). Screens never derive
+their own status.
+
+The dev server and a normal build use base `/`, and the build also writes
+`404.html` so static hosts serve deep links. The single-file build keeps
+base `./` and falls back to `#/` addresses.
 
 ## Two rules the UI enforces visually
 
@@ -89,7 +118,7 @@ be reworked when the real backend enforces it.
 
 Hand-drawn SVG in `components/ui.tsx` — no chart library, so there is
 no dependency to keep current and the styling matches the brand exactly.
-Dashboard metrics are computed from the change records in `mockApi.ts`,
+Report figures are computed from the change records in `mockApi.ts`,
 never hard-coded, so they will behave the same against the real API.
 
 ## Customer scoping (multi-tenancy)

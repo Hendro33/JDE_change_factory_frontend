@@ -21,9 +21,29 @@ def check(name, cond):
     print(("PASS " if cond else "FAIL ") + name)
 
 
+# Every screen has its own address; the old menu labels map onto them.
+ROUTES = {
+    ("Admin", "Customer Setup"): "/admin/organisation",
+    ("Admin", "Users"): "/admin/organisation/users",
+    ("Admin", "Agents"): "/admin/agents",
+    ("Admin", "Agent Configuration"): "/admin/agents/configuration",
+    ("Admin", "AI Connections"): "/admin/agents/ai",
+    ("Admin", "Knowledge Library"): "/knowledge",
+    ("Admin", "Integrations"): "/admin/connections/jde",
+    ("Admin", "Jira"): "/admin/connections/jira",
+    ("Admin", "Connections"): "/admin/connections",
+    ("Admin", "ERP / JDE Landscape"): "/admin/governance",
+    ("Admin", "Business Domains"): "/admin/business-model",
+    ("Demand", "Create Request"): "/stories/new",
+    ("Demand", "Requests"): "/stories?phase=understand",
+    ("Demand", "User Stories"): "/stories",
+}
+
+
 def nav(page, group, label):
-    page.click(f"button:has-text('{group}')")
-    page.click(f".navgroup >> text={label}")
+    page.goto(BASE + ROUTES[(group, label)])
+    page.wait_for_selector(".appbar")
+    page.wait_for_timeout(600)
 
 
 with sync_playwright() as p:
@@ -33,13 +53,14 @@ with sync_playwright() as p:
     page.fill("#loginEmail", EMAIL)
     page.fill("#loginPassword", PW)
     page.click("button[type=submit]")
-    page.wait_for_selector("text=Jade Dashboard")
+    page.wait_for_selector(".appbar")
 
-    nav(page, "Governance", "Architecture Review")
-    page.click("text=S12-DEMO-1")
+    # The design evidence baseline is in the story's Technical view (and behind "View supporting evidence" on Solution).
+    page.goto(BASE + "/stories/S12-DEMO-1/technical")
     expect(page.locator("text=Evidence behind this design")).to_be_visible()
+    expect(page.locator("text=Environment investigated")).to_be_visible()
     check("the investigated environment is shown, labelled SIMULATION",
-          page.locator("text=JDV920 · path code DV920").count() == 1 and page.locator(".badge:has-text('SIMULATION')").count() >= 1)
+          page.locator("text=PS920 · path code PS920").count() == 1 and page.locator(".badge:has-text('SIMULATION')").count() >= 1)
     check("what was read is listed with observation ids",
           page.locator("text=processing_option_values P4210|CIQ0001").count() >= 1 and page.locator("td.mono:has-text('OBS-')").count() >= 2)
     check("citations show observed vs assumption",

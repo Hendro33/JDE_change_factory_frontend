@@ -4,7 +4,7 @@ These scripts drive the real frontend against a real local backend, using throwa
 
 | Script | What it shows |
 |---|---|
-| `discovery_admin.py` | <ul><li>Admin › Integrations › JDE: a PS920 connection is set up as an approved isolated trial, through the structured editor.</li><li>The AIS address is normalised, and the unsupported authentication methods are listed honestly.</li><li>Saving contacts nothing. Prerequisites show customer attestations apart from Jade's own checks.</li><li>The credential is masked, and the password never comes back to the page.</li><li>Test Connection, three sample reads, each on an explicitly chosen target (one filtered and bounded), and Enable.</li><li>Sanitised activity, with filter values masked.</li><li>ERP Landscape and the Integrations summary point at the profile instead of copying it.</li><li>Disable works as a kill switch.</li></ul> |
+| `discovery_admin.py` | <ul><li>Administration › Systems & Connections › JD Edwards: a PS920 connection is set up as an approved isolated trial, through the structured editor.</li><li>The AIS address is normalised, and the unsupported authentication methods are listed honestly.</li><li>Saving contacts nothing. Prerequisites show customer attestations apart from Jade's own checks.</li><li>The credential is masked, and the password never comes back to the page.</li><li>Test Connection, three sample reads, each on an explicitly chosen target (one filtered and bounded), and Enable.</li><li>Sanitised activity, with filter values masked.</li><li>Governance and the Connections overview point at the profile instead of copying it.</li><li>Disable works as a kill switch.</li></ul> |
 | `discovery_evidence.py` | <ul><li>The Architect design screen shows the environment investigated, what was read (observation ids and times), citations marked observed or assumption, and a missing source file as a gap with a question.</li><li>Refresh Evidence creates baseline 2 and keeps baseline 1.</li><li>The activity view links each read to its story and run.</li></ul> |
 
 ## Run
@@ -30,6 +30,8 @@ VITE_USE_MOCK_API=false VITE_API_BASE_URL=http://localhost:8000 npx vite --port 
 
 # 3. Demonstrations
 python3 e2e/discovery/discovery_admin.py
+# discovery_admin.py ends by disabling discovery (the kill switch). The evidence seed needs it on, so for the
+# second demonstration use a fresh data directory and run: JADE_E2E_KEEP_DISCOVERY_ENABLED=1 python3 e2e/discovery/discovery_admin.py
 # The design: a scripted stand-in calls the governed discovery tools (not a model run)
 (cd ../jde_change_factory_backend && python3 scripts/seed_demo_design_evidence.py bwm)
 python3 e2e/discovery/discovery_evidence.py

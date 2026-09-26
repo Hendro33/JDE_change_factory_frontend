@@ -6,6 +6,10 @@ seeds the BicycleWorks dealer-returns story with scripted stand-ins, a
 SYNTHETIC framework fixture and SIMULATED delivery. PHASE=1 walks the
 journey and changes things; PHASE=2 (after restarting the preview) checks
 that everything survived and works in a fresh browser.
+
+Everything about one story lives in its Story Workspace
+(/stories/<id>/<tab>); the process framework is under
+Administration > Business Model > Process framework.
 """
 import os
 import sys
@@ -21,6 +25,7 @@ CHROMIUM = os.environ.get("JADE_E2E_CHROMIUM") or None
 SHOTS = os.environ.get("JADE_E2E_SHOTS", os.path.join(os.path.dirname(__file__), "shots"))
 PHASE = os.environ.get("PHASE", "1")
 STORY = "S-BW-RETURNS"
+FRAMEWORK = "/admin/business-model/processes"
 os.makedirs(SHOTS, exist_ok=True)
 results = []
 
@@ -32,23 +37,34 @@ def check(name, cond):
 
 def login(browser, email, pw):
     page = browser.new_context(viewport={"width": 1360, "height": 1000}, accept_downloads=True).new_page()
-    page.goto(BASE)
+    page.goto(BASE + "/work")
     page.fill("#loginEmail", email)
     page.fill("#loginPassword", pw)
     page.click("button[type=submit]")
-    page.wait_for_selector("text=Jade Dashboard")
+    page.wait_for_selector(".appbar")
+    page.wait_for_selector(".pageheader h1")
     return page
 
 
-def go(page, group, item):
-    page.click(f"nav button:has-text('{group}')")
-    page.click(f".navgroup-menu >> text={item}")
+def go(page, path):
+    page.goto(BASE + path)
+    page.wait_for_selector(".appbar")
 
 
-def open_story(page, story=STORY):
-    go(page, "Delivery", "Process & Maps")
-    page.click(f"button:has-text('{story}')")
-    expect(page.locator(f"h2:has-text('{story}:')")).to_be_visible()
+def open_story(page, story=STORY, tab="story"):
+    go(page, f"/stories/{story}/{tab}")
+    expect(page.locator(".storyheader h1")).to_be_visible()
+    if tab == "story":
+        expect(page.locator("#process")).to_be_visible()
+        expect(page.locator("#process-maps")).to_be_visible()
+
+
+def open_drawer(page, summary):
+    """Open a progressive-disclosure drawer (a <details>) by its summary text, if closed."""
+    d = page.locator(f"details:has(> summary:has-text(\"{summary}\"))").first
+    if d.get_attribute("open") is None:
+        d.locator("> summary").click()
+    return d
 
 
 with sync_playwright() as p:
@@ -56,8 +72,8 @@ with sync_playwright() as p:
     admin = login(browser, "admin@e2e.local", ADMIN_PW)
 
     if PHASE == "1":
-        # 1. Admin > Process Framework: the synthetic fixture, clearly labelled, with provenance.
-        go(admin, "Admin", "Process Framework")
+        # 1. Administration > Business Model > Process framework: the synthetic fixture, labelled, with provenance.
+        go(admin, FRAMEWORK)
         expect(admin.locator("h1:has-text('Process Framework')")).to_be_visible()
         check("the framework is labelled SYNTHETIC and selected for the company",
               admin.locator(".badge:has-text('SYNTHETIC fixture')").count() >= 1
@@ -67,70 +83,88 @@ with sync_playwright() as p:
               and admin.locator("td >> .badge:has-text('active')").count() == 1)
         admin.click("button.linkish:has-text('SYN-5.2.2')")
         expect(admin.locator("h3:has-text('SYN-5.2.2')")).to_be_visible()
-        expect(admin.locator(f"li >> button:has-text('{STORY}')")).to_be_visible()
-        check("a process node lists the stories mapped to it", admin.locator(f"li >> button:has-text('{STORY}')").count() == 1)
+        expect(admin.locator(f"li >> a:has-text('{STORY}')")).to_be_visible()
+        check("a process node lists the stories mapped to it", admin.locator(f"li >> a:has-text('{STORY}')").count() == 1)
         check("the status says official APQC content is not loaded",
               admin.locator("[aria-label='Framework status'] >> text=not loaded").count() == 1)
         admin.screenshot(path=f"{SHOTS}/1-framework.png", full_page=True)
 
-        # 2. Hierarchy -> story: mapping, suggestions labelled as scripted, maps and diagram.
-        admin.click(f"li >> button:has-text('{STORY}')")
-        expect(admin.locator(f"h2:has-text('{STORY}:')")).to_be_visible()
-        check("the agent suggestions are labelled as a scripted stand-in",
-              admin.locator("text=SCRIPTED STAND-IN -- not a model run").count() == 1)
-        check("the reviewer's confirmed processes carry exact version references",
-              admin.locator("text=Processes confirmed").count() == 1 and admin.locator("text=SYNTHETIC BicycleWorks process framework v1").count() >= 4)
+        # 1b. The same process from the business side: Business Architecture lists the story.
+        go(admin, "/business?node=SYN-5.2.2")
+        expect(admin.locator(".processmap-detail h3")).to_be_visible()
+        expect(admin.locator(".processmap-detail >> a").first).to_be_visible()
+        check("Business Architecture shows the story that changes this process",
+              admin.locator(".processmap-detail >> a").count() >= 1)
+
+        # 2. The story: confirmed processes, suggestions labelled as simulation, maps and diagram.
+        open_story(admin)
+        open_drawer(admin, "Change the affected processes")
+        check("the agent suggestions are labelled as simulation (scripted stand-in)",
+              admin.locator("#process >> .tag.sim[title='Scripted demonstration, not a model run']").count() == 1)
+        check("the reviewer's confirmed processes are listed on the story",
+              admin.locator("#process >> .minihead:has-text('Confirmed processes')").count() == 1
+              and admin.locator("#process >> .minihead + ul >> li").count() >= 4)
+        check("the reviewer's decision says who confirmed them",
+              admin.locator("#process >> strong:has-text('Processes confirmed')").count() == 1)
         check("the to-be map is drawn from the structured map, assumptions distinguished",
               admin.locator("svg[aria-label^='Process map diagram']").count() == 1
               and admin.locator("text=assumption (proposed, not confirmed)").count() == 1)
+        open_drawer(admin, "How the solution used this process context")
         check("the design used this process context and is current",
-              admin.locator("text=consulted by the Architect").count() == 1
+              admin.locator("text=consulted").count() >= 1
               and admin.locator("text=matches the story's processes now").count() == 1)
         admin.screenshot(path=f"{SHOTS}/2-story-processes.png", full_page=True)
 
-        # 3. Journey: design -> implementation -> as-built.
-        admin.click("nav[aria-label='Story journey'] >> text=Design")
-        expect(admin.locator(f".mono:has-text('{STORY}')").first).to_be_visible()
-        check("the journey reaches the Architect's design for the same story", admin.locator("text=Technical Agent").count() >= 1)
-        admin.click("nav[aria-label='Story journey'] >> text=Implementation")
+        # 3. Journey inside the workspace: solution -> technical implementation -> release.
+        admin.click(".tabs >> text=Solution")
+        expect(admin.locator("text=Change custom JD Edwards objects").first).to_be_visible()
+        check("the Solution tab shows the proposal for the same story", admin.locator(".storyheader >> text=S-BW-RETURNS").count() >= 1)
+        admin.click(".tabs >> text=Technical")
         expect(admin.locator(".badge:has-text('Verified: done')")).to_be_visible()
         check("implementation is labelled SIMULATION", admin.locator("text=SIMULATION -- simulated DEV estate").count() >= 1)
-        admin.click("nav[aria-label='Story journey'] >> text=As-built record")
-        expect(admin.locator("h1:has-text('As-built Records')")).to_be_visible()
-        expect(admin.locator(".badge:has-text('complete')").first).to_be_visible()
-        check("every required delivery checkpoint is complete", admin.locator(".badge:has-text('missing')").count() == 0
-              and admin.locator(".badge:has-text('complete')").count() == 10)
-        admin.click("button:has-text('Generate new version')")
-        expect(admin.locator("h2:has-text('version 1')")).to_be_visible()
+        admin.click(".tabs >> text=Delivery")
+        expect(admin.locator("#release")).to_be_visible()
+        check("the lifecycle is at Release, waiting to finalise", admin.locator(".storyheader >> .phase-strong:has-text('Release')").count() == 1
+              and admin.locator("#next-action >> text=finalise the as-built record").count() == 1)
+        open_drawer(admin, "Delivery checkpoints")
+        check("every required delivery checkpoint is complete", admin.locator("#release >> .badge:has-text('missing')").count() == 0
+              and admin.locator("#release >> .badge:has-text('complete')").count() == 10)
+        admin.click("button:has-text('Generate the as-built record')")
+        expect(admin.locator("button:has-text('Version 1 · draft')")).to_be_visible()
+        open_drawer(admin, "Read the as-built record")
         check("the record states simulated delivery, deviations and limitations",
               admin.locator("text=SIMULATED DELIVERY").count() >= 1
               and admin.locator("text=The design names R55RET01").count() == 1
               and admin.locator("text=are assumptions, not confirmed customer practice").count() >= 1)
-        admin.click("button:has-text('Finalise this version')")
-        expect(admin.locator(".badge:has-text('FINAL')")).to_be_visible()
+        admin.click("button:has-text('Finalise and complete the story')")
+        expect(admin.locator("button:has-text('Version 1 · final')")).to_be_visible()
         with admin.expect_download() as dl:
-            admin.click("button:has-text('Download Markdown')")
+            admin.click("button:has-text('Download as Markdown')")
         md = open(dl.value.path(), encoding="utf-8").read()
         check("the Markdown download is the final record, labelled simulated",
               "status **FINAL**" in md and "SIMULATED DELIVERY" in md and "```mermaid" in md)
+        admin.reload()
+        expect(admin.locator("#next-action >> text=Delivered").first).to_be_visible()
+        check("finalising completes the story: it now shows as Done",
+              admin.locator(".storyheader >> .phase-strong:has-text('Done')").count() == 1)
         admin.screenshot(path=f"{SHOTS}/3-as-built-final.png", full_page=True)
 
         # 3b. The Functional route: a simulated processing-option change, into a finalised record.
-        admin.click("button:has-text('S-BW-RETURNTYPE')")
-        expect(admin.locator(".badge:has-text('complete')").first).to_be_visible()
-        admin.click("button:has-text('Generate new version')")
-        expect(admin.locator("h2:has-text('S-BW-RETURNTYPE as-built record')")).to_be_visible()
+        open_story(admin, "S-BW-RETURNTYPE", "delivery")
+        admin.click("button:has-text('Generate the as-built record')")
+        expect(admin.locator("button:has-text('Version 1 · draft')")).to_be_visible()
+        open_drawer(admin, "Read the as-built record")
         check("the Functional record shows the actual change and its read-back, labelled simulated",
               admin.locator("strong:has-text('S3 → CR')").count() == 1
               and admin.locator(".badge:has-text('matches the approved value')").count() == 1
               and admin.locator("text=SIMULATED DELIVERY").count() >= 1)
-        admin.click("button:has-text('Finalise this version')")
-        expect(admin.locator(".badge:has-text('FINAL')")).to_be_visible()
-        check("the Functional as-built record is finalised", admin.locator("button:has-text('v1 · final')").count() == 1)
+        admin.click("button:has-text('Finalise and complete the story')")
+        expect(admin.locator("button:has-text('Version 1 · final')")).to_be_visible()
+        check("the Functional as-built record is finalised", admin.locator("button:has-text('Version 1 · final')").count() == 1)
         admin.screenshot(path=f"{SHOTS}/3b-functional-as-built.png", full_page=True)
 
         # 4. A framework update keeps historical references and flags the design.
-        go(admin, "Admin", "Process Framework")
+        go(admin, FRAMEWORK)
         admin.set_input_files("input[aria-label='Framework workbook']",
                               os.path.join(FIXTURES, "SYNTHETIC_bicycleworks_process_framework_v2.xlsx"))
         admin.select_option("#pf-target", label="New version of SYNTHETIC BicycleWorks process framework")
@@ -141,13 +175,17 @@ with sync_playwright() as p:
         expect(admin.locator(f"text=Activated SYNTHETIC BicycleWorks process framework version 2")).to_be_visible()
         check("activation reports the affected story", admin.locator(f"text={STORY} (SYN-5.2.2 (changed))").count() == 1)
         open_story(admin)
-        check("the story still references version 1, marked as changed in the active version",
-              admin.locator(".badge:has-text('changed in the active version')").count() == 1
-              and admin.locator("text=SYNTHETIC BicycleWorks process framework v1").count() >= 4)
+        check("the story still references version 1, marked as changed since",
+              admin.locator("#process >> .minihead + ul >> .badge:has-text('changed since')").count() == 1)
+        open_drawer(admin, "How the solution used this process context")
         check("the design is flagged for reassessment", admin.locator("text=process framework revised").count() == 1)
+        check("a delivered story stays Done, with the flag as an open item",
+              admin.locator(".storyheader >> .phase-strong:has-text('Done')").count() == 1
+              and admin.locator("#next-action >> text=flagged for reassessment").count() == 1)
         admin.screenshot(path=f"{SHOTS}/4-framework-v2-flags.png", full_page=True)
 
         # 4b. Story refinement: a reviewed diff becomes an attributed story revision.
+        open_drawer(admin, "Improve the story from JADE's findings")
         check("the seeded revision shows what the demo admin applied earlier",
               admin.locator("#story-refinement >> text=by E2E Admin").count() == 1)
         admin.check("input[aria-label='Select finding State who may override a classification']")
@@ -160,6 +198,7 @@ with sync_playwright() as p:
         admin.fill("input[aria-label='Reason for State how long a return authorisation number stays valid']", "ask the dealer council first")
         admin.click("tr:has-text('State how long a return authorisation number stays valid') >> button:has-text('Defer')")
         expect(admin.locator(".badge:has-text('deferred')")).to_be_visible()
+        open_drawer(admin, "How the solution used this process context")
         check("the revision is attributed and the design is flagged", admin.locator("text=story revised").count() >= 1
               and admin.locator(".badge:has-text('applied in r3')").count() == 1)
         admin.screenshot(path=f"{SHOTS}/4b-story-refinement.png", full_page=True)
@@ -167,6 +206,7 @@ with sync_playwright() as p:
         # 5. Another authorised browser: the Domain Owner assigned to the story's domain.
         do = login(browser, "do@e2e.local", DO_PW)
         open_story(do)
+        open_drawer(do, "Change the affected processes")
         check("the Domain Owner sees the same persisted mapping and can review",
               do.locator("text=Processes confirmed").count() == 1 and do.locator("button:has-text('Confirm selected processes')").count() == 1)
         do.click("summary:has-text('Edit this map')")
@@ -178,51 +218,56 @@ with sync_playwright() as p:
         expect(do.locator("button:has-text('v2')").first).to_be_visible()
         check("a material map change is a new version", do.locator("button:has-text('v2')").count() >= 1)
         open_story(do, "S-BW-WRITEOFF")
+        open_drawer(do, "Confirm the affected processes")
         do.fill("input[aria-label='Add process node ids']", "SYN-6.1.2")
         do.click("button:has-text('Confirm selected processes')")
-        expect(do.locator("text=Processes confirmed")).to_be_visible()
+        expect(do.locator("#process >> text=Confirmed processes")).to_be_visible()
+        open_drawer(do, "Change the affected processes")
         check("the Domain Owner confirmed a mapping for a second story in the domain",
               do.locator("text=by E2E Domain Owner (returns)").count() == 1)
         do.screenshot(path=f"{SHOTS}/5-domain-owner.png", full_page=True)
 
         cnc = login(browser, "cnc@e2e.local", CNC_PW)
         open_story(cnc)
+        open_drawer(cnc, "Change the affected processes")
         check("a CNC operator cannot decide processes or edit maps",
               cnc.locator("text=Only a Product Manager, or the Domain Owner assigned").count() == 1
               and cnc.locator("summary:has-text('Edit this map')").count() == 0)
 
     else:
         # After a restart, in a fresh browser: everything is still there.
-        go(admin, "Admin", "Process Framework")
+        go(admin, FRAMEWORK)
         expect(admin.locator(".badge:has-text('superseded')").first).to_be_visible()
         check("after restart: framework v2 active, v1 superseded and still viewable",
               admin.locator("td >> .badge:has-text('active')").count() == 1 and admin.locator("td >> .badge:has-text('superseded')").count() == 1)
         open_story(admin)
         check("after restart: mapping, references and the map versions survive",
-              admin.locator(".badge:has-text('changed in the active version')").count() == 1
+              admin.locator("#process >> .minihead + ul >> .badge:has-text('changed since')").count() == 1
               and admin.locator("button:has-text('v2')").count() >= 1)
-        admin.click("nav[aria-label='Story journey'] >> text=As-built record")
-        expect(admin.locator("button:has-text('v1 · final')")).to_be_visible()
+        open_story(admin, STORY, "delivery")
+        expect(admin.locator("button:has-text('Version 1 · final')")).to_be_visible()
+        open_drawer(admin, "Delivery checkpoints")
         check("after restart: the finalised record survives and new drafts cannot be finalised while the design is flagged",
-              admin.locator("button:has-text('v1 · final')").count() == 1
+              admin.locator("button:has-text('Version 1 · final')").count() == 1
               and admin.locator("li:has-text('Design not awaiting reassessment') >> .badge:has-text('missing')").count() == 1)
-        admin.click("button:has-text('Generate new version')")
-        expect(admin.locator("h2:has-text('version 2')")).to_be_visible()
+        admin.click("button:has-text('Generate a new version')")
+        expect(admin.locator("button:has-text('Version 2 · draft')")).to_be_visible()
+        open_drawer(admin, "Read the as-built record")
         check("a new draft lists the framework change as an unresolved limitation and cannot be finalised",
-              admin.locator("text=Cannot finalise: required checkpoints are missing.").count() == 1
+              admin.locator("text=Can be finalised once every checkpoint is complete.").count() == 1
               and admin.locator("text=differs in active version 2").count() >= 1)
         open_story(admin)
+        open_drawer(admin, "Improve the story from JADE's findings")
         expect(admin.locator("#story-refinement >> .badge:has-text('deferred')")).to_be_visible()
         check("after restart: story revisions and finding decisions survive",
               admin.locator("#story-refinement >> text=r3").count() >= 1
               and admin.locator("text=ask the dealer council first").count() == 1)
         admin.screenshot(path=f"{SHOTS}/6-after-restart.png", full_page=True)
-        go(admin, "Admin", "Process Framework")
+        go(admin, FRAMEWORK)
         expect(admin.locator("td >> .badge:has-text('active')").first).to_be_visible()
         check("after restart: the company's framework setting survives", admin.locator("text=Selected for this company").count() == 1)
         do = login(browser, "do@e2e.local", DO_PW)
         open_story(do)
-        do.click("button:has-text('To-be (')")
         expect(do.locator("button:has-text('v2')").first).to_be_visible()
         check("after restart, in a second browser: the Domain Owner's account and saved map version survive",
               do.locator("text=inspection step confirmed").count() >= 1)

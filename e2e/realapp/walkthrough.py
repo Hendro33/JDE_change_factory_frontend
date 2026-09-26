@@ -32,9 +32,29 @@ def check(name, cond):
     print(("PASS " if cond else "FAIL ") + name)
 
 
+# Every screen has its own address; the old menu labels map onto them.
+ROUTES = {
+    ("Admin", "Customer Setup"): "/admin/organisation",
+    ("Admin", "Users"): "/admin/organisation/users",
+    ("Admin", "Agents"): "/admin/agents",
+    ("Admin", "Agent Configuration"): "/admin/agents/configuration",
+    ("Admin", "AI Connections"): "/admin/agents/ai",
+    ("Admin", "Knowledge Library"): "/knowledge",
+    ("Admin", "Integrations"): "/admin/connections/jde",
+    ("Admin", "Jira"): "/admin/connections/jira",
+    ("Admin", "Connections"): "/admin/connections",
+    ("Admin", "ERP / JDE Landscape"): "/admin/governance",
+    ("Admin", "Business Domains"): "/admin/business-model",
+    ("Demand", "Create Request"): "/stories/new",
+    ("Demand", "Requests"): "/stories?phase=understand",
+    ("Demand", "User Stories"): "/stories",
+}
+
+
 def nav(page, group, label):
-    page.click(f"button:has-text('{group}')")
-    page.click(f".navgroup >> text={label}")
+    page.goto(BASE + ROUTES[(group, label)])
+    page.wait_for_selector(".appbar")
+    page.wait_for_timeout(600)
     page.wait_for_timeout(800)
 
 
@@ -70,7 +90,7 @@ with sync_playwright() as p:
     page.fill("#loginEmail", "admin@e2e.local")
     page.fill("#loginPassword", PW)
     page.click("button[type=submit]")
-    page.wait_for_selector("text=Jade Dashboard")
+    page.wait_for_selector(".appbar")
     page.wait_for_selector(".cscope")
     check("footer shows the running frontend and backend commits",
           page.locator("text=/frontend [0-9a-f]{7,} · backend [0-9a-f]{7,}/").count() == 1)
@@ -86,7 +106,7 @@ with sync_playwright() as p:
         check("the new customer is active and is not a demo customer",
               page.locator(".cscope >> text=Walkthrough Foods BV").count() == 1
               and page.locator(".cscope .badge:has-text('DEMO')").count() == 0
-              and page.locator("text=Demo customer — test data.").count() == 0)
+              and page.locator(".noticebar:has-text('Demo customer')").count() == 0)
         nav(page, "Admin", "Customer Setup")
         page.click("button:has-text('Edit customer')")
         page.get_by_label("Short name", exact=True).fill("Walkthrough")
@@ -150,6 +170,7 @@ with sync_playwright() as p:
               and "locked off" not in jde_msg)
         shot(page, "3-jde-connection")
 
+        nav(page, "Admin", "Jira")
         page.click("button:has-text('Configure')")
         page.fill("#jiraBaseUrl", "https://jade-walkthrough-nonexistent.atlassian.net")
         page.fill("#jiraProjectKey", "JWT")
@@ -181,14 +202,15 @@ with sync_playwright() as p:
         shot(page, "5-domains")
 
         nav(page, "Demand", "Create Request")
-        page.fill("#t", "Walkthrough: delivery date default")
-        page.fill("#req", "The default delivery date on sales orders should be two working days after the order date.")
-        page.click("button:has-text('Create story')")
+        page.fill("#nr-title", "Walkthrough: delivery date default")
+        page.fill("#nr-req", "The default delivery date on sales orders should be two working days after the order date.")
+        page.get_by_label("Start JADE's analysis straight away").uncheck()
+        page.click("button:has-text('Create request')")
         page.wait_for_timeout(1500)
         nav(page, "Demand", "Requests")
         check("the request is listed under the new customer, not marked as demo data",
               page.locator("text=Walkthrough: delivery date default").count() >= 1
-              and page.locator("text=Demo customer — test data.").count() == 0)
+              and page.locator(".noticebar:has-text('Demo customer')").count() == 0)
         shot(page, "6-requests")
         json.dump({"jde": jde_msg, "jira": jira_msg}, open(STATE, "w"))
 
@@ -206,6 +228,7 @@ with sync_playwright() as p:
         check("agent switch persisted",
               page.locator(".agentcard:has-text('Architect Agent') >> text=Off for this customer").count() == 1)
         nav(page, "Admin", "Integrations")
+        page.click("summary:has-text('Connection details')")
         page.wait_for_selector("text=AIS address")
         check("JDE connection persisted, credential masked, certificate kept",
               AIS in page.inner_text("main") and "user JA•••••• encrypted" in page.inner_text("main")
@@ -216,6 +239,7 @@ with sync_playwright() as p:
         print("JDE Test Connection said:", jde_msg)
         check("JDE Test Connection reports the real network outcome", "SIMULATION" not in jde_msg)
         shot(page, "7-jde-after-restart")
+        nav(page, "Admin", "Jira")
         check("Jira configuration persisted",
               page.locator("text=https://jade-walkthrough-nonexistent.atlassian.net").count() >= 1)
         nav(page, "Admin", "Business Domains")
