@@ -6,7 +6,7 @@ import { authApi } from "../../services/httpApi";
  * rendered when VITE_USE_MOCK_API=false — the mock service keeps its
  * own persona picker (footer), which has no real credentials to check.
  */
-export function Login({ onSignedIn }: { onSignedIn: () => void }) {
+export function Login({ onSignedIn, notice }: { onSignedIn: () => void; notice?: string | null }) {
   const [mode, setMode] = useState<"login" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -65,6 +65,7 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
             }}
           >
             <h1 style={{ margin: "0 0 8px" }}>Sign in</h1>
+            {notice && <div className="callout" role="status">{notice}</div>}
             <div className="field">
               <label htmlFor="loginEmail">Email</label>
               <input

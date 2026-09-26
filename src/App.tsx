@@ -4,6 +4,7 @@ import { authApi } from "./services/httpApi";
 import type { Session } from "./types/domain";
 import type { NavFilter, NavTarget, Page } from "./types/nav";
 import { CustomerScope, PersonaSwitch } from "./components/CustomerScope";
+import { SetupHandover } from "./components/SetupHandover";
 import { Dashboard } from "./pages/Dashboard";
 import { UserStories } from "./pages/UserStories";
 import { UserStoryReview } from "./pages/UserStoryReview";
@@ -148,7 +149,7 @@ function sameFilter(a: NavFilter | undefined, b: NavFilter | undefined): boolean
   return ak.length === bk.length && ak.every((k) => a[k] === b[k]);
 }
 
-function MainApp({ onSignedOut }: { onSignedOut?: () => void }) {
+function MainApp({ onSignedOut, onSetupFinished }: { onSignedOut?: () => void; onSetupFinished?: (email: string) => void }) {
   const [page, setPage] = useState<Page>("dashboard");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -223,6 +224,7 @@ function MainApp({ onSignedOut }: { onSignedOut?: () => void }) {
       </nav>
 
       <main className="page" key={scopeKey}>
+        {onSetupFinished && <SetupHandover onDone={onSetupFinished} />}
         {IS_MOCK_MODE && (
           <div className="callout" role="alert" style={{ borderColor: "var(--stop)", marginBottom: 12 }}>
             <strong>Demo mode: sample data in this browser, not connected to Jade's backend.</strong> Nothing you see or save here is
@@ -322,6 +324,7 @@ export default function App() {
   const [authState, setAuthState] = useState<"checking" | "signed-in" | "signed-out">(
     IS_MOCK_MODE ? "signed-in" : "checking"
   );
+  const [loginNotice, setLoginNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (IS_MOCK_MODE || resetToken || acceptToken) return;
@@ -370,7 +373,11 @@ export default function App() {
   }
 
   if (authState === "checking") return null;
-  if (authState === "signed-out") return <Login onSignedIn={() => setAuthState("signed-in")} />;
+  if (authState === "signed-out") return <Login notice={loginNotice} onSignedIn={() => { setLoginNotice(null); setAuthState("signed-in"); }} />;
 
-  return <MainApp onSignedOut={IS_MOCK_MODE ? undefined : () => setAuthState("signed-out")} />;
+  return <MainApp onSignedOut={IS_MOCK_MODE ? undefined : () => setAuthState("signed-out")}
+    onSetupFinished={IS_MOCK_MODE ? undefined : (email) => {
+      setLoginNotice(`Setup finished. The setup account is switched off. Sign in as ${email} with the password you just chose.`);
+      setAuthState("signed-out");
+    }} />;
 }
