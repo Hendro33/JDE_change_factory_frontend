@@ -33,7 +33,8 @@ const SECTIONS: AdminSection[] = [
   ] },
   { key: "connections", label: "Systems & Connections", what: "JD Edwards, Jira and the AI provider JADE works with.", tabs: [
     { key: "overview", label: "Overview", render: () => <ConnectionOverview /> },
-    { key: "settings", label: "Connection settings", render: () => <Integrations /> },
+    { key: "jde", label: "JD Edwards", render: () => <Integrations part="jde" /> },
+    { key: "jira", label: "Jira", render: () => <Integrations part="jira" /> },
   ] },
   { key: "agents", label: "Agents & AI", what: "JADE's agents, the AI connection and what each agent works with.", tabs: [
     { key: "team", label: "Agents", render: () => <Agents /> },
@@ -121,7 +122,7 @@ function ConnectionOverview() {
           <div className="conncard-name">{i.name}</div>
           <div className="conncard-state">{i.connected ? "✓ Connected" : "○ Not connected"}</div>
           <div className="conncard-detail">{i.detail}</div>
-          <Link className="btn small" to="/admin/connections/settings">Configure</Link>
+          <Link className="btn small" to={i.name.toLowerCase().includes("jira") ? "/admin/connections/jira" : "/admin/connections/jde"}>Configure</Link>
         </div>
       ))}
     </div>

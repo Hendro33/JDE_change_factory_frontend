@@ -21,6 +21,7 @@ import {
 } from "../services/discoveryApi";
 import { saveErrorMessage } from "../services/saveErrors";
 import { ApiNote, Loading } from "./ui";
+import { Details } from "./design";
 
 const tone: Record<string, string> = { ok: "ok", failed: "stop", unknown: "grey", stale: "warn" };
 
@@ -389,15 +390,13 @@ export function JdeDiscoveryPanel() {
   return (
     <section className="panel">
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0 }}>JDE connection — read-only discovery for the Architect</h2>
+        <h2 style={{ margin: 0 }}>JD Edwards connection</h2>
         {!editing && <button className="btn" onClick={() => setEditing(true)}>{view.configured ? "Edit settings" : "Set up"}</button>}
       </div>
       <div className="sub" style={{ margin: "6px 0 12px" }}>
-        Company <strong>{company}</strong>. Read-only access the Architect uses to research this company's JDE environment; all
-        writes to JDE stay disabled. Settings and the credential are stored on Jade's backend (the password encrypted, never shown
-        again). Requests are sent from the machine running Jade's backend -- not from your browser -- so any VPN or network route must
-        exist from that machine. Jade's read-only rules do not make an over-privileged JDE account safe: the customer's JDE role and
-        network controls must restrict it too.
+        Read-only access JADE uses to research <strong>{company}</strong>'s JD Edwards environment. Writes to JD Edwards stay disabled.
+        Requests go from the machine running JADE's backend, so any VPN or network route must exist from there; the customer's JDE role and
+        network controls must still restrict the account.
       </div>
 
       {view.configured && cfg && !live && !isDemo && (
@@ -416,6 +415,7 @@ export function JdeDiscoveryPanel() {
             <span className="hint">{cfg.connectionName || "(unnamed connection)"} · profile revision {view.revision}, saved by {view.updatedBy}
               {view.updatedAt ? ` at ${new Date(view.updatedAt).toLocaleString("en-GB")}` : ""}</span>
           </div>
+          <Details summary="Connection details">
           <dl className="facts">
             <dt>AIS address</dt><dd className="mono">{cfg.aisBaseUrl}
               <div className="hint">Jade calls {view.requestUrls.token_request} (sign-in), {view.requestUrls.defaultconfig}, {view.requestUrls.dataservice} and {view.requestUrls.poservice} -- nothing else.</div></dd>
@@ -443,8 +443,11 @@ export function JdeDiscoveryPanel() {
             <dt>Limits</dt><dd>{cfg.limits.maxRecords} records per query (server maximum {view.ceilings.max_records}), one request at a time, {cfg.limits.timeoutSeconds}s timeout (maximum {view.ceilings.max_timeout_seconds}s), no paging or retries</dd>
             <dt>Customer data in AI prompts</dt><dd>{cfg.dataSharingPolicy.replace(/_/g, " ")}</dd>
           </dl>
+          </Details>
 
-          <Readiness groups={view.readiness} ready={view.ready} />
+          <Details summary={view.ready ? "Readiness for discovery: ready" : `Readiness for discovery: not ready (${view.readiness.filter((g) => !g.satisfied).length} area${view.readiness.filter((g) => !g.satisfied).length === 1 ? "" : "s"} to resolve)`}>
+            <Readiness groups={view.readiness} ready={view.ready} />
+          </Details>
           <details><summary>Prerequisites for Test Connection</summary><Prerequisites items={view.prerequisites} /></details>
           {live && view.serverPrerequisites.some((p) => !p.satisfied) && (
             <div className="callout" style={{ borderColor: "var(--stop)" }}>

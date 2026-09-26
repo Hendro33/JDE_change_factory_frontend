@@ -343,7 +343,7 @@ function PackEditor({ rev, docs, onClose, onSaved, onError }: {
               <input type="checkbox" checked onChange={() => set("knowledge", toggle(c.knowledge, k))} /> <span className="mono">{k}</span> <span className="hint">(an earlier revision)</span>
             </label>
           ))}
-          <div className="hint">Knowledge Library documents are pinned to the revision chosen here. Whether their text may be read depends on the document policy (Admin › AI Connections).</div>
+          <div className="hint">Reference documents are pinned to the revision chosen here. Whether their text may be read depends on the document policy (Agents &amp; AI › AI connection).</div>
         </div>
         <div className="field">
           <label>Tools requested (within Jade's reviewed policy for this agent)</label>

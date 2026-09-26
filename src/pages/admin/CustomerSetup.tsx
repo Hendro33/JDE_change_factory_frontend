@@ -181,7 +181,7 @@ export function CustomerSetup() {
     <>
       <div className="pagehead">
         <div>
-          <h1>Customer Setup</h1>
+          <h1>Customer</h1>
           <div className="sub">The active customer's information, its configuration, and who can work on it.</div>
         </div>
       </div>
@@ -196,7 +196,7 @@ export function CustomerSetup() {
           <section className="panel">
             <h2>Members</h2>
             <div className="sub" style={{ marginBottom: 12 }}>
-              Who can sign in to this customer and with which roles. Manage them under Admin › Users.
+              Who can sign in to this customer and with which roles. Manage them under Users & roles.
             </div>
             <table className="data">
               <thead>

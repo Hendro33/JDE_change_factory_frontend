@@ -36,7 +36,7 @@ export function Login({ onSignedIn, notice }: { onSignedIn: () => void; notice?:
       setForgotSent(
         "If that email is registered and email delivery is set up, a reset link is on its way. " +
           "No email service is configured on this server yet, so in practice: ask your company's Admin " +
-          "to create a reset link for you under Admin > Users."
+          "to create a reset link for you under Administration › Organisation › Users & roles."
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not request a password reset.");

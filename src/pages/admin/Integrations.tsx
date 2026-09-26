@@ -28,7 +28,8 @@ function baseUrlIssue(raw: string): string | null {
   return null;
 }
 
-export function Integrations() {
+/** part: which connection to show (Administration › Systems & Connections has one tab each). */
+export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" } = {}) {
   const [integrations, setIntegrations] = useState<IntegrationStatus[] | null>(null);
   const [jiraConfig, setJiraConfig] = useState<JiraIntegrationConfig | null>(null);
   const [jiraStatus, setJiraStatus] = useState<JiraConnectionStatus | null>(null);
@@ -166,14 +167,7 @@ export function Integrations() {
 
   return (
     <>
-      <div className="pagehead">
-        <div>
-          <h1>Integrations</h1>
-          <div className="sub">What is actually connected today, honestly — not a connector marketplace.</div>
-        </div>
-      </div>
-
-      {!integrations ? (
+      {part === "all" && (!integrations ? (
         <Loading what="integration status" />
       ) : (
         <section className="panel" style={{ marginBottom: 16 }}>
@@ -191,11 +185,11 @@ export function Integrations() {
           </table>
           <ApiNote endpoint="GET /admin/integrations" />
         </section>
-      )}
+      ))}
 
-      <JdeDiscoveryPanel />
+      {part !== "jira" && <JdeDiscoveryPanel />}
 
-      <section className="panel">
+      {part !== "jde" && <section className="panel">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
           <h2 style={{ margin: 0 }}>Jira</h2>
           {!editing && !configAccessError && (
@@ -390,7 +384,7 @@ export function Integrations() {
         )}
 
         <ApiNote endpoint="GET/PUT /admin/jira-integration, PUT /admin/jira-credentials, POST /admin/jira-integration/test-connection, POST /admin/jira-integration/sync" />
-      </section>
+      </section>}
     </>
   );
 }

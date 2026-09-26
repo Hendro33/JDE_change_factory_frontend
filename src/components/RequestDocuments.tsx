@@ -17,7 +17,7 @@ const LIMITATIONS =
   "PDF, DOCX and TXT only. Password-protected PDFs and scanned PDFs without a text layer cannot be read (Jade has no " +
   "OCR); DOCX files with macros are refused. A document that cannot be read is still kept with the request, and " +
   "Jade never claims to have analysed it. Uploading does not send anything to AI: whether agents may read the text " +
-  "is decided by this customer's document policy (Admin > AI Connections).";
+  "is decided by this customer's document policy (Administration › Agents & AI).";
 
 function StatusBadge({ a }: { a: Attachment }) {
   return <span className={`badge ${EXTRACTION_TONE[a.extractionStatus]}`}>{EXTRACTION_LABEL[a.extractionStatus]}</span>;

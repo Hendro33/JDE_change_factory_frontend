@@ -12,6 +12,7 @@ import type {
   TestSideEffect,
 } from "../../types/domain";
 import { ApiNote, Loading } from "../../components/ui";
+import { Details } from "../../components/design";
 import { saveErrorMessage } from "../../services/saveErrors";
 
 const lines = (v: string) => v.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -221,7 +222,7 @@ export function ErpLandscape() {
     <>
       <div className="pagehead">
         <div>
-          <h1>ERP / JDE Landscape</h1>
+          <h1>Scope, approvals and environments</h1>
           <div className="sub">This customer's JD Edwards estate, connection status, and engagement scope.</div>
         </div>
       </div>
@@ -284,8 +285,7 @@ export function ErpLandscape() {
               {!editing && <button className="btn" onClick={() => setEditing(true)}>Edit</button>}
             </div>
             <div className="sub" style={{ marginBottom: 12 }}>
-              What this company's changes may touch in JDE and who may approve them (design doc Appendix
-              D.2 / E.2). The execution gate enforces exactly what is saved here, for this company's stories
+              What this company's changes may touch in JDE and who may approve them. The execution gate enforces exactly what is saved here, for this company's stories
               only. Anything missing authorises nothing: no approval policy means nothing can be approved,
               and an unconfirmed DEV environment means nothing can run.
             </div>
@@ -588,8 +588,8 @@ export function ErpLandscape() {
  */
 function GateCoverage() {
   return (
-    <section className="panel">
-      <h2>What the execution gate enforces</h2>
+    <Details summary="What the execution gate enforces" tone="technical">
+    <section>
       <div className="grid halves">
         <div>
           <strong>Checked before every JDE write or test run</strong>
@@ -623,6 +623,7 @@ function GateCoverage() {
         </div>
       </div>
     </section>
+    </Details>
   );
 }
 
