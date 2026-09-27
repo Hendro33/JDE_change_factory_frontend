@@ -178,3 +178,9 @@ export { Loading } from "./design";
 export function ApiNote(_: { endpoint: string }) {
   return IS_MOCK_MODE ? <div className="apinote">Sample data in this browser.</div> : null;
 }
+
+// Governance widgets used by the Application Management and User Story Review screens.
+export {
+  StateBadge, stateLabel, PIPELINE_STATES, DOMAIN_STAGE_LABEL, PriorityBadge, Kpi, ColumnChart, DonutChart,
+  BarList, FlowSteps, PipelineFlow, Timeline, type TimelineItem,
+} from "./governance";

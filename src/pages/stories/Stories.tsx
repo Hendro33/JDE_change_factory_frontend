@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { DemandNav } from "../demand/DemandNav";
 import { api } from "../../services/api";
 import type { Change, Health, JiraConnectionStatus, JiraSyncResult, Phase } from "../../types/domain";
 import { PHASES } from "../../types/domain";
@@ -70,7 +71,9 @@ export function StoriesPage() {
 
   return (
     <div>
-      <PageHeader title="Stories" subtitle="Every business need JADE is working on, from request to delivered outcome."
+      <DemandNav />
+      <PageHeader title={phase === "understand" ? "Requests" : "User Stories"}
+        subtitle={phase === "understand" ? "New requests, before JADE has turned them into user stories." : "Every business need JADE is working on, from request to delivered outcome."}
         actions={<>
           {jira && jira.state !== "unavailable" && (
             <button className="btn" disabled={retrieving} onClick={retrieve}>{retrieving ? "Retrieving…" : "Retrieve from Jira"}</button>
@@ -103,7 +106,7 @@ export function StoriesPage() {
         <select aria-label="Next action owner" value={owner} onChange={(e) => setQueryParam("owner", e.target.value)}>
           <option value="">Anyone</option>
           <option value="domain_owner">Domain Owner</option>
-          <option value="product_manager">Product Owner</option>
+          <option value="product_manager">Application Manager</option>
           <option value="cnc_operator">CNC</option>
           <option value="admin">Administrator</option>
           <option value="jade">JADE</option>

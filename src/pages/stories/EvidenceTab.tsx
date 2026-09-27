@@ -1,4 +1,4 @@
-import { Details, Section, formatDateTime } from "../../components/design";
+import { Details, Section, formatDateTime, useSessionInfo } from "../../components/design";
 import { activityOf } from "./OverviewTab";
 import type { StoryCtx } from "./storyContext";
 
@@ -8,9 +8,10 @@ import type { StoryCtx } from "./storyContext";
  */
 export function EvidenceTab({ ctx }: { ctx: StoryCtx }) {
   const { change, domainReview } = ctx;
+  const info = useSessionInfo();
   const decisions: { when?: string; what: string; who?: string | null; note?: string | null }[] = [];
   if (domainReview?.domainOwnerApproval) decisions.push({ when: domainReview.domainOwnerApproval.approvedAt, what: `Story ${domainReview.domainOwnerApproval.status} by the Domain Owner`, who: domainReview.domainOwnerApproval.approvedBy, note: domainReview.domainOwnerApproval.note });
-  if (domainReview?.applicationManagerApproval) decisions.push({ when: domainReview.applicationManagerApproval.approvedAt, what: `Delivery ${domainReview.applicationManagerApproval.status === "approved" ? "authorised" : "not authorised"} by the Product Owner`, who: domainReview.applicationManagerApproval.approvedBy, note: domainReview.applicationManagerApproval.note });
+  if (domainReview?.applicationManagerApproval) decisions.push({ when: domainReview.applicationManagerApproval.approvedAt, what: `Delivery ${domainReview.applicationManagerApproval.status === "approved" ? "authorised" : "not authorised"} by the Application Manager`, who: domainReview.applicationManagerApproval.approvedBy, note: domainReview.applicationManagerApproval.note });
   if (!domainReview?.applicationManagerApproval && change.storyApproval) decisions.push({ when: change.storyApproval.approvedAt, what: `Story ${change.storyApproval.status}`, who: change.storyApproval.approvedBy, note: change.storyApproval.note });
   if (change.changeApproval) decisions.push({ when: change.changeApproval.approvedAt, what: `Exact change ${change.changeApproval.status}`, who: change.changeApproval.approvedBy, note: change.changeApproval.note });
   for (const h of ctx.tech?.human_actions ?? []) {
@@ -39,7 +40,7 @@ export function EvidenceTab({ ctx }: { ctx: StoryCtx }) {
         ))}</ul>
       </Section>
 
-      {(change.testSpecification || change.testResult) && (
+      {info.appManagement && (change.testSpecification || change.testResult) && (
         <Section title="Test">
           <p>{change.testSpecification?.mode}{change.testSpecification?.orchestrationName ? ` · ${change.testSpecification.orchestrationName}` : ""}</p>
           <p>{change.testResult && change.testResult.outcome !== "not run"
@@ -60,7 +61,7 @@ export function EvidenceTab({ ctx }: { ctx: StoryCtx }) {
         </Section>
       )}
 
-      <Details summary={`Evidence log (${change.evidence.length} entries, append-only)`} tone="technical">
+      {info.appManagement && <Details summary={`Evidence log (${change.evidence.length} entries, append-only)`} tone="technical">
         {change.evidence.length === 0 ? <p className="muted">No entries.</p> : (
           <table className="data">
             <thead><tr><th>#</th><th>Stage</th><th>What happened</th><th>By</th><th>When</th><th>Entry hash</th></tr></thead>
@@ -71,7 +72,7 @@ export function EvidenceTab({ ctx }: { ctx: StoryCtx }) {
           </table>
         )}
         <p className="muted">Each entry is hash-chained to the one before it, so any later edit would be detectable.</p>
-      </Details>
+      </Details>}
     </div>
   );
 }

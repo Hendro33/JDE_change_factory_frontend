@@ -7,6 +7,7 @@ import {
   attentionOf, storyTitle, useAsync, useSessionInfo, ROLE_LABEL,
 } from "../../components/design";
 import { Link, storyPath } from "../../router";
+import { gateFor } from "../stories/NextActionCard";
 
 /** The verb on each item's button: what the person will actually do. */
 export const ACTION_VERB: Record<string, string> = {
@@ -25,15 +26,18 @@ function greeting(): string {
 function WorkItem({ c }: { c: Change }) {
   const info = useSessionInfo();
   const na = c.lifecycle!.nextAction;
+  // Gate decisions open on their own screen (User Story Review, Backlog Review, ...).
+  const gate = na.action ? gateFor(na.action, c.id) : undefined;
+  const to = gate?.to ?? storyPath(c.id, na.tab, "next-action");
   return (
     <li className={`workitem ${na.kind}`}>
       <div className="workitem-main">
-        <div className="workitem-kicker">{na.kind === "decision" ? "Decision" : "To do"} · {c.lifecycle!.phaseLabel}</div>
-        <Link className="workitem-title" to={storyPath(c.id, na.tab, "next-action")}>{storyTitle(c)}</Link>
+        <div className="workitem-kicker">{na.kind === "decision" ? "Decision" : "To do"} · {c.lifecycle!.phaseLabel}{gate ? ` · ${gate.screen}` : ""}</div>
+        <Link className="workitem-title" to={storyPath(c.id)}>{storyTitle(c)}</Link>
         <div className="workitem-summary">{na.summary}</div>
         <div className="workitem-meta"><ImpactIndicator change={c} /> · {info.domainName(c.businessDomainId) ?? "No domain yet"} · <span className="mono">{c.id}</span></div>
       </div>
-      <Link className={`btn ${na.kind === "decision" ? "primary" : ""}`} to={storyPath(c.id, na.tab, "next-action")}>
+      <Link className={`btn ${na.kind === "decision" ? "primary" : ""}`} to={to}>
         {ACTION_VERB[na.action ?? ""] ?? "Open"}
       </Link>
     </li>
@@ -63,6 +67,9 @@ export function MyWorkPage() {
   const firstName = info.session.displayName.split(/\s+/)[0];
   const problems = integrations.filter((i) => !i.connected);
   const recent = recentStories(info.session.activeCustomerId);
+  // A Domain Owner's workspace ends at an approved story; JADE's solutioning and delivery work belongs to Application Management.
+  const jadeWorking = info.appManagement ? work.jadeWorking
+    : work.jadeWorking.filter((c) => c.lifecycle?.phase === "understand" || c.lifecycle?.phase === "story_review");
 
   return (
     <div className="mywork">
@@ -92,9 +99,9 @@ export function MyWorkPage() {
             </ul>
           )}
 
-          {work.jadeWorking.length > 0 && (
+          {jadeWorking.length > 0 && (
             <Section title="JADE is working on" quiet>
-              <ul className="quietlist">{work.jadeWorking.map((c) => (
+              <ul className="quietlist">{jadeWorking.map((c) => (
                 <li key={c.id}><Link to={storyPath(c.id)}>{storyTitle(c)}</Link><JadeWorking>{c.lifecycle?.nextAction.summary}</JadeWorking></li>
               ))}</ul>
             </Section>
@@ -104,7 +111,9 @@ export function MyWorkPage() {
             <Section title="Waiting on others" quiet>
               <ul className="quietlist">{work.waitingOnOthers.slice(0, 8).map((c) => (
                 <li key={c.id}><Link to={storyPath(c.id)}>{storyTitle(c)}</Link>
-                  <span className="muted"> — {c.lifecycle?.nextAction.ownerLabel}: {c.lifecycle?.nextAction.summary}</span></li>
+                  <span className="muted"> — {!info.appManagement && ["product_manager", "cnc_operator", "admin"].includes(c.lifecycle?.nextAction.owner ?? "")
+                    ? `with Application Management (${c.lifecycle?.phaseLabel})`
+                    : `${c.lifecycle?.nextAction.ownerLabel}: ${c.lifecycle?.nextAction.summary}`}</span></li>
               ))}</ul>
               {work.waitingOnOthers.length > 8 && <Link to="/stories?health=attention">All {work.waitingOnOthers.length}</Link>}
             </Section>

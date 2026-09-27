@@ -16,7 +16,7 @@ export function activityOf(ctx: StoryCtx): { when: string; what: string; who?: s
   out.push({ when: c.createdAt, what: `Request received from ${c.source}${c.sourceReference ? ` (${c.sourceReference})` : ""}` });
   const dr = ctx.domainReview;
   if (dr?.domainOwnerApproval?.approvedAt) out.push({ when: dr.domainOwnerApproval.approvedAt, what: "Story approved by the Domain Owner", who: dr.domainOwnerApproval.approvedBy });
-  if (dr?.applicationManagerApproval?.approvedAt) out.push({ when: dr.applicationManagerApproval.approvedAt, what: "Delivery authorised by the Product Owner", who: dr.applicationManagerApproval.approvedBy });
+  if (dr?.applicationManagerApproval?.approvedAt) out.push({ when: dr.applicationManagerApproval.approvedAt, what: "Delivery authorised by the Application Manager", who: dr.applicationManagerApproval.approvedBy });
   if (c.storyApproval?.approvedAt && !dr?.applicationManagerApproval) out.push({ when: c.storyApproval.approvedAt, what: `Story ${c.storyApproval.status}`, who: c.storyApproval.approvedBy });
   if (c.architectDecision?.decidedAt) out.push({ when: c.architectDecision.decidedAt, what: "JADE proposed a solution" });
   // For a technical route this record is the package approval, already listed from the technical record below.
@@ -47,10 +47,11 @@ export function OverviewTab({ ctx }: { ctx: StoryCtx }) {
   const route = decision ? ROUTE_LABEL[decision.recommendedRoute] : undefined;
   const found = cleanAgentText(decision?.existingFunctionalityFound);
   const processes = ctx.process?.mapping?.status === "confirmed" ? ctx.process.mapping.refs : [];
+  const am = info.appManagement;
   const risks = [
-    ...(lc?.openItems ?? []),
+    ...(am ? lc?.openItems ?? [] : []),
     ...(us?.openQuestions ?? []).map((q) => `Open question: ${q}`),
-    ...(decision?.dependenciesAndConflicts ?? []).map((d) => `Could affect: ${d}`),
+    ...(am ? decision?.dependenciesAndConflicts ?? [] : []).map((d) => `Could affect: ${d}`),
   ];
   const activity = activityOf(ctx).slice(0, 5);
   const inDelivery = (lc?.phaseIndex ?? 0) >= 4 && (lc?.deliverySteps.length ?? 0) > 0;
@@ -69,6 +70,13 @@ export function OverviewTab({ ctx }: { ctx: StoryCtx }) {
           </Section>
         )}
 
+        {!am ? (
+          (lc?.phaseIndex ?? 0) >= 2 && (
+            <Section title="With Application Management">
+              <p>The approved story is with the Application Manager, who takes it through solution, delivery and release. Current phase: <strong>{lc?.phaseLabel}</strong>.</p>
+            </Section>
+          )
+        ) : <>
         <Section title="Proposed solution" actions={decision ? <Link to={storyPath(change.id, "solution")}>Full proposal</Link> : undefined}>
           {!decision ? (
             <EmptyState title={(lc?.phaseIndex ?? 0) < 2 ? "Not yet — the story comes first" : "JADE has not proposed a solution yet"}>
@@ -98,6 +106,7 @@ export function OverviewTab({ ctx }: { ctx: StoryCtx }) {
             </ol>
           </Section>
         )}
+        </>}
       </div>
 
       <aside className="overview-side">

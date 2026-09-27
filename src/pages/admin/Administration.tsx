@@ -67,9 +67,6 @@ export function AdministrationPage({ section, sub }: { section?: string; sub?: s
         ))}
       </aside>
       <div className="admin-main">
-        {!info.has("admin") && (
-          <div className="noticebar">You can view these settings; only an administrator of this customer can change them.</div>
-        )}
         {!active ? (
           <>
             <PageHeader title="Administration" subtitle="Set up and operate JADE for this customer." />

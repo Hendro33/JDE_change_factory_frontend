@@ -10,7 +10,7 @@ import { ExactChangeSummary } from "./NextActionCard";
 import { ROUTE_LABEL, cleanAgentText, type StoryCtx } from "./storyContext";
 
 /**
- * The Solution: one coherent proposal the Product Owner can judge -- what
+ * The Solution: one coherent proposal the Application Manager can judge -- what
  * JADE proposes, why it solves the need, what it touches, the risk and the
  * test approach. JADE owns the proposal; which agent wrote which part is
  * not the reader's problem (it is in the Technical view).

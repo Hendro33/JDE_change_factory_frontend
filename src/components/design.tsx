@@ -21,6 +21,14 @@ export interface SessionInfo {
   has: (...roles: CompanyRole[]) => boolean;
   /** People who may see the Technical view: builders, operators, admins. */
   technical: boolean;
+  /**
+   * Application Management: the Application Manager's workspace (and the
+   * Admin and CNC who support it). Architecture, delivery and release are
+   * not part of the Domain Owner's workspace.
+   */
+  appManagement: boolean;
+  /** The Jade Administrator: setup and maintenance, hidden from everyone else. */
+  admin: boolean;
   domains: BusinessDomain[];
   domainName: (id?: string | null) => string | undefined;
   isDemoCustomer: boolean;
@@ -35,7 +43,7 @@ export function useSessionInfo(): SessionInfo {
 }
 
 export const ROLE_LABEL: Record<string, string> = {
-  domain_owner: "Domain Owner", product_manager: "Product Owner", admin: "Administrator",
+  domain_owner: "Domain Owner", product_manager: "Application Manager", admin: "Administrator",
   dashboard_viewer: "Viewer", cnc_operator: "CNC operator",
 };
 
@@ -240,7 +248,7 @@ export function phaseLabel(p: Phase): string {
   return PHASES.find((x) => x.key === p)?.label ?? p;
 }
 
-/** "Next: Product Owner — approve the solution" in one line (lists, My Work). */
+/** "Next: Application Manager — approve the solution" in one line (lists, My Work). */
 export function NextActionLine({ lifecycle }: { lifecycle?: Lifecycle | null }) {
   if (!lifecycle) return null;
   const na = lifecycle.nextAction;

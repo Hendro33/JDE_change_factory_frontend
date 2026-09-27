@@ -23,7 +23,7 @@ const EMPTY_ENVIRONMENT: EnvironmentBinding = {
 
 const APPROVER_ROLES: { role: ApproverRole; label: string }[] = [
   { role: "admin", label: "Admin" },
-  { role: "product_manager", label: "Product Manager" },
+  { role: "product_manager", label: "Application Manager" },
   { role: "domain_owner", label: "Domain Owner" },
 ];
 

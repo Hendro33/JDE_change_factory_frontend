@@ -100,7 +100,8 @@ export function ReportsPage() {
         </div>
       </Section>
 
-      <Section title="Delivery queue" description="Work authorised for delivery, in order. Phase and health come from each story's own lifecycle.">
+      {info.appManagement && <Section title="Delivery queue" description="Work authorised for delivery, in order. Phase and health come from each story's own lifecycle."
+        actions={<Link to="/am/delivery-queue">Open the Delivery Queue</Link>}>
         {queue.length === 0 ? <EmptyState title="Nothing authorised for delivery yet" /> : (
           <table className="data">
             <thead><tr><th>#</th><th>Story</th><th>Phase</th><th>Health</th><th>Authorised by</th></tr></thead>
@@ -118,7 +119,7 @@ export function ReportsPage() {
             })}</tbody>
           </table>
         )}
-      </Section>
+      </Section>}
 
       {info.has("admin") && (
         <p className="muted">AI usage, agent health and run history are under <Link to="/admin/operations">Administration › Operations</Link>.</p>

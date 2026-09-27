@@ -56,8 +56,9 @@ export function CustomerScope({
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
+        title={active.name}
       >
-        {active.name}
+        <span className="cscope-name">{active.name}</span>
         {active.isDemo && <span className="badge warn" style={{ marginLeft: 6 }}>DEMO</span>}
         <span aria-hidden="true" style={{ marginLeft: 8 }}>▾</span>
       </button>

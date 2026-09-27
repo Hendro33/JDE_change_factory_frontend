@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DemandNav } from "../demand/DemandNav";
 import { api, IS_MOCK_MODE } from "../../services/api";
 import type { Attachment } from "../../services/aiApi";
 import type { ChangeSource } from "../../types/domain";
@@ -37,7 +38,7 @@ export function NewRequestPage() {
 
   return (
     <div className="narrow">
-      <div className="crumbs"><Link to="/stories">Stories</Link> <span aria-hidden="true">/</span> New request</div>
+      <DemandNav />
       <PageHeader title="New request" subtitle="Record the need as it was raised. JADE turns it into a user story, maps it to the business and proposes a solution." />
       <Section>
         <div className="field">

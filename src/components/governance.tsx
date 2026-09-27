@@ -1,0 +1,342 @@
+/**
+ * Governance and pipeline widgets restored from main for the Application
+ * Management and Domain Owner review screens: lifecycle-state badges,
+ * governance-stage labels, priority, KPI tiles, the pipeline flow, charts
+ * and the change timeline. Styled by the current design tokens.
+ */
+import type { ReactNode } from "react";
+import type { LifecycleState } from "../types/domain";
+
+const STATE_LABELS: Record<LifecycleState, string> = {
+  RECEIVED: "Received",
+  REFINING: "Story enhancement",
+  BACKLOG_READY: "Awaiting approval",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+  RESOLVED_WITHOUT_CHANGE: "Resolved, no change",
+  ARCHITECTING: "Architecting",
+  SPEC_READY: "Specification ready",
+  CHANGE_APPROVED: "Change approved",
+  EXECUTING: "In build",
+  TESTING: "Testing",
+  VALIDATED: "Validated",
+  CNC_HANDOFF: "With CNC",
+  CLOSED: "Closed",
+  FAILED: "Failed",
+};
+
+const STATE_TONE: Record<LifecycleState, string> = {
+  RECEIVED: "grey",
+  REFINING: "info",
+  BACKLOG_READY: "warn",
+  APPROVED: "info",
+  REJECTED: "stop",
+  RESOLVED_WITHOUT_CHANGE: "ok",
+  ARCHITECTING: "info",
+  SPEC_READY: "info",
+  CHANGE_APPROVED: "warn",
+  EXECUTING: "info",
+  TESTING: "info",
+  VALIDATED: "ok",
+  CNC_HANDOFF: "warn",
+  CLOSED: "ok",
+  FAILED: "stop",
+};
+
+export function StateBadge({ state }: { state: LifecycleState }) {
+  return <span className={`badge ${STATE_TONE[state]}`}>{STATE_LABELS[state]}</span>;
+}
+
+export function stateLabel(state: LifecycleState) {
+  return STATE_LABELS[state];
+}
+
+/**
+ * The post-approval lifecycle in pipeline order — the canonical set the
+ * "Where everything sits" view (Pipeline, Delivery Queue) counts across,
+ * so both pages show the same nine stages rather than two independently
+ * maintained lists.
+ */
+export const PIPELINE_STATES: LifecycleState[] = [
+  "APPROVED", "ARCHITECTING", "SPEC_READY", "CHANGE_APPROVED", "EXECUTING",
+  "TESTING", "VALIDATED", "CNC_HANDOFF", "CLOSED",
+];
+
+/** Domain Owner / Application Manager governance stages (Section 7). */
+export const DOMAIN_STAGE_LABEL: Record<string, string> = {
+  ready_for_domain_owner: "User story ready for Domain Owner",
+  domain_owner_reviewing: "Domain Owner reviewing",
+  domain_owner_requested_revision: "Domain Owner requested revision",
+  reviewer_agent_refining: "Reviewer Agent refining",
+  domain_owner_approved: "Domain Owner approved",
+  domain_owner_rejected: "Domain Owner rejected — will not proceed",
+  ready_for_application_manager: "Ready for Application Manager",
+  application_manager_approved: "Application Manager approved — queued for delivery",
+  application_manager_rejected: "Application Manager rejected — will not proceed",
+};
+
+export function PriorityBadge({ priority }: { priority: "High" | "Medium" | "Low" }) {
+  const tone = priority === "High" ? "stop" : priority === "Medium" ? "warn" : "ok";
+  return <span className={`badge ${tone}`}>{priority}</span>;
+}
+
+export function Kpi({
+  value,
+  label,
+  delta,
+  mark,
+  onClick,
+  tone,
+}: {
+  value: number;
+  label: string;
+  /** Omit when there is no tracked trend to show — a fabricated "0" implies history that doesn't exist. */
+  delta?: number;
+  mark?: string;
+  /** Makes the whole card a button, e.g. navigating to the filtered work queue this count represents. */
+  onClick?: () => void;
+  /** Attention colour for the number itself, e.g. from the customer's own alert thresholds (Admin > Customer Setup). Omit for the normal ink colour. */
+  tone?: "warn" | "stop";
+}) {
+  const dir = delta === undefined ? undefined : delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+  const arrow = delta === undefined ? "" : delta > 0 ? "▲" : delta < 0 ? "▼" : "—";
+  const Tag = onClick ? "button" : "div";
+  return (
+    <Tag className={`kpi${onClick ? " clickable" : ""}`} onClick={onClick} type={onClick ? "button" : undefined}>
+      <div className="top">
+        <div className={`value${tone ? ` ${tone}` : ""}`}>{value}</div>
+        {mark && <span className="mark" aria-hidden="true">{mark}</span>}
+      </div>
+      <div className="label">{label}</div>
+      {delta !== undefined && (
+        <div className="delta">
+          <span className={dir}>
+            {arrow} {delta === 0 ? "0" : `${delta > 0 ? "+" : ""}${delta}`}
+          </span>
+          <span className="since">vs previous 30 days</span>
+        </div>
+      )}
+    </Tag>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Charts — hand-drawn SVG, no chart library                            */
+/* ------------------------------------------------------------------ */
+
+export function ColumnChart({ data }: { data: { stage: string; count: number }[] }) {
+  const max = Math.max(1, ...data.map((d) => d.count));
+  const w = 460;
+  const h = 200;
+  const padL = 26;
+  const padB = 44;
+  const bandW = (w - padL) / data.length;
+  const barW = Math.min(46, bandW * 0.55);
+  const ticks = [0, Math.ceil(max / 2), max];
+
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width="100%" role="img" aria-label="Change pipeline by stage">
+      {ticks.map((t) => {
+        const y = h - padB - (t / max) * (h - padB - 14);
+        return (
+          <g key={t}>
+            <line x1={padL} y1={y} x2={w} y2={y} stroke="#eee" />
+            <text x={padL - 8} y={y + 4} fontSize="10" fill="#676E6A" textAnchor="end">{t}</text>
+          </g>
+        );
+      })}
+      {data.map((d, i) => {
+        const bh = (d.count / max) * (h - padB - 14);
+        const x = padL + i * bandW + (bandW - barW) / 2;
+        const y = h - padB - bh;
+        return (
+          <g key={d.stage}>
+            <rect x={x} y={y} width={barW} height={Math.max(bh, 1)} fill="#168A63" rx="3" />
+            <text x={x + barW / 2} y={y - 6} fontSize="11" fontWeight="700" fill="#191919" textAnchor="middle">
+              {d.count}
+            </text>
+            {d.stage.split(" ").map((word, wi, arr) => (
+              <text
+                key={wi}
+                x={x + barW / 2}
+                y={h - padB + 16 + wi * 11 - (arr.length > 1 ? 4 : 0)}
+                fontSize="10"
+                fill="#3A3F3C"
+                textAnchor="middle"
+              >
+                {word}
+              </text>
+            ))}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+const DONUT_COLOURS = ["#168A63", "#FBDD37", "#0B5E43", "#8FCBB3", "#D9D9D9"];
+
+export function DonutChart({
+  data,
+  centreLabel,
+}: {
+  data: { type: string; count: number }[];
+  centreLabel: string;
+}) {
+  const total = data.reduce((s, d) => s + d.count, 0) || 1;
+  const r = 62;
+  const stroke = 26;
+  const c = 2 * Math.PI * r;
+  let offset = 0;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+      <svg width="164" height="164" viewBox="0 0 164 164" role="img" aria-label="Breakdown by change type">
+        <g transform="rotate(-90 82 82)">
+          {data.map((d, i) => {
+            const frac = d.count / total;
+            const dash = frac * c;
+            const el = (
+              <circle
+                key={d.type}
+                cx="82" cy="82" r={r}
+                fill="none"
+                stroke={DONUT_COLOURS[i % DONUT_COLOURS.length]}
+                strokeWidth={stroke}
+                strokeDasharray={`${dash} ${c - dash}`}
+                strokeDashoffset={-offset}
+              />
+            );
+            offset += dash;
+            return el;
+          })}
+        </g>
+        <text x="82" y="78" fontSize="21" fontWeight="700" textAnchor="middle">{total}</text>
+        <text x="82" y="95" fontSize="11" fill="#676E6A" textAnchor="middle">{centreLabel}</text>
+      </svg>
+      <ul className="legend" style={{ flex: 1, minWidth: 180 }}>
+        {data.map((d, i) => (
+          <li key={d.type}>
+            <span className="swatch" style={{ background: DONUT_COLOURS[i % DONUT_COLOURS.length] }} />
+            <span className="name">{d.type}</span>
+            <span className="num">
+              {d.count} ({Math.round((d.count / total) * 100)}%)
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function BarList({
+  data,
+  onItemClick,
+}: {
+  data: { category: string; count: number }[];
+  /** Makes each row a button, e.g. navigating to that row's filtered work queue. */
+  onItemClick?: (index: number) => void;
+}) {
+  const max = Math.max(1, ...data.map((d) => d.count));
+  return (
+    <div>
+      {data.map((d, i) => {
+        const Tag = onItemClick ? "button" : "div";
+        return (
+          <Tag
+            className={`hbar${onItemClick ? " clickable" : ""}`}
+            key={d.category}
+            onClick={onItemClick ? () => onItemClick(i) : undefined}
+            type={onItemClick ? "button" : undefined}
+          >
+            <span>{d.category}</span>
+            <span className="track">
+              <span className="fill" style={{ width: `${(d.count / max) * 100}%` }} />
+            </span>
+            <span>{d.count}</span>
+          </Tag>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Workflow + timeline                                                  */
+/* ------------------------------------------------------------------ */
+
+export function FlowSteps({ steps, currentIndex }: { steps: string[]; currentIndex: number }) {
+  return (
+    <div className="flowsteps">
+      {steps.map((s, i) => (
+        <span key={s} style={{ display: "contents" }}>
+          <span className={`step ${i < currentIndex ? "done" : i === currentIndex ? "on" : ""}`}>{s}</span>
+          {i < steps.length - 1 && <span className="arrow" aria-hidden="true">→</span>}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The aggregate "where everything sits" view — every stage in `states`
+ * with how many changes currently sit in it, and (optionally) which
+ * stages the caller's own current selection maps onto, shaded so a
+ * dropdown-driven filter is visible on the pipeline itself rather than
+ * left for the reader to work out by name alone.
+ */
+export function PipelineFlow({ states, counts, highlightStates }: {
+  states: LifecycleState[];
+  counts: Partial<Record<LifecycleState, number>>;
+  highlightStates?: LifecycleState[];
+}) {
+  const highlighted = new Set(highlightStates ?? []);
+  return (
+    <div className="pipeflow">
+      {states.map((s, i) => {
+        const n = counts[s] ?? 0;
+        return (
+          <span key={s} style={{ display: "contents" }}>
+            <div className={`pipestep${n > 0 ? " has" : ""}${highlighted.has(s) ? " selected" : ""}`}>
+              <div className="count">{n}</div>
+              <div className="label">{stateLabel(s)}</div>
+            </div>
+            {i < states.length - 1 && <span className="pipearrow" aria-hidden="true">→</span>}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+export interface TimelineItem {
+  title: string;
+  when?: string;
+  detail?: string;
+  status: "done" | "current" | "pending";
+}
+
+export function Timeline({ items }: { items: TimelineItem[] }) {
+  return (
+    <ul className="timeline">
+      {items.map((it, i) => (
+        <li key={i} className={it.status}>
+          <div className="rail">
+            <span className="dot" />
+            <span className="line" />
+          </div>
+          <div className="body">
+            <h4>{it.title}</h4>
+            {it.when && <div className="when">{it.when}</div>}
+            {it.detail && <p>{it.detail}</p>}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Confirmation modal — approvals are never one careless click          */
+/* ------------------------------------------------------------------ */
+

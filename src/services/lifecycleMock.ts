@@ -12,7 +12,7 @@ const HEALTH_LABEL: Record<Health, string> = {
   failed: "Needs attention", done: "Delivered", closed: "Closed",
 };
 const OWNER_LABEL: Record<string, string> = {
-  jade: "JADE", domain_owner: "Domain Owner", product_manager: "Product Owner", cnc_operator: "CNC", admin: "Administrator", none: "",
+  jade: "JADE", domain_owner: "Domain Owner", product_manager: "Application Manager", cnc_operator: "CNC", admin: "Administrator", none: "",
 };
 
 function mk(phase: Phase, health: Health, next: Omit<NextAction, "ownerLabel" | "effect"> & { effect?: string }, extra: Partial<Lifecycle> = {}): Lifecycle {

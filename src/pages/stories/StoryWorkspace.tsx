@@ -92,7 +92,9 @@ export function StoryWorkspace({ storyId, tab }: { storyId: string; tab?: string
 
   const lc = change.lifecycle;
   const active = (TABS.find((t) => t.key === tab)?.key ?? "overview") as WorkspaceTab;
-  const shownTab: WorkspaceTab = active === "technical" && !info.technical ? "overview" : active;
+  // Solution, Delivery and Technical are Application Management's; the Domain Owner's view ends at the approved story.
+  const amOnly = (k: WorkspaceTab) => (k === "technical" && !info.technical) || ((k === "solution" || k === "delivery") && !info.appManagement);
+  const shownTab: WorkspaceTab = amOnly(active) ? "overview" : active;
   const domain = info.domainName(change.businessDomainId);
   const processPath = process?.mapping?.status === "confirmed" ? process.mapping.refs[0]?.path.map((p) => p.name) : undefined;
   const need = businessNeed(change);
@@ -100,7 +102,10 @@ export function StoryWorkspace({ storyId, tab }: { storyId: string; tab?: string
 
   return (
     <div className="workspace">
-      <div className="crumbs"><Link to="/stories">Stories</Link> <span aria-hidden="true">/</span> <span className="mono">{change.id}</span></div>
+      <div className="crumbs">
+        <Link to="/stories">Business Demand</Link> <span aria-hidden="true">/</span> <span className="mono">{change.id}</span>
+        {info.appManagement && <span className="crumbs-aside"><Link to={`/am/changes/${encodeURIComponent(change.id)}`}>Change record in Application Management</Link></span>}
+      </div>
       <header className="storyheader">
         <div className="storyheader-context">
           {domain ? <Link to={`/business/${encodeURIComponent(change.businessDomainId!)}`}>{domain}</Link> : <span className="muted">No business domain yet</span>}
@@ -123,7 +128,7 @@ export function StoryWorkspace({ storyId, tab }: { storyId: string; tab?: string
       <NextActionCard ctx={ctx} />
 
       <Tabs label="Story sections" active={shownTab} hrefFor={(k) => storyPath(change.id, k)}
-            tabs={TABS.map((t) => ({ ...t, hidden: t.key === "technical" && !info.technical }))} />
+            tabs={TABS.map((t) => ({ ...t, label: t.key === "evidence" && !info.appManagement ? "History" : t.label, hidden: amOnly(t.key) }))} />
 
       <div className="tabpanel">
         {shownTab === "overview" && <OverviewTab ctx={ctx} />}

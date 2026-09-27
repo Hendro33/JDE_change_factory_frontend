@@ -1,10 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../../services/api";
-import { technicalApi } from "../../services/technicalApi";
 import type { CompanyRole, NextAction } from "../../types/domain";
 import { ConfirmDialog } from "../../components/ui";
 import { ErrorState, JadeWorking, useSessionInfo } from "../../components/design";
-import { Link, navigate, storyPath } from "../../router";
+import { Link, storyPath } from "../../router";
 import type { StoryCtx } from "./storyContext";
 
 type Dialog = { title: string; intro?: ReactNode; next: string; confirm: string; tone: "primary" | "danger"; requireNote: boolean;
@@ -14,7 +13,7 @@ type Dialog = { title: string; intro?: ReactNode; next: string; confirm: string;
 const DECISION_COPY: Record<string, { approve: string; ifApproved: string; ifRejected: string; reject?: string }> = {
   review_story: {
     approve: "Approve story", reject: "Reject requirement",
-    ifApproved: "The story goes to the Product Owner, who decides whether JADE may start working on it.",
+    ifApproved: "The story goes to the Application Manager, who decides whether JADE may start working on it.",
     ifRejected: "The requirement does not go ahead. Use Request changes instead if the story only needs more work.",
   },
   authorise_delivery: {
@@ -43,7 +42,7 @@ function canOwn(owner: NextAction["owner"], has: (...r: CompanyRole[]) => boolea
   if (owner === "jade" || owner === "none") return false;
   if (owner === "admin") return has("admin");
   // Only a CNC operator can record an activation and only a Domain Owner reviews a story;
-  // an administrator may also run the Product Owner's operational steps.
+  // an administrator may also run the Application Manager's operational steps.
   if (owner === "product_manager") return has("product_manager", "admin");
   return has(owner as CompanyRole);
 }
@@ -61,8 +60,6 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const [cncName, setCncName] = useState("");
-  const [cncRef, setCncRef] = useState("");
   const [domainId, setDomainId] = useState("");
   useEffect(() => { setError(null); }, [lc?.nextAction.action, lc?.phase]);
 
@@ -83,8 +80,6 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
     try { await fn(); reload(); } catch (e) { setError(e); } finally { setBusy(false); }
   }
 
-  const currentPackage = ctx.tech?.packages.find((p) => !p.superseded_by);
-  const designRevision = ctx.tech?.assignment?.design_revision;
   const story = (lc?.phase === "story_review" ? ctx.domainReview?.history[ctx.domainReview.history.length - 1]?.userStory : undefined) ?? change.userStory;
   const decisionIntro = (
     <>
@@ -122,18 +117,25 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
 
   /* ---------------- someone else owns it ---------------- */
   if (!mine) {
+    const withAm = !info.appManagement && ["product_manager", "cnc_operator", "admin"].includes(na.owner);
     return (
       <section className="nextcard waiting" id="next-action" aria-label="Next action">
-        <div className="nextcard-kicker">Waiting for: {na.ownerLabel || "someone else"}</div>
-        <div className="nextcard-summary">{na.summary}</div>
+        <div className="nextcard-kicker">Waiting for: {withAm ? "Application Management" : na.ownerLabel || "someone else"}</div>
+        <div className="nextcard-summary">{withAm ? `The approved story is with the Application Manager (${lc.phaseLabel}).` : na.summary}</div>
         <div className="nextcard-note">You can follow progress here; nothing is needed from you.</div>
       </section>
     );
   }
 
   /* ---------------- the controls ---------------- */
+  // Gate decisions and delivery steps are taken on their own screens, as in
+  // the original process: the Domain Owner's in User Story Review, the
+  // Application Manager's in Application Management. The card says what is
+  // needed and opens the right screen on this story.
+  const gate = na.action ? gateFor(na.action, change.id) : undefined;
   let controls: ReactNode = null;
-  switch (na.action) {
+  if (gate) controls = <Link className="btn primary" to={gate.to}>Open in {gate.screen}</Link>;
+  else switch (na.action) {
     case "start_analysis":
       controls = <button className="btn primary" disabled={busy} onClick={() => act(() => api.enhanceStory(change.id))}>{busy ? "Starting…" : "Start analysis"}</button>;
       break;
@@ -151,120 +153,11 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
         </div>
       );
       break;
-    case "review_story":
-      controls = (
-        <>
-          <button className="btn primary" disabled={busy || ctx.domainReview?.stage !== "domain_owner_reviewing"} onClick={() => setDialog({
-            title: "Approve this story?", intro: decisionIntro, next: copy!.ifApproved, confirm: "Approve story", tone: "primary", requireNote: false,
-            run: async (note) => ctx.setDomainReview(await api.approveDomainOwnerStory(change.id, { note })),
-          })}>Approve story</button>
-          <button className="btn" onClick={() => navigate(storyPath(change.id, "story", "revise"))}>Request changes</button>
-          <button className="btn quiet danger" disabled={busy || ctx.domainReview?.stage !== "domain_owner_reviewing"} onClick={() => setDialog({
-            title: "Reject this requirement?", intro: decisionIntro, next: copy!.ifRejected, confirm: "Reject requirement", tone: "danger",
-            requireNote: true, reasonCode: true,
-            run: async (note, reason) => ctx.setDomainReview(await api.rejectDomainOwnerStory(change.id, { note, rejectionReason: reason as never })),
-          })}>Reject</button>
-        </>
-      );
-      break;
-    case "authorise_delivery":
-      controls = (
-        <>
-          <button className="btn primary" disabled={busy} onClick={() => setDialog({
-            title: "Authorise JADE to work on this story?", intro: decisionIntro, next: copy!.ifApproved, confirm: "Authorise delivery",
-            tone: "primary", requireNote: false, run: (note) => api.approveForDelivery(change.id, { note }),
-          })}>Authorise delivery</button>
-          <button className="btn quiet danger" disabled={busy} onClick={() => setDialog({
-            title: "Stop this story?", intro: decisionIntro, next: copy!.ifRejected, confirm: "Do not proceed", tone: "danger",
-            requireNote: true, reasonCode: true, run: (note, reason) => api.rejectForDelivery(change.id, { note, rejectionReason: reason as never }),
-          })}>Do not proceed</button>
-        </>
-      );
-      break;
-    case "approve_design":
-      controls = (
-        <>
-          <button className="btn primary" disabled={busy || designRevision === undefined} onClick={() => setDialog({
-            title: "Approve JADE's proposed solution?", intro: decisionIntro, next: copy!.ifApproved, confirm: "Approve solution",
-            tone: "primary", requireNote: false, run: (note) => technicalApi.approveDesign(change.id, designRevision!, note || "approved in the Story Workspace"),
-          })}>Approve solution</button>
-          <Link className="btn" to={storyPath(change.id, "solution", "ask")}>Request changes</Link>
-        </>
-      );
-      break;
-    case "approve_exact_change":
-      controls = (
-        <>
-          <button className="btn primary" disabled={busy} onClick={() => setDialog({
-            title: "Approve this solution and its exact change?", intro: <>{decisionIntro}<ExactChangeSummary ctx={ctx} /></>,
-            next: copy!.ifApproved, confirm: "Approve solution", tone: "primary", requireNote: false,
-            run: (note) => api.approveExactChange(change.id, { note }),
-          })}>Approve solution</button>
-          <Link className="btn" to={storyPath(change.id, "solution", "ask")}>Request changes</Link>
-          <button className="btn quiet danger" disabled={busy} onClick={() => setDialog({
-            title: "Reject this exact change?", intro: <>{decisionIntro}<ExactChangeSummary ctx={ctx} /></>, next: copy!.ifRejected,
-            confirm: "Reject", tone: "danger", requireNote: true, reasonCode: true,
-            run: (note, reason) => api.rejectExactChange(change.id, { note, rejectionReason: reason as never }),
-          })}>Reject</button>
-        </>
-      );
-      break;
-    case "approve_package":
-      controls = (
-        <>
-          <button className="btn primary" disabled={busy || !currentPackage} onClick={() => setDialog({
-            title: `Approve implementation (package revision ${currentPackage?.revision})?`, intro: decisionIntro,
-            next: copy!.ifApproved, confirm: "Approve implementation", tone: "primary", requireNote: false,
-            run: (note) => technicalApi.approvePackage(change.id, currentPackage!.revision, note),
-          })}>Approve implementation</button>
-          <Link className="btn" to={storyPath(change.id, "delivery", "implementation")}>Review the implementation</Link>
-          <button className="btn quiet danger" disabled={busy || !currentPackage} onClick={() => setDialog({
-            title: "Reject this package revision?", intro: decisionIntro, next: copy!.ifRejected, confirm: "Reject", tone: "danger",
-            requireNote: true, run: (note) => technicalApi.rejectPackage(change.id, currentPackage!.revision, note),
-          })}>Reject</button>
-        </>
-      );
-      break;
-    case "start_technical_prepare":
-      controls = <button className="btn primary" disabled={busy} onClick={() => act(() => technicalApi.startRun(change.id, "prepare"))}>Prepare the implementation</button>;
-      break;
-    case "start_technical_execute":
-      // The approved package's own milestones, each re-checked by the gate: apply, then build.
-      controls = (
-        <button className="btn primary" disabled={busy || !currentPackage} onClick={() => act(async () => {
-          const st = currentPackage!.approval?.milestone_states;
-          if (st?.apply !== "applied") await technicalApi.milestone(change.id, currentPackage!.revision, "apply");
-          await technicalApi.milestone(change.id, currentPackage!.revision, "build");
-        })}>Apply and build in DEV</button>
-      );
-      break;
-    case "start_technical_verify":
-      controls = <button className="btn primary" disabled={busy || !currentPackage}
-                         onClick={() => act(() => technicalApi.milestone(change.id, currentPackage!.revision, "verify"))}>Run validation</button>;
-      break;
-    case "record_cnc":
-      controls = (
-        <div className="inlineform">
-          <input aria-label="Package name" placeholder="Package name" value={cncName} onChange={(e) => setCncName(e.target.value)} />
-          <input aria-label="Evidence reference" placeholder="Evidence (ticket or log reference)" value={cncRef} onChange={(e) => setCncRef(e.target.value)} />
-          <button className="btn primary" disabled={busy || !cncName.trim() || !cncRef.trim() || !currentPackage}
-                  onClick={() => act(() => technicalApi.recordCnc(change.id, currentPackage!.revision, cncName.trim(), cncRef.trim(), "recorded in the Story Workspace"))}>
-            Record activation</button>
-        </div>
-      );
-      break;
-    case "finalise_asbuilt":
-      controls = <Link className="btn primary" to={storyPath(change.id, "delivery", "release")}>Review and finalise</Link>;
-      break;
     case "rerun_solutioning":
       controls = <button className="btn primary" disabled={busy} onClick={() => act(() => api.retriggerArchitectureReview(change.id))}>Run solutioning</button>;
       break;
-    case "reconcile_technical":
-    case "reconcile_functional":
-      controls = <Link className="btn primary" to={storyPath(change.id, "technical")}>Open the technical view to reconcile</Link>;
-      break;
     case "clarify":
-      controls = <Link className="btn primary" to={storyPath(change.id, "solution", "ask")}>Answer JADE's question</Link>;
+      controls = <Link className="btn primary" to={storyPath(change.id, "story", "ask")}>Answer JADE's question</Link>;
       break;
     default:
       controls = na.tab !== "overview" ? <Link className="btn" to={storyPath(change.id, na.tab)}>Open</Link> : null;
@@ -309,6 +202,27 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
       )}
     </section>
   );
+}
+
+/** Where each gate decision or delivery step is taken (the original screens). */
+const GATES: Record<string, { screen: string; path: string }> = {
+  review_story: { screen: "User Story Review", path: "/stories/review" },
+  authorise_delivery: { screen: "Backlog Review", path: "/am/backlog-review" },
+  approve_exact_change: { screen: "Architecture Review", path: "/am/architecture-review" },
+  approve_design: { screen: "Technical Work", path: "/am/technical" },
+  approve_package: { screen: "Technical Work", path: "/am/technical" },
+  start_technical_prepare: { screen: "Technical Work", path: "/am/technical" },
+  start_technical_execute: { screen: "Technical Work", path: "/am/technical" },
+  start_technical_verify: { screen: "Technical Work", path: "/am/technical" },
+  record_cnc: { screen: "Technical Work", path: "/am/technical" },
+  reconcile_technical: { screen: "Technical Work", path: "/am/technical" },
+  reconcile_functional: { screen: "Architecture Review", path: "/am/architecture-review" },
+  finalise_asbuilt: { screen: "As-built Records", path: "/am/as-built" },
+};
+
+export function gateFor(action: string, storyId: string): { screen: string; to: string } | undefined {
+  const g = GATES[action];
+  return g && { screen: g.screen, to: `${g.path}?story=${encodeURIComponent(storyId)}` };
 }
 
 /** The exact functional change in one readable line (decision dialogs, Solution tab). */

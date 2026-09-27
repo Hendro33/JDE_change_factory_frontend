@@ -7,7 +7,7 @@ const ALL_ROLES: CompanyRole[] = ["admin", "domain_owner", "product_manager", "d
 const ROLE_LABEL: Record<CompanyRole, string> = {
   admin: "Admin",
   domain_owner: "Domain Owner",
-  product_manager: "Product Manager",
+  product_manager: "Application Manager",
   dashboard_viewer: "Dashboard Viewer",
   cnc_operator: "CNC Operator",
 };

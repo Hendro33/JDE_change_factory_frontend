@@ -118,7 +118,7 @@ function friendlyMessage(status: number, detail: string): string {
   if (status === 403) {
     const m = detail.match(/requires one of these roles: (.*)/);
     if (m) {
-      const labels: Record<string, string> = { product_manager: "Product Owner", domain_owner: "Domain Owner", admin: "Administrator",
+      const labels: Record<string, string> = { product_manager: "Application Manager", domain_owner: "Domain Owner", admin: "Administrator",
         cnc_operator: "CNC operator", dashboard_viewer: "Viewer" };
       return `You don't have permission to do this. It needs the ${m[1].split(/,\s*/).map((r) => labels[r] ?? r).join(" or ")} role.`;
     }

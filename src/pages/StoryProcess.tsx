@@ -118,7 +118,7 @@ export function MappingSection({ view, nodes, onChanged }: { view: StoryProcessV
             <input aria-label="No mapping reason" value={reason} onChange={(e) => setReason(e.target.value)} /></label>
           <div className="btnrow"><button className="btn small" disabled={busy || reason.trim().length < 10} onClick={() => decide("no_mapping")}>Record no mapping</button></div>
         </div>
-      ) : !view.can_review && <p className="hint">Only a Product Manager, or the Domain Owner assigned to this story's business domain, can decide.</p>}
+      ) : !view.can_review && <p className="hint">Only a Application Manager, or the Domain Owner assigned to this story's business domain, can decide.</p>}
       {error && <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div>}
       {view.mapping_history.length > 1 && (
         <details><summary>Decision history ({view.mapping_history.length})</summary>
