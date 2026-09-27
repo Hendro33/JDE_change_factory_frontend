@@ -1,3 +1,5 @@
+import { StoryRatingsPanel } from "../../components/StoryRatings";
+import { ReviewFlow, ReviewDetail, BusinessContextMap, AcceptanceChecklist, QuestionCards, BacklogComparison, SolutionArchitectureMap, IntegrityPanel } from "../../components/visualReview";
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type { BusinessDomain, Change, DomainReview, DomainReviewStage, UserStory } from "../../types/domain";
@@ -108,7 +110,7 @@ export function UserStoryReview({ navFilter, navToken }: Partial<NavTarget> = {}
   }
 
   return (
-    <>
+    <div className="vr-pilot">
       <div className="pagehead">
         <div>
           <h1>User Story Review</h1>
@@ -117,8 +119,9 @@ export function UserStoryReview({ navFilter, navToken }: Partial<NavTarget> = {}
         <div className="meta">{changes?.length ?? 0} awaiting review</div>
       </div>
 
+      <ReviewFlow steps={["Source", "Business context", "User story", "Impact & benefit", "Acceptance", "Decision"]} />
       {!changes ? <Loading what="stories awaiting review" /> : (
-        <section className="panel" style={{ marginBottom: 16 }}>
+        <details className="panel vr-story-picker" open={!selected}><summary>Choose a story · {rows.length} awaiting review</summary>
           <FilterBar search={search} onSearchChange={setSearch} searchPlaceholder="Search by ID or title" selects={[]} />
           <ChangeGrid
             changes={rows}
@@ -130,15 +133,15 @@ export function UserStoryReview({ navFilter, navToken }: Partial<NavTarget> = {}
             sortDir={sortDir}
             onSortChange={onSortChange}
           />
-        </section>
+        </details>
       )}
 
       {selected && latestStory && (
         <div className="stack">
-          <section className="panel">
+          <section className="panel vr-story-heading">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
               <div>
-                <h2 style={{ marginBottom: 4 }}>{selected.title}</h2>
+                <h2 style={{ marginBottom: 4 }}>Proposed user story</h2>
                 <div className="mono" style={{ color: "var(--muted)" }}>
                   {selected.id} · {selected.source} · {selected.sourceReference || "no reference"}
                   {domainReview?.businessDomainId && domainsById.get(domainReview.businessDomainId) && (
@@ -148,91 +151,20 @@ export function UserStoryReview({ navFilter, navToken }: Partial<NavTarget> = {}
               </div>
               <PriorityBadge priority={selected.priority} />
             </div>
+            <p className="vr-story-statement">{latestStory.statement}</p>
+            <ReviewDetail title="Business context & original request"><BusinessContextMap source={selected.source} domain={domainsById.get(domainReview?.businessDomainId ?? "")?.name} title={selected.title} /><h3>Business context</h3><p>{latestStory.businessContext}</p><h3>Original request</h3><p>{selected.originalRequest}</p></ReviewDetail>
           </section>
-
-          <section className="panel">
-            <h2>Original request</h2>
-            <p style={{ fontSize: 14, margin: 0 }}>{selected.originalRequest}</p>
+          {domainReview && <StoryRatingsPanel key={`${selected.id}-${domainReview.history.length}`} change={selected} mode="business" />}
+          <section className="panel"><h2>Acceptance criteria</h2><AcceptanceChecklist items={latestStory.acceptanceCriteria} />
+            <ReviewDetail title={`Business test · ${latestStory.testScript.length} steps`}>
+              <table className="data"><thead><tr><th>#</th><th>Action</th><th>Expected result</th></tr></thead><tbody>{latestStory.testScript.map((t) => <tr key={t.id}><td>{t.id}</td><td>{t.action}</td><td>{t.expected}</td></tr>)}</tbody></table>
+            </ReviewDetail>
+            <ReviewDetail title={`Business rules & constraints · ${latestStory.businessRules.length}`}><ul>{latestStory.businessRules.map((r,i) => <li key={i}>{r}</li>)}</ul></ReviewDetail>
           </section>
-
-          <section className="panel">
-            <h2>Proposed user story</h2>
-            <p style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 700 }}>{latestStory.statement}</p>
-            <p style={{ margin: 0, fontSize: 14 }}>{latestStory.businessContext}</p>
-          </section>
-
-          <section className="panel">
-            <h2>Acceptance criteria</h2>
-            {latestStory.acceptanceCriteria.length === 0 ? (
-              <div className="empty" style={{ padding: 16 }}>None recorded.</div>
-            ) : (
-              <table className="data">
-                <thead><tr><th>#</th><th>Criterion</th></tr></thead>
-                <tbody>
-                  {latestStory.acceptanceCriteria.map((ac) => (
-                    <tr key={ac.id}><td className="mono">{ac.id}</td><td>{ac.text}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-
-          <section className="panel">
-            <h2>Business test</h2>
-            {latestStory.testScript.length === 0 ? (
-              <div className="empty" style={{ padding: 16 }}>No test steps recorded.</div>
-            ) : (
-              <table className="data">
-                <thead><tr><th>#</th><th>Action</th><th>Expected result</th></tr></thead>
-                <tbody>
-                  {latestStory.testScript.map((t) => (
-                    <tr key={t.id}><td className="mono">{t.id}</td><td>{t.action}</td><td>{t.expected}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-
-          {latestStory.businessRules.length > 0 && (
-            <section className="panel">
-              <h2>Business rules &amp; constraints</h2>
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14 }}>
-                {latestStory.businessRules.map((r, i) => <li key={i}>{r}</li>)}
-              </ul>
-            </section>
-          )}
-
-          {latestStory.assumptions.length > 0 && (
-            <section className="panel">
-              <h2>Assumptions <span className="qualifier">— confirm or correct these</span></h2>
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14 }}>
-                {latestStory.assumptions.map((a, i) => <li key={i}>{a}</li>)}
-              </ul>
-            </section>
-          )}
-
-          {latestStory.openQuestions.length > 0 && (
-            <section className="panel">
-              <h2>Open questions</h2>
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14 }}>
-                {latestStory.openQuestions.map((q, i) => <li key={i}>{q}</li>)}
-              </ul>
-            </section>
-          )}
-
-          <section className="panel">
-            <h2>Business impact</h2>
-            <dl className="facts">
-              <dt>Financial impact</dt><dd>{selected.businessImpact.financialImpact || <NotStated />}</dd>
-              <dt>Operational reach</dt><dd>{selected.businessImpact.operationalReach || <NotStated />}</dd>
-              <dt>Risk &amp; compliance</dt><dd>{selected.businessImpact.riskCompliance || <NotStated />}</dd>
-              <dt>Strategic alignment</dt><dd>{selected.businessImpact.strategicAlignment || <NotStated />}</dd>
-              <dt>Urgency</dt><dd>{selected.businessImpact.urgency || <NotStated />}</dd>
-            </dl>
-          </section>
+          <QuestionCards questions={latestStory.openQuestions} assumptions={latestStory.assumptions} />
 
           {canDecide && domainReview && (
-            <AskJadePanel
+            <ReviewDetail title="Ask Jade about this requirement"><AskJadePanel
               title="Ask Jade about this requirement"
               turns={domainReview.conversation}
               onAsk={async (question) => {
@@ -251,10 +183,10 @@ export function UserStoryReview({ navFilter, navToken }: Partial<NavTarget> = {}
                   Review as edit
                 </button>
               )}
-            />
+            /></ReviewDetail>
           )}
 
-          <section className="panel">
+          <section className="panel vr-decision">
             <h2>Your decision</h2>
             {!canDecide ? (
               <div className="callout">
@@ -382,6 +314,6 @@ export function UserStoryReview({ navFilter, navToken }: Partial<NavTarget> = {}
           }}
         />
       )}
-    </>
+    </div>
   );
 }

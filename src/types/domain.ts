@@ -154,6 +154,8 @@ export interface TestStep {
 
 /** Design doc Section 6.1. */
 export interface UserStory {
+  businessImpactRating?: "Low" | "Medium" | "High" | null;
+  businessBenefitRating?: "Small" | "Medium" | "High" | null;
   statement: string;
   businessContext: string;
   acceptanceCriteria: AcceptanceCriterion[];
@@ -178,6 +180,7 @@ export interface DocumentCitation {
 
 /** Design doc Section 6.2. */
 export interface ArchitectDecision {
+  technicalImpactRating?: "Low" | "Medium" | "High" | null;
   recommendedRoute: ImplementationRoute;
   /** 0-1. Below threshold the Architect must escalate rather than guess. */
   confidence: number;
@@ -552,6 +555,7 @@ export interface DeliveryQueueEntry {
 
 /** The central object of the application. */
 export interface Change {
+  ratings?: StoryRatings | null;
   id: string;
   /** The engagement this change belongs to. Server-enforced, not client-chosen. */
   customerId: string;
@@ -1216,4 +1220,21 @@ export interface JiraSyncResult {
   imported: string[];
   updatedInJira: string[];
   errors: JiraSyncError[];
+}
+
+export interface RatingView {
+  proposed: "Low" | "Small" | "Medium" | "High" | null;
+  confirmed: "Low" | "Small" | "Medium" | "High" | null;
+  status: "not_assessed" | "proposed" | "confirmed" | "stale";
+  sourceHash: string;
+  confirmedBy?: string | null;
+  confirmedAt?: string | null;
+}
+export interface StoryRatings {
+  businessImpact: RatingView;
+  businessBenefit: RatingView;
+  technicalImpact: RatingView;
+  revision: number;
+  canConfirmBusiness: boolean;
+  canConfirmTechnical: boolean;
 }

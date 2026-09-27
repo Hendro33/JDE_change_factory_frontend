@@ -1,3 +1,6 @@
+import { useSessionInfo } from "../../components/design";
+import { StoryRatingsPanel } from "../../components/StoryRatings";
+import { ReviewFlow, ReviewDetail, BusinessContextMap, AcceptanceChecklist, QuestionCards, BacklogComparison, SolutionArchitectureMap, IntegrityPanel } from "../../components/visualReview";
 import { inAmStage } from "./workflow";
 import { Link, storyPath } from "../../router";
 import { useEffect, useState } from "react";
@@ -19,6 +22,7 @@ import { JourneyBar } from "./JourneyBar";
  * anything reaches JD Edwards.
  */
 export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<NavTarget> & { onNavigate?: Navigate } = {}) {
+  const info = useSessionInfo();
   const [changes, setChanges] = useState<Change[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<"approve" | "reject" | null>(null);
@@ -79,7 +83,7 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
   const implementationSpec = run?.implementationSpec ?? open?.implementationSpec;
 
   return (
-    <>
+    <div className="vr-pilot">
       <div className="pagehead">
         <div>
           <h1>Architecture Review</h1>
@@ -115,7 +119,7 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
       {open && (
         <div className="stack">
           <JourneyBar storyId={open.id} at="design" onNavigate={onNavigate} />
-          <section className="panel">
+          <section className="panel vr-story-heading">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
               <div>
                 <h2 style={{ marginBottom: 4 }}>{open.title}</h2>
@@ -125,8 +129,10 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
             </div>
           </section>
 
+          {architectDecision && <><SolutionArchitectureMap change={open} decision={architectDecision} spec={implementationSpec} domain={info.domainName(open.businessDomainId)} /><IntegrityPanel decision={architectDecision} /></>}
+          <StoryRatingsPanel key={open.id} change={open} mode="technical" />
           {architectDecision ? (
-            <section className="panel">
+            <ReviewDetail title="Full Architect recommendation & alternatives">
               <h2>Architect recommendation</h2>
               <Provenance kind="ai" label={`Recommended route: ${architectDecision.recommendedRoute} · confidence ${Math.round(architectDecision.confidence * 100)}%`}>
                 <p style={{ margin: "0 0 10px", fontSize: 13.5 }}>{architectDecision.existingFunctionalityFound}</p>
@@ -175,7 +181,7 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
                   )}
                 </div>
               )}
-            </section>
+            </ReviewDetail>
           ) : (
             <section className="panel">
               <div className="callout">
@@ -188,7 +194,7 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
           {run && run.history.length > 0 && <DesignEvidencePanel changeId={open.id} designCount={run.history.length} />}
 
           {implementationSpec && (
-            <section className="panel">
+            <ReviewDetail title="Implementation specification & MCP operations">
               <h2>Implementation specification</h2>
               <dl className="facts">
                 <dt>Sequence</dt>
@@ -204,11 +210,11 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
                 <dt>Validation approach</dt>
                 <dd>{implementationSpec.validationApproach}</dd>
               </dl>
-            </section>
+            </ReviewDetail>
           )}
 
           {domainReview && (
-            <AskJadePanel
+            <ReviewDetail title="Ask Jade about this requirement"><AskJadePanel
               title="Ask Jade about this requirement"
               turns={domainReview.conversation}
               onAsk={async (question) => {
@@ -228,11 +234,11 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
                   Flag for Domain Owner reconsideration
                 </button>
               )}
-            />
+            /></ReviewDetail>
           )}
 
           {architectDecision && (
-            <AskJadePanel
+            <ReviewDetail title="Ask Jade about this solution"><AskJadePanel
               title="Ask Jade about this solution"
               turns={run?.conversation ?? []}
               onAsk={async (question) => {
@@ -251,11 +257,11 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
                   Re-run Architecture Review
                 </button>
               )}
-            />
+            /></ReviewDetail>
           )}
 
           {ec && (
-            <section className="panel">
+            <section className="panel vr-decision">
               <h2>The exact change</h2>
               <Provenance
                 kind={decided ? "executed" : "proposed"}
@@ -351,6 +357,6 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
           }}
         />
       )}
-    </>
+    </div>
   );
 }

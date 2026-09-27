@@ -1,3 +1,5 @@
+import { StoryRatingsPanel } from "../../components/StoryRatings";
+import { ReviewFlow, ReviewDetail, BusinessContextMap, AcceptanceChecklist, QuestionCards, BacklogComparison, SolutionArchitectureMap, IntegrityPanel } from "../../components/visualReview";
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import { ownersOf } from "../BusinessDomains";
@@ -94,17 +96,18 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
   const readyForDelivery = openReview?.stage === "ready_for_application_manager";
 
   return (
-    <>
+    <div className="vr-pilot">
       <div className="pagehead">
         <div>
           <h1>Backlog Review</h1>
           <div className="sub">
-            Application Manager Gate 1 — the business-approved backlog, waiting to be authorised for delivery.
+            Decide which approved stories are ready for delivery.
           </div>
         </div>
         <div className="meta">{filtered.length} awaiting your review</div>
       </div>
 
+      <ReviewFlow steps={["Business-approved story", "Impact & benefit", "Delivery considerations", "Your decision"]} />
       {backlog && backlog.length > 0 && (
         <FilterBar
           search={search}
@@ -124,8 +127,9 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
         />
       )}
 
+      {backlog && <ReviewDetail title={`Compare backlog · ${filtered.length} stories`}><BacklogComparison rows={filtered} selectedId={openId} onSelect={setOpenId} domainName={(c) => domainsById.get(reviews.get(c.id)?.businessDomainId ?? "")?.name ?? "Domain not assigned"} /></ReviewDetail>}
       {!backlog ? <Loading what="the backlog" /> : (
-        <section className="panel" style={{ marginBottom: 16 }}>
+        <ReviewDetail title="Full backlog table & sorting">
           <ChangeGrid
             changes={filtered}
             columns={columns}
@@ -140,15 +144,15 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
             sortDir={sortDir}
             onSortChange={onSortChange}
           />
-        </section>
+        </ReviewDetail>
       )}
 
       {open && (
         <div className="stack">
-          <section className="panel">
+          <section className="panel vr-story-heading">
             <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
               <div>
-                <h2 style={{ marginBottom: 4 }}>{open.title}</h2>
+                <h2 style={{ marginBottom: 4 }}>What you are approving</h2>
                 <div className="mono" style={{ color: "var(--muted)" }}>
                   {open.id} · {open.source} · {open.sourceReference || "no reference"} ·
                   raised {new Date(open.createdAt).toLocaleDateString("en-GB")}
@@ -171,68 +175,23 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
                 <span className="badge warn">{DOMAIN_STAGE_LABEL[openReview.stage] ?? openReview.stage}</span>
               </div>
             )}
-          </section>
 
-          <section className="panel">
-            <h2>What you are approving</h2>
-            <Provenance kind="plain" label="Original request — as submitted">
-              <div style={{ fontSize: 13.5 }}>{open.originalRequest}</div>
-            </Provenance>
-            {open.userStory && (
-              <div style={{ marginTop: 12 }}>
-                <Provenance kind="ai" label="Story written by Jade from that request">
-                  <p style={{ margin: "0 0 10px", fontSize: 14.5, fontWeight: 700 }}>
-                    {open.userStory.statement}
-                  </p>
-                  <p style={{ margin: 0, fontSize: 13.5 }}>{open.userStory.businessContext}</p>
-                </Provenance>
-              </div>
-            )}
+            <p className="vr-story-statement">{open.userStory?.statement || open.title}</p>
+            <ReviewDetail title="Original request & business context"><p>{open.originalRequest}</p><p>{open.userStory?.businessContext}</p></ReviewDetail>
           </section>
-
-          <section className="panel">
-            <h2>Why it matters</h2>
-            <dl className="facts">
-              <dt>Financial impact</dt><dd>{open.businessImpact.financialImpact || <NotStated />}</dd>
-              <dt>Operational reach</dt><dd>{open.businessImpact.operationalReach || <NotStated />}</dd>
-              <dt>Risk &amp; compliance</dt><dd>{open.businessImpact.riskCompliance || <NotStated />}</dd>
-              <dt>Strategic alignment</dt><dd>{open.businessImpact.strategicAlignment || <NotStated />}</dd>
-              <dt>Urgency</dt><dd>{open.businessImpact.urgency || <NotStated />}</dd>
-              <dt>Complexity signal</dt>
-              <dd>
-                {open.complexitySignal}
-                <span style={{ color: "var(--muted)" }}> — a rough estimate, not a commitment. The Architect's analysis is the real answer.</span>
-              </dd>
-            </dl>
-            <div className="apinote">
-              Blank means the requester did not say. That is recorded honestly rather than
-              guessed — weigh it as missing information, not as zero impact.
-            </div>
-          </section>
+          <StoryRatingsPanel key={open.id} change={open} />
 
           {open.userStory && open.userStory.acceptanceCriteria.length > 0 && (
             <section className="panel">
               <h2>How success will be judged</h2>
-              <table className="data">
-                <thead><tr><th>#</th><th>Acceptance criterion</th></tr></thead>
-                <tbody>
-                  {open.userStory.acceptanceCriteria.map((ac) => (
-                    <tr key={ac.id}><td className="mono">{ac.id}</td><td>{ac.text}</td></tr>
-                  ))}
-                </tbody>
-              </table>
+              <AcceptanceChecklist items={open.userStory.acceptanceCriteria} />
             </section>
           )}
 
-          <section className="panel">
+          <section className="panel vr-decision">
             <h2>Your decision <span className="qualifier">— Application Manager</span></h2>
-            <div className="callout" style={{ marginBottom: 16 }}>
-              <strong>What happens next if you approve</strong>
-              The change is admitted to the Delivery Queue — the set of approved work Jade is
-              authorised to deliver, not a production deployment. The Architect then analyses the
-              JD Edwards estate and proposes an exact change, which comes back to you for a
-              separate approval before anything is written to JD Edwards.
-            </div>
+            <ReviewFlow steps={["Authorise work", "Architecture assessment", "Separate exact-change approval"]} />
+            <p className="vr-note">Approval adds this story to the Delivery Queue. It does not authorise a JDE write or production deployment.</p>
             {openReview && !readyForDelivery && (
               <div className="callout" style={{ marginBottom: 16 }}>
                 <strong>Waiting on the Domain Owner</strong>
@@ -305,6 +264,6 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
           }}
         />
       )}
-    </>
+    </div>
   );
 }

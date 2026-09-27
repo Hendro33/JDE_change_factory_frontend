@@ -1,3 +1,4 @@
+import { ConnectionHealthCard } from "../../components/visualReview";
 import { KnowledgePage } from "../knowledge/Knowledge";
 import { useEffect, useState } from "react";
 import { api, IS_MOCK_MODE } from "../../services/api";
@@ -68,7 +69,7 @@ export function AdministrationPage({ section, sub }: { section?: string; sub?: s
           <Link key={s.key} to={`/admin/${s.key}`} className={active?.key === s.key ? "on" : ""} aria-current={active?.key === s.key ? "page" : undefined}>{s.label}</Link>
         ))}
       </aside>
-      <div className="admin-main">
+      <div className={`admin-main${section === "connections" ? " vr-pilot" : ""}`}>
         {!active ? (
           <>
             <PageHeader title="Administration" subtitle="Set up and operate JADE for this customer." />
@@ -101,29 +102,19 @@ export function AdministrationPage({ section, sub }: { section?: string; sub?: s
 function ConnectionOverview() {
   const [integrations, setIntegrations] = useState<IntegrationStatus[] | null>(null);
   const [ai, setAi] = useState<AiConnection | null>(null);
+  const [connectionError, setConnectionError] = useState("");
   useEffect(() => {
-    api.listIntegrations().then(setIntegrations).catch(() => setIntegrations([]));
-    if (!IS_MOCK_MODE) aiApi.connection().then(setAi).catch(() => setAi(null));
+    api.listIntegrations().then(setIntegrations).catch(() => setConnectionError("Connection status could not be loaded. Refresh to try again."));
+    if (!IS_MOCK_MODE) aiApi.connection().then(setAi).catch(() => setConnectionError("AI connection status could not be loaded. Refresh to try again."));
   }, []);
   const aiState = !ai ? null : !ai.configured ? "Not set up" : !ai.enabled ? "Switched off" : ai.tested ? "Connected" : "Set up, not tested";
-  return (
-    <div className="conngrid">
-      {ai !== null && (
-        <div className={`conncard ${aiState === "Connected" ? "ok" : "warn"}`}>
-          <div className="conncard-name">AI provider</div>
-          <div className="conncard-state">{aiState === "Connected" ? "✓ " : "○ "}{aiState}</div>
-          <div className="conncard-detail">{ai.providerLabel}{ai.model ? ` · ${ai.model}` : ""}{ai.lastTest ? ` · last tested ${new Date(ai.lastTest.at).toLocaleDateString("en-GB")}` : ""}</div>
-          <Link className="btn small" to="/admin/agents/ai">Configure</Link>
-        </div>
-      )}
-      {(integrations ?? []).map((i) => (
-        <div key={i.name} className={`conncard ${i.connected ? "ok" : "warn"}`}>
-          <div className="conncard-name">{i.name}</div>
-          <div className="conncard-state">{i.connected ? "✓ Connected" : "○ Not connected"}</div>
-          <div className="conncard-detail">{i.detail}</div>
-          <Link className="btn small" to={i.name.toLowerCase().includes("jira") ? "/admin/connections/jira" : "/admin/connections/jde"}>Configure</Link>
-        </div>
-      ))}
+  const connected = (integrations ?? []).filter((i) => i.connected).length + (aiState === "Connected" ? 1 : 0);
+  return <div className="vr-pilot">
+    <div className="vr-connections-head"><span className="vr-connections-number">{integrations ? connected : "—"}</span><div><h2>Connections reported ready</h2><p>Configuration status from JADE. This overview does not run a live health check. Simulated connections stay labelled.</p></div></div>
+    {connectionError && <div className="callout" role="alert">{connectionError}</div>}
+    <div className="vr-connections-grid">
+      {ai && <ConnectionHealthCard name="AI provider" status={aiState ?? "Unknown"} connected={aiState === "Connected"} detail={ai.providerLabel + (ai.testProvider ? " · TEST PROVIDER" : "")} model={ai.model} checkedAt={ai.lastTest?.at} to="/admin/agents/ai" />}
+      {(integrations ?? []).map((i) => <ConnectionHealthCard key={i.name} name={i.name} status={i.connected ? "Connected (reported)" : "Not connected"} connected={i.connected} detail={i.detail} to={i.name.toLowerCase().includes("jira") ? "/admin/connections/jira" : "/admin/connections/jde"} />)}
     </div>
-  );
+  </div>;
 }
