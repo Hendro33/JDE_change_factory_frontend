@@ -5,7 +5,7 @@ These two scripts are the completion demonstrations for increments S1-1 and S1-2
 | Script | Increment | What it proves |
 |---|---|---|
 | `s1_1_saved_setup.py` | S1-1 Saved setup and user identity | <ul><li>Thresholds live on the server: a second browser sees them, and a value an older build left in the browser is previewed and imported once.</li><li>A stale engagement-scope save is refused with a visible message, and the edits already typed are kept.</li><li>A stale business-domain status change is refused.</li><li>No typed "Your name" field remains, and no client-supplied `updatedBy` is sent.</li></ul> |
-| `s1_2_execution_safeguards.py` | S1-2 Execution safeguards | <ul><li>With no approval policy, approving the solution from the story's Next Step card is refused with the reason shown.</li><li>An Admin sets the policy and DEV binding under Administration › Governance.</li><li>The same approval then succeeds, recorded under the signed-in name.</li></ul> |
+| `s1_2_execution_safeguards.py` | S1-2 Execution safeguards | <ul><li>With no approval policy, approving the exact change in Application Management › **Architecture Review** (Gate 2), which the story's card opens, is refused with the reason shown.</li><li>An Admin sets the policy and DEV binding under Administration › Governance.</li><li>The same approval then succeeds, recorded under the signed-in name.</li></ul> |
 
 The rest of S1-2 has no UI of its own and is proven by backend tests and `prove_the_gate.py` in the backend repository: per-company scope, expiring windows, and restart recovery.
 

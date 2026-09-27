@@ -10,3 +10,5 @@ e2e/discovery/shots/
 __pycache__/
 e2e/technical/shots/
 e2e/process/shots/
+e2e/workspaces/shots/
+e2e/ai/shots/

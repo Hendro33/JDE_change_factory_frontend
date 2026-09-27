@@ -60,38 +60,37 @@ with sync_playwright() as p:
     expect(page.locator("text=Nobody can approve an exact change for this company")).to_be_visible()
     check("missing policy is shown as 'nobody can approve'", True)
 
-    # 2. Approving the pending exact change (from the story's Decision card) is refused, visibly.
+    # 2. The story's card sends the decision to Architecture Review (Gate 2), where approving is refused, visibly.
     page.goto(BASE + "/stories/S12-DEMO-1")
-    page.click("#next-action >> button:has-text('Approve solution')")
-    page.locator(".modal button:has-text('Approve solution')").last.click()
+    page.click("#next-action >> a:has-text('Open in Architecture Review')")
+    expect(page.locator("h1:has-text('Architecture Review')")).to_be_visible()
+    page.click("button:has-text('Approve exact change')")
+    page.locator(".modal button:has-text('Approve exact change')").last.click()
     # The gate refuses with its own reason: no saved scope, or a scope without an approval policy.
-    expect(page.locator("#next-action >> text=/has no (approval policy|saved engagement scope)/")).to_be_visible()
+    expect(page.locator("text=/has no (approval policy|saved engagement scope)/")).to_be_visible()
     check("approval refused without a policy, with a visible reason", True)
     page.screenshot(path=f"{SHOTS}/4-approval-refused-no-policy.png", full_page=True)
 
-    # 3. Admin sets the policy (Product Manager, 8 hours) and the DEV binding.
+    # 3. Admin sets the policy (Application Manager, 8 hours) and the DEV binding.
     nav(page, "Admin", "ERP / JDE Landscape")
     page.click("button:has-text('Edit')")
-    page.check("label:has-text('Product Manager') input[type=checkbox]")
+    page.check("label:has-text('Application Manager') input[type=checkbox]")
     page.fill("#policyHours", "8")
     page.fill("#devEnvironmentId", "JDV920")
     page.fill("#devPathCode", "DV920")
     page.click("text=Save engagement scope")
-    expect(page.locator("text=Exact changes may be approved by: Product Manager")).to_be_visible()
+    expect(page.locator("text=Exact changes may be approved by: Application Manager")).to_be_visible()
     check("policy saved and shown", True)
     check("isolation stays unconfirmed until ticked", page.locator("text=Not confirmed").count() == 1)
 
     # 4. The same approval now succeeds, recorded under the signed-in name.
-    page.goto(BASE + "/stories/S12-DEMO-1")
-    page.click("#next-action >> button:has-text('Approve solution')")
-    page.locator(".modal button:has-text('Approve solution')").last.click()
-    expect(page.locator("#next-action >> text=Decision needed")).to_have_count(0)
-    page.goto(BASE + "/stories/S12-DEMO-1/solution")
+    page.goto(BASE + "/am/architecture-review?story=S12-DEMO-1")
+    page.click("button:has-text('Approve exact change')")
+    page.locator(".modal button:has-text('Approve exact change')").last.click()
     expect(page.locator(f"text=Exact change approved by {ADMIN_NAME}")).to_be_visible()
     check("approval accepted once a policy allows the approver's role", True)
 
-    # 5. Approved is not the same as executable: the gate's preflight (Technical view) says why not.
-    page.goto(BASE + "/stories/S12-DEMO-1/technical")
+    # 5. Approved is not the same as executable: the gate's preflight (next to the approval) says why not.
     expect(page.locator("text=Would the execution gate allow this write now?")).to_be_visible()
     expect(page.locator("text=DEV environment bound and isolation confirmed")).to_be_visible()
     check("preflight lists the gate's remaining blockers after approval",

@@ -231,7 +231,7 @@ with sync_playwright() as p:
         open_story(cnc)
         open_drawer(cnc, "Change the affected processes")
         check("a CNC operator cannot decide processes or edit maps",
-              cnc.locator("text=Only a Product Manager, or the Domain Owner assigned").count() == 1
+              cnc.locator("text=Only a Application Manager, or the Domain Owner assigned").count() == 1
               and cnc.locator("summary:has-text('Edit this map')").count() == 0)
 
     else:

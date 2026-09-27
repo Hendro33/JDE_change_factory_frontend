@@ -81,15 +81,20 @@ src/styles.css             design tokens: ConsultIQ yellow for decisions,
 Every screen has a permanent address, so a link can be shared and the
 browser's Back button works:
 
-| Address | Screen |
-|---|---|
-| `/` | My Work: what needs you, what waits on others, what JADE is doing |
-| `/stories` | All stories (list or board; filters are in the address) |
-| `/stories/new` | New request |
-| `/stories/:id[/business\|solution\|delivery\|evidence\|technical]` | Story Workspace and its tabs |
-| `/business`, `/business/:domain` | Business Architecture |
-| `/knowledge`, `/reports`, `/search?q=` | Knowledge, Reports, Search |
-| `/admin/:section[/:tab]` | Administration (organisation, connections, agents, business-model, governance, operations) |
+| Address | Screen | Role |
+|---|---|---|
+| `/work` | My Work: what needs you, what waits on others, what JADE is doing | everyone |
+| `/stories`, `/stories?phase=understand`, `/stories/new` | Business Demand: User Stories, Requests, New request | Domain Owner (everyone can follow) |
+| `/stories/review` | User Story Review: the Domain Owner's decision | Domain Owner |
+| `/stories/:id[/business\|solution\|delivery\|evidence\|technical]` | A story. Solution, Delivery and Technical are Application Management's and are not shown to a Domain Owner | everyone |
+| `/am` | Application Management dashboard | Application Manager (and Admin, CNC) |
+| `/am/backlog-review`, `/am/architecture-review` | Governance: Gate 1 and Gate 2 | Application Manager |
+| `/am/delivery-queue`, `/am/process`, `/am/technical`, `/am/as-built`, `/am/changes?stage=active\|validation\|release\|completed` | Delivery and Release | Application Manager, CNC |
+| `/am/changes/:id` | The change record | Application Manager |
+| `/business`, `/knowledge`, `/reports`, `/search?q=` | Business Architecture, Knowledge, Reports, Search | everyone |
+| `/admin/:section[/:tab]` | Administration | Jade Administrator only |
+
+The two journeys stay separate, as the operating model requires. The Domain Owner's journey ends at an approved story. The Application Manager takes it from there. Gate decisions are made on their own screens (User Story Review, Backlog Review, Architecture Review, Technical Work, As-built Records). A story's Next Step card says what is needed and opens the right screen.
 
 Each story's phase, health and next step come from one place: the
 backend's canonical lifecycle (`change.lifecycle`). Screens never derive
