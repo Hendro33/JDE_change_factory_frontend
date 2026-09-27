@@ -91,10 +91,12 @@ browser's Back button works:
 | `/am/backlog-review`, `/am/architecture-review` | Governance: Gate 1 and Gate 2 | Application Manager |
 | `/am/delivery-queue`, `/am/process`, `/am/technical`, `/am/as-built`, `/am/changes?stage=active\|validation\|release\|completed` | Delivery and Release | Application Manager, CNC |
 | `/am/changes/:id` | The change record | Application Manager |
-| `/business`, `/knowledge`, `/reports`, `/search?q=` | Business Architecture, Knowledge, Reports, Search | everyone |
+| `/business`, `/reports`, `/search?q=` | Business Architecture (including business rules), Insights, Search | everyone |
+| `/knowledge` | Compatibility directory linking to the relocated knowledge | everyone |
+| `/am/delivery` | Delivery: active delivery, queue and technical work | Application Manager, CNC |
 | `/admin/:section[/:tab]` | Administration | Jade Administrator only |
 
-The two journeys stay separate, as the operating model requires. The Domain Owner's journey ends at an approved story. The Application Manager takes it from there. Gate decisions are made on their own screens (User Story Review, Backlog Review, Architecture Review, Technical Work, As-built Records). A story's Next Step card says what is needed and opens the right screen.
+The two journeys stay separate, as the operating model requires. The Domain Owner's journey ends at an approved story. The Application Manager takes it from there. Gate decisions are made on their own screens (User Story Review, Backlog Review, Architecture Review, Delivery, As-Built). A story's Next Step card says what is needed and opens the right screen.
 
 Each story's phase, health and next step come from one place: the
 backend's canonical lifecycle (`change.lifecycle`). Screens never derive
@@ -181,3 +183,19 @@ Corresponding changes needed in the Python engine:
 This matches design document Section 15.10, which lists customer
 isolation of knowledge, credentials, scope and evidence as a
 requirement before productisation.
+
+## UX refinement
+
+Top navigation: My Work → Business Demand → Business Architecture → Application Management → Insights.
+Application Management remains role-gated. Administration retains its existing grouping and administrator gate.
+
+Application Manager workflow: Approved User Story → Backlog Review → Architecture Review → Delivery → Validation → As-Built → Ready for Release / CNC.
+
+The sidebar is Dashboard; Governance (Backlog Review, Architecture Review); Delivery (Delivery, Validation, As-Built); Release (Ready for Release / CNC).
+Process & Maps is a tab under Architecture Review. Delivery Queue, Technical Work and active delivery share the Delivery section. All previous addresses remain usable. Business rules are in Business Architecture; delivered solutions in As-Built; manuals, imported objects and technical reference documents in Administration → Systems & Connections → ERP documentation & references.
+
+The eight dashboard queues are read-only projections of canonical lifecycle/next-action facts. Ready for Release / CNC intentionally overlaps Completed for delivered stories: finalising an as-built record completes JADE delivery, while external production promotion is not tracked by JADE. DEV CNC activation remains an implementation safeguard, not a new release gate.
+
+Insights remains at `/reports`, for all signed-in roles. Past week/month/year select stories created in the last 7/30/365 days; Lifetime includes all stories. Metrics describe the current status of that cohort, not historical event throughput. The API accepts the same optional `period` and defaults to lifetime for existing clients.
+
+Local checks: `npm run build`; `node --test tests/workflow.test.mjs`; real-backend browser walkthroughs under `e2e/` using temporary data and simulated JDE. The realapp walkthrough tests a live AIS connection and is excluded from the no-live-JDE run.

@@ -43,7 +43,7 @@ ROUTES = {
     ("Admin", "Customer Setup"): "/admin/organisation",
     ("Admin", "Agent Configuration"): "/admin/agents/configuration",
     ("Admin", "AI Connections"): "/admin/agents/ai",
-    ("Admin", "Knowledge Library"): "/knowledge",
+    ("Admin", "Knowledge Library"): "/admin/connections/references",
     ("Demand", "User Stories"): "/stories",
     ("Demand", "Create Request"): "/stories/new",
 }

@@ -38,7 +38,7 @@ ROUTES = {
     ("Admin", "Agents"): "/admin/agents",
     ("Admin", "Agent Configuration"): "/admin/agents/configuration",
     ("Admin", "AI Connections"): "/admin/agents/ai",
-    ("Admin", "Knowledge Library"): "/knowledge",
+    ("Admin", "Knowledge Library"): "/admin/connections/references",
     ("Admin", "Integrations"): "/admin/connections/jde",
     ("Admin", "Jira"): "/admin/connections/jira",
     ("Admin", "Connections"): "/admin/connections",

@@ -5,7 +5,7 @@
 The design and package revision 1 are prepared by `scripts/seed_demo_technical.py` in the backend repo. Scripted stand-ins play the Architect and the Technical Agent, through the same governed code the real agents use; this is **not a model run**. The real-model run is recorded separately, in the backend's `docs/proof/technical_agent_run/`.
 
 What the demonstration checks:
-- The story's Next Step card sends the implementation decision to **Application Management › Technical Work**, where every step is taken, as in the original Application Manager process.
+- The story's Next Step card sends the implementation decision to **Application Management › Delivery › Technical Work**, where every step is taken, as in the original Application Manager process.
 - The SIMULATION and synthetic-format labels are shown.
 - The design, its baseline and the design approval are shown.
 - The package shows objects, provenance, toolchain, the unavailable live adapter and the exact diff.

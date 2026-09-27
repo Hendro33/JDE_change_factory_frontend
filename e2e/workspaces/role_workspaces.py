@@ -134,11 +134,11 @@ with sync_playwright() as p:
           seen(am.locator("text=Recommended route: Functional Agent · confidence"))
           and seen(am.locator("dt:has-text('MCP operations')"))
           and seen(am.locator("h2:has-text('The exact change')"))
-          and seen(am.locator("nav[aria-label='Story journey'] a.primary:has-text('Design')")))
-    screens = [("/am", "Jade Dashboard"), ("/am/changes?stage=active", "Active Changes"),
+          and seen(am.locator("nav[aria-label='Story journey'] a.primary:has-text('Architecture Review')")))
+    screens = [("/am", "Application Management Dashboard"), ("/am/changes?stage=active", "Delivery"),
                ("/am/changes?stage=validation", "Validation"), ("/am/changes?stage=release", "Ready for Release / CNC"),
                ("/am/process?story=S-BW-RETURNS", "Process & Maps"), ("/am/technical?story=S-DEMO-TECH-1", "Technical Work"),
-               ("/am/as-built?story=S-BW-RETURNS", "As-built Records")]
+               ("/am/as-built?story=S-BW-RETURNS", "As-Built")]
     ok = True
     for path, title in screens:
         am.goto(BASE + path)
@@ -146,6 +146,30 @@ with sync_playwright() as p:
             am.wait_for_timeout(1500)
         ok = ok and am.locator(f"main h1:has-text('{title}')").count() >= 1
     check("every original Application Manager screen is reachable at its own address", ok)
+    am.goto(f"{BASE}/am")
+    expect(am.locator(".statcard")).to_have_count(8)
+    check("Application Management sidebar has exactly the requested seven destinations",
+          am.locator(".adminnav a").all_text_contents() == ["Dashboard", "Backlog Review", "Architecture Review", "Delivery", "Validation", "As-Built", "Ready for Release / CNC"])
+    check("top navigation follows the five requested concepts",
+          am.locator(".primarynav a").evaluate_all("els => els.map(e => e.getAttribute('aria-label') || e.textContent)") == ["My Work", "Business Demand", "Business Architecture", "Application Management", "Insights"])
+    am.screenshot(path=f"{SHOTS}/4-application-dashboard.png", full_page=True)
+    check("dashboard excludes Domain Owner work",
+          "Incoming Requests" not in am.locator(".admin-main").inner_text() and "awaiting Domain Owner" not in am.locator(".admin-main").inner_text())
+    am.goto(f"{BASE}/am/process?story=S-BW-RETURNS")
+    check("Process & Maps is inside Architecture Review", seen(am.locator(".adminnav a.on:text-is('Architecture Review')")))
+    am.goto(f"{BASE}/am/technical?story=S-DEMO-TECH-1")
+    check("Technical Work is inside Delivery", seen(am.locator(".adminnav a.on:text-is('Delivery')")))
+    am.goto(f"{BASE}/am/architecture-review?view=design&story=S-DEMO-TECH-1")
+    expect(am.locator("h2:text-is('Architect design and evidence baseline')")).to_be_visible()
+    check("technical design is reviewed in Architecture without delivery execution controls",
+          am.locator("h2:text-is('Technical Agent runs')").count() == 0 and am.locator(".adminnav a.on:text-is('Architecture Review')").count() == 1)
+    am.goto(f"{BASE}/am/delivery?queue=approved")
+    expect(am.locator("#stagepreset")).to_be_visible()
+    for stage, heading in [("validation", "Validation"), ("release", "Ready for Release / CNC"), ("completed", "Completed"), ("active", "Delivery")]:
+        am.select_option("#stagepreset", stage)
+        expect(am.locator("#stagepreset")).to_have_value(stage)
+        expect(am.locator(f"h1:text-is('{heading}')")).to_be_visible()
+    check("delivery stage filter navigates correctly and clears the dashboard subfilter", "queue=" not in am.url)
     am.goto(f"{BASE}/am/changes/S-BW-RETURNS")
     expect(am.locator("text=append-only, hash-chained")).to_be_visible()
     check("the change record keeps both approvals, the evidence chain and the lifecycle",
@@ -161,6 +185,22 @@ with sync_playwright() as p:
     check("only the Administrator sees Administration", admin.locator("a[aria-label='Administration']").count() == 1)
     admin.click("a[aria-label='Administration']")
     expect(admin.locator("h1:has-text('Administration')")).to_be_visible()
+    for role, page in [("Domain Owner", do), ("Application Manager", am), ("Administrator", admin)]:
+        page.goto(BASE + "/reports")
+        expect(page.locator("h1:text-is('Insights')")).to_be_visible()
+        expect(page.locator("#insight-period")).to_be_visible()
+        check(f"Insights and all four periods available to {role}", page.locator("#insight-period option").all_text_contents() == ["Past week", "Past month", "Past year", "Lifetime"])
+        for period in ["week", "year", "lifetime", "month"]:
+            page.select_option("#insight-period", period)
+            expect(page.locator("#insight-period")).to_have_value(period)
+            expect(page.locator(".reports .statrow").first).to_be_visible()
+    am.screenshot(path=f"{SHOTS}/5-insights.png", full_page=True)
+    admin.goto(BASE + "/admin/connections/references")
+    check("reference documents live under Administration", seen(admin.locator("h1:text-is('ERP documentation & technical references')")))
+    am.goto(BASE + "/am/as-built")
+    check("delivered knowledge lives under As-Built", seen(am.locator("h1:text-is('Delivered solutions')")))
+    do.goto(BASE + "/business")
+    check("business rules live in Business Architecture", seen(do.locator("h1:text-is('Business rules')")))
     browser.close()
 
 passed = sum(ok for _, ok in results)

@@ -61,13 +61,13 @@ with sync_playwright() as p:
     check("the story is in Delivery; the card sends the implementation decision to Technical Work",
           page.locator(".storyheader .phase-strong").inner_text() == "Delivery"
           and page.locator("#next-action >> text=Decision needed").count() == 1
-          and page.locator("#next-action >> a:has-text('Open in Technical Work')").count() == 1)
-    page.click("#next-action >> a:has-text('Open in Technical Work')")
+          and page.locator("#next-action >> a:has-text('Open in Delivery')").count() == 1)
+    page.click("#next-action >> a:has-text('Open in Delivery')")
     expect(page.locator("h1:has-text('Technical Work')")).to_be_visible()
     expect(page.locator("h3:has-text('Package revision 1')")).to_be_visible()
     check("Technical Work opens on this story, inside Application Management, with its Journey bar",
-          page.locator(".adminnav a.on:has-text('Technical Work')").count() == 1
-          and page.locator("nav[aria-label='Story journey'] >> text=Implementation").count() == 1)
+          page.locator(".adminnav a.on:has-text('Delivery')").count() == 1
+          and page.locator("nav[aria-label='Story journey'] >> text=Delivery").count() == 1)
     check("the screen is labelled SIMULATION and names the synthetic format",
           page.locator("text=SIMULATION -- simulated DEV estate").count() >= 1 and page.locator("text=SYNTHETIC simulation format").count() >= 1)
     check("the design, its evidence baseline and the design approval are shown",
@@ -103,7 +103,7 @@ with sync_playwright() as p:
 
     cnc = login(browser, "cnc@e2e.local", CNC_PW)
     check("the CNC operator's card sends the activation to Technical Work",
-          cnc.locator("#next-action >> a:has-text('Open in Technical Work')").count() == 1)
+          cnc.locator("#next-action >> a:has-text('Open in Delivery')").count() == 1)
     technical_work(cnc)
     cnc.fill("input[aria-label='Package name']", "DV920DEMO01")
     cnc.fill("input[aria-label='Evidence reference']", "synthetic CNC ticket CNC-DEMO-1")
