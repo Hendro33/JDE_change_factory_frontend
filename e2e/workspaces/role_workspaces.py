@@ -78,7 +78,7 @@ with sync_playwright() as p:
     expect(do.locator("h1:has-text('User Story Review')")).to_be_visible()
     check("User Story Review sits in Business Demand, opened on this story",
           seen(do.locator("nav[aria-label='Business Demand'] a.on:has-text('User Story Review')"))
-          and seen(do.locator(f"h2:has-text('preferred return carrier')")))
+          and seen(do.locator(".vr-story-statement:has-text('preferred return carrier')")))
     do.screenshot(path=f"{SHOTS}/1-domain-owner-review.png", full_page=True)
     do.click("button.btn.primary:text-is('Approve')")
     do.locator(".modal button:has-text('Approve as Domain Owner')").click()
@@ -111,9 +111,9 @@ with sync_playwright() as p:
     item.locator("a.btn").click()
     expect(am.locator("h1:has-text('Backlog Review')")).to_be_visible()
     check("Backlog Review is Gate 1 with the Application Manager's decision panel",
-          seen(am.locator("text=Application Manager Gate 1"))
+          seen(am.locator(".vr-story-statement:has-text('preferred return carrier')"))
           and seen(am.locator("h2:has-text('Your decision')"))
-          and seen(am.locator("h2:has-text('What you are approving')")) and seen(am.locator("h2:has-text('Why it matters')"))
+          and seen(am.locator("h2:has-text('What you are approving')")) and seen(am.locator("h2:has-text('Impact & benefit')"))
           and seen(am.locator(".adminnav a.on:has-text('Backlog Review')")))
     am.screenshot(path=f"{SHOTS}/2-backlog-review.png", full_page=True)
     am.click("button:has-text('Approve for Delivery')")
@@ -130,6 +130,8 @@ with sync_playwright() as p:
     # -- 3. The rest of the original Application Manager screens -----------------------
     am.goto(f"{BASE}/am/architecture-review?story=S-BW-RETURNTYPE")
     expect(am.locator("h1:has-text('Architecture Review')")).to_be_visible()
+    am.get_by_text("Full Architect recommendation & alternatives", exact=True).click()
+    am.get_by_text("Implementation specification & MCP operations", exact=True).click()
     check("Architecture Review (Gate 2) shows route and confidence, the specification with MCP operations, and the exact change",
           seen(am.locator("text=Recommended route: Functional Agent · confidence"))
           and seen(am.locator("dt:has-text('MCP operations')"))
