@@ -101,10 +101,13 @@ export function ChangeGrid({
                 <th
                   key={col.key}
                   className={sortable ? "sortable" : undefined}
+                  tabIndex={sortable ? 0 : undefined}
+                  aria-sort={sortable ? sortKey === col.key ? sortDir === "asc" ? "ascending" : "descending" : "none" : undefined}
+                  onKeyDown={sortable ? (e) => { if(e.key === "Enter" || e.key === " ") { e.preventDefault(); onSortChange!(col.key); } } : undefined}
                   onClick={sortable ? () => onSortChange!(col.key) : undefined}
                 >
                   {col.header}
-                  {sortKey === col.key && <span className="arrow">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                  {sortKey === col.key && <span className="arrow" aria-hidden="true">{sortDir === "asc" ? "▲" : "▼"}</span>}
                 </th>
               );
             })}

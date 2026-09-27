@@ -1,5 +1,6 @@
+import { CompactRating } from "../../components/workspaceVisuals";
 import { StoryRatingsPanel } from "../../components/StoryRatings";
-import { ReviewFlow, ReviewDetail, BusinessContextMap, AcceptanceChecklist, QuestionCards, BacklogComparison, SolutionArchitectureMap, IntegrityPanel } from "../../components/visualReview";
+import { ReviewFlow, ReviewDetail, AcceptanceChecklist } from "../../components/visualReview";
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import { ownersOf } from "../BusinessDomains";
@@ -12,7 +13,6 @@ import {
   Loading,
   NotStated,
   PriorityBadge,
-  Provenance,
 } from "../../components/ui";
 
 export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
@@ -31,13 +31,14 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
   const [filterStage, setFilterStage] = useState("ready_for_application_manager");
 
   const reload = () => api.getBacklog().then(async (b) => {
-    setBacklog(b);
+
     // A link from My Work or a story (?story=) opens that story.
     setOpenId((cur) => (navFilter?.story && b.some((c) => c.id === navFilter.story) ? navFilter.story
-      : cur && b.some((c) => c.id === cur) ? cur : b[0]?.id ?? null));
+      : cur && b.some((c) => c.id === cur) ? cur : null));
     api.listBusinessDomains().then(setDomains);
     const pairs = await Promise.all(b.map(async (c) => [c.id, await api.getDomainReview(c.id)] as const));
     setReviews(new Map(pairs.filter((p): p is [string, DomainReview] => !!p[1])));
+    setBacklog(b);
   });
 
   useEffect(() => { reload(); }, []);
@@ -55,24 +56,13 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
   const domainsById = new Map(domains.map((d) => [d.id, d]));
 
   const columns: GridColumn[] = [
-    { key: "id", header: "ID", render: (c) => <span className="mono">{c.id}</span>, sortValue: (c) => c.id },
-    { key: "title", header: "User Story", render: (c) => c.title, sortValue: (c) => c.title },
-    { key: "domain", header: "Business Domain", render: (c) => {
-      const review = reviews.get(c.id);
-      const domain = review?.businessDomainId ? domainsById.get(review.businessDomainId) : undefined;
-      return review?.domainClassificationUncertain ? "Uncertain" : domain?.name ?? <NotStated />;
-    } },
-    { key: "owner", header: "Domain Owner", render: (c) => {
-      const review = reviews.get(c.id);
-      const domain = review?.businessDomainId ? domainsById.get(review.businessDomainId) : undefined;
-      return ownersOf(domain);
-    } },
-    { key: "stage", header: "Status", render: (c) => {
-      const review = reviews.get(c.id);
-      return review ? <span className="badge warn">{DOMAIN_STAGE_LABEL[review.stage] ?? review.stage}</span> : <span className="badge grey">Not started</span>;
-    } },
-    { key: "priority", header: "Priority", render: (c) => <PriorityBadge priority={c.priority} /> },
-    { key: "created", header: "Raised", render: (c) => new Date(c.createdAt).toLocaleDateString("en-GB"), sortValue: (c) => c.createdAt },
+    { key: "title", header: "Approved story / domain", render: (c) => <><button className="vr-grid-story" title={c.title} onClick={(e) => { e.stopPropagation(); setOpenId(c.id); }}>{c.title}</button><details className="vr-grid-disclosure" onClick={(e) => e.stopPropagation()}><summary>{domainsById.get(reviews.get(c.id)?.businessDomainId ?? "")?.name ?? "Domain not assigned"}</summary><span className="vr-note">Domain Owner: {ownersOf(domainsById.get(reviews.get(c.id)?.businessDomainId ?? ""))}</span></details><span className="vr-note mono">{c.id}</span></>, sortValue: (c) => c.title },
+    { key: "priority", header: "Priority", render: (c) => <PriorityBadge priority={c.priority} />, sortValue: (c) => (({High:3,Medium:2,Low:1} as Record<string,number>)[c.priority] ?? 0) },
+    ...([['businessBenefit','Benefit'],['businessImpact','Business impact'],['technicalImpact','Technical impact']] as const).map(([key,header]) => ({ key, header, render: (c: Change) => <CompactRating rating={c.ratings?.[key]} />, sortValue: (c: Change) => (({High:3,Medium:2,Low:1,Small:1} as Record<string,number>)[c.ratings?.[key]?.confirmed ?? c.ratings?.[key]?.proposed ?? ''] ?? 0) })),
+    { key: "complexity", header: "Complexity", render: (c) => <span>{c.complexitySignal || "Not assessed"}</span>, sortValue: (c) => (({High:3,Medium:2,Low:1} as Record<string,number>)[c.complexitySignal] ?? 0) },
+    { key: "concerns", header: "Dependencies / concerns", render: (c) => c.architectDecision ? <details className="vr-grid-disclosure" onClick={(e) => e.stopPropagation()}><summary>{c.architectDecision.dependenciesAndConflicts.length || "None identified"}{c.architectDecision.dependenciesAndConflicts.length > 0 ? " recorded" : ""}</summary><ul>{c.architectDecision.dependenciesAndConflicts.map((d,i) => <li key={i}>{d}</li>)}</ul></details> : <span className="vr-note">Awaiting assessment</span> },
+    { key: "raised", header: "Raised", render: (c) => <span className="vr-note">{new Date(c.createdAt).toLocaleDateString("en-GB")}</span>, sortValue: (c) => c.createdAt },
+    { key: "stage", header: "Review status", render: (c) => <span className="vr-note">{DOMAIN_STAGE_LABEL[reviews.get(c.id)?.stage ?? ""] ?? "Not started"}</span> },
   ];
 
   const { search, setSearch, sortKey, sortDir, onSortChange, filtered: searchedAndSorted } = useChangeListControls(
@@ -87,9 +77,10 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
   });
 
   useEffect(() => {
-    setOpenId((cur) => (cur && filtered.some((c) => c.id === cur) ? cur : filtered[0]?.id ?? null));
+    if (!backlog) return;
+    setOpenId((cur) => (cur && filtered.some((c) => c.id === cur) ? cur : null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered.length]);
+  }, [backlog, filtered.map((c) => c.id).join("|")]);
 
   const open = filtered.find((c) => c.id === openId) ?? null;
   const openReview = open ? reviews.get(open.id) : undefined;
@@ -104,10 +95,10 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
             Decide which approved stories are ready for delivery.
           </div>
         </div>
-        <div className="meta">{filtered.length} awaiting your review</div>
+        <div className="meta">{filtered.length} {filtered.length === 1 ? "story" : "stories"} in view</div>
       </div>
 
-      <ReviewFlow steps={["Business-approved story", "Impact & benefit", "Delivery considerations", "Your decision"]} />
+      <ReviewFlow steps={["Compare approved stories", "Review selected work", "Authorise delivery"]} />
       {backlog && backlog.length > 0 && (
         <FilterBar
           search={search}
@@ -127,9 +118,8 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
         />
       )}
 
-      {backlog && <ReviewDetail title={`Compare backlog · ${filtered.length} stories`}><BacklogComparison rows={filtered} selectedId={openId} onSelect={setOpenId} domainName={(c) => domainsById.get(reviews.get(c.id)?.businessDomainId ?? "")?.name ?? "Domain not assigned"} /></ReviewDetail>}
       {!backlog ? <Loading what="the backlog" /> : (
-        <ReviewDetail title="Full backlog table & sorting">
+        <section className="panel vr-backlog-grid" aria-label="Backlog grid"><div className="vr-section-meta"><h2>{filterStage === "ready_for_application_manager" ? "Approved backlog" : "Backlog context"}</h2><span>Select a story to review its delivery decision</span></div>
           <ChangeGrid
             changes={filtered}
             columns={columns}
@@ -137,18 +127,19 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
             selectedId={openId}
             emptyMessage={
               backlog.length === 0
-                ? "Nothing waiting for review. Stories arrive here once they pass the quality gate."
+                ? "No approved stories are waiting for backlog review."
                 : "No changes match the current filters."
             }
             sortKey={sortKey}
             sortDir={sortDir}
             onSortChange={onSortChange}
           />
-        </ReviewDetail>
+        </section>
       )}
 
       {open && (
-        <div className="stack">
+        <div className="stack vr-selected-review">
+          <div className="vr-section-meta"><h2>Selected story</h2><button className="linkish" onClick={() => setOpenId(null)}>Close review</button></div>
           <section className="panel vr-story-heading">
             <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
               <div>
@@ -194,24 +185,22 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
             <p className="vr-note">Approval adds this story to the Delivery Queue. It does not authorise a JDE write or production deployment.</p>
             {openReview && !readyForDelivery && (
               <div className="callout" style={{ marginBottom: 16 }}>
-                <strong>Waiting on the Domain Owner</strong>
-                This story is not yet ready for Application Manager approval — the Domain
-                Owner has not approved the business requirement yet ({DOMAIN_STAGE_LABEL[openReview.stage] ?? openReview.stage}).
-                Complete that review on User Story Review first.
+                <strong>{DOMAIN_STAGE_LABEL[openReview.stage] ?? openReview.stage}</strong>
+                This story is outside the backlog approval stage.
               </div>
             )}
             <div className="btnrow">
               <button
                 className="btn primary"
                 onClick={() => setDialog(true)}
-                disabled={busy || (!!openReview && !readyForDelivery)}
+                disabled={busy || !readyForDelivery}
               >
                 Approve for Delivery
               </button>
               <button
                 className="btn danger"
                 onClick={() => setRejectDialog(true)}
-                disabled={busy || (!!openReview && !readyForDelivery)}
+                disabled={busy || !readyForDelivery}
               >
                 Reject
               </button>
