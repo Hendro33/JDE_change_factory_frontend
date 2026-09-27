@@ -1,3 +1,4 @@
+import { inInsightPeriod, type InsightPeriod } from "./insightPeriod";
 import type {
   Customer,
   ActivityEntry,
@@ -455,8 +456,8 @@ export class MockChangeFactoryApi implements ChangeFactoryApi {
     return delay(change);
   }
 
-  async getMetrics(): Promise<FactoryMetrics> {
-    const all = this.scoped();
+  async getMetrics(period: InsightPeriod = "lifetime"): Promise<FactoryMetrics> {
+    const all = this.scoped().filter((c) => inInsightPeriod(c.createdAt, period));
     const inState = (...s: LifecycleState[]) => all.filter((c) => s.includes(c.state)).length;
 
     const incomingRequests = inState("RECEIVED");

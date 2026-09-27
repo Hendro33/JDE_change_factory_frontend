@@ -34,10 +34,9 @@ import { AcceptInvitation } from "./pages/auth/AcceptInvitation";
 const PRIMARY_NAV: { to: string; label: string; short?: string; section: string; show?: (info: SessionInfo) => boolean }[] = [
   { to: "/work", label: "My Work", section: "work" },
   { to: "/stories", label: "Business Demand", short: "Demand", section: "stories" },
-  { to: "/am", label: "Application Management", short: "App Management", section: "am", show: (i) => i.appManagement },
   { to: "/business", label: "Business Architecture", short: "Architecture", section: "business" },
-  { to: "/knowledge", label: "Knowledge", section: "knowledge" },
-  { to: "/reports", label: "Reports", section: "reports" },
+  { to: "/am", label: "Application Management", short: "App Management", section: "am", show: (i) => i.appManagement },
+  { to: "/reports", label: "Insights", section: "reports" },
 ];
 
 /** Which nav section a path belongs to -- exactly one, derived from the URL. */

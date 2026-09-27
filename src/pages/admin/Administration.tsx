@@ -1,3 +1,4 @@
+import { KnowledgePage } from "../knowledge/Knowledge";
 import { useEffect, useState } from "react";
 import { api, IS_MOCK_MODE } from "../../services/api";
 import { aiApi, type AiConnection } from "../../services/aiApi";
@@ -34,6 +35,7 @@ const SECTIONS: AdminSection[] = [
   { key: "connections", label: "Systems & Connections", what: "JD Edwards, Jira and the AI provider JADE works with.", tabs: [
     { key: "overview", label: "Overview", render: () => <ConnectionOverview /> },
     { key: "jde", label: "JD Edwards", render: () => <Integrations part="jde" /> },
+    { key: "references", label: "ERP documentation & references", render: () => <KnowledgePage part="references" /> },
     { key: "jira", label: "Jira", render: () => <Integrations part="jira" /> },
   ] },
   { key: "agents", label: "Agents & AI", what: "JADE's agents, the AI connection and what each agent works with.", tabs: [

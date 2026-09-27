@@ -1,3 +1,5 @@
+import { inAmStage } from "./workflow";
+import { Link, storyPath } from "../../router";
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import { saveErrorMessage } from "../../services/saveErrors";
@@ -28,7 +30,7 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
 
   const reload = () => {
     api.listChanges().then((all) => {
-      const queue = all.filter((c) => c.architectDecision || c.exactChange);
+      const queue = all.filter((c) => inAmStage(c, "architecture") || c.architectDecision || c.exactChange);
       setChanges(queue);
       setOpenId((cur) => (navFilter?.story && queue.some((c) => c.id === navFilter.story) ? navFilter.story
         : cur && queue.some((c) => c.id === cur) ? cur : queue[0]?.id ?? null));
@@ -109,6 +111,7 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
         </section>
       )}
 
+      {open && !open.architectDecision && !open.exactChange && <p><Link to={storyPath(open.id, "solution")}>Open solution analysis and next action for {open.id}</Link></p>}
       {open && (
         <div className="stack">
           <JourneyBar storyId={open.id} at="design" onNavigate={onNavigate} />

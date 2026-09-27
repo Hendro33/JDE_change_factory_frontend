@@ -1,5 +1,5 @@
 import { Link, match, navigate, useLocation } from "../../router";
-import { EmptyState, useSessionInfo } from "../../components/design";
+import { EmptyState, Tabs, useSessionInfo } from "../../components/design";
 import { Dashboard } from "./Dashboard";
 import { ApprovalBacklog } from "./ApprovalBacklog";
 import { ArchitectureReview } from "./ArchitectureReview";
@@ -10,26 +10,16 @@ import { AsBuiltWorkbench, ProcessWorkbench, TechnicalWorkbench } from "./Workbe
 import { legacyNavigate, openChange, useNavTarget } from "./legacyNav";
 import { NotFoundPage } from "../NotFound";
 
-/**
- * Application Management: the ERP Application Manager's own workspace.
- * It takes approved user stories through architecture, the delivery
- * backlog, implementation, validation and release to the as-built record.
- * The screens and their order are the original Application Manager
- * process; they are grouped exactly as before (Governance, Delivery,
- * Release) and each has a permanent address.
- */
+/** Role-gated workspace. Legacy URLs remain usable inside their new parent sections. */
 const GROUPS: { label: string; items: { to: string; label: string; stage?: string }[] }[] = [
   { label: "Governance", items: [
     { to: "/am/backlog-review", label: "Backlog Review" },
     { to: "/am/architecture-review", label: "Architecture Review" },
   ] },
   { label: "Delivery", items: [
-    { to: "/am/delivery-queue", label: "Delivery Queue" },
-    { to: "/am/process", label: "Process & Maps" },
-    { to: "/am/technical", label: "Technical Work" },
-    { to: "/am/as-built", label: "As-built Records" },
-    { to: "/am/changes?stage=active", label: "Active Changes", stage: "active" },
+    { to: "/am/delivery", label: "Delivery" },
     { to: "/am/changes?stage=validation", label: "Validation", stage: "validation" },
+    { to: "/am/as-built", label: "As-Built" },
   ] },
   { label: "Release", items: [
     { to: "/am/changes?stage=release", label: "Ready for Release / CNC", stage: "release" },
@@ -54,10 +44,18 @@ export function AmWorkspace() {
   let page: JSX.Element;
   if (path === "/am") page = <Dashboard onOpenChange={openChange} onNavigate={legacyNavigate} />;
   else if (match("/am/backlog-review", path)) page = <ApprovalBacklog {...target} />;
-  else if (match("/am/architecture-review", path)) page = <ArchitectureReview {...target} onNavigate={legacyNavigate} />;
-  else if (match("/am/delivery-queue", path)) page = <DeliveryQueuePage onOpenChange={openChange} />;
-  else if (match("/am/process", path)) page = <ProcessWorkbench />;
-  else if (match("/am/technical", path)) page = <TechnicalWorkbench />;
+  else if (match("/am/architecture-review", path) || path === "/am/process") page = <>
+    <Tabs label="Architecture Review sections" active={path === "/am/process" ? "process" : query.get("view") === "design" ? "design" : "review"}
+      hrefFor={(k) => `${k === "process" ? "/am/process" : "/am/architecture-review"}?${new URLSearchParams({...(query.get("story") ? {story: query.get("story")!} : {}), ...(k === "design" ? {view: "design"} : {})})}`}
+      tabs={[{key: "review", label: "Architecture Review"}, {key: "process", label: "Process & Maps"}, {key: "design", label: "Technical design"}]} />
+    {path === "/am/process" ? <ProcessWorkbench /> : query.get("view") === "design" ? <TechnicalWorkbench design /> : <ArchitectureReview {...target} onNavigate={legacyNavigate} />}
+  </>;
+  else if (["/am/delivery", "/am/delivery-queue", "/am/technical"].includes(path) || (path === "/am/changes" && (!query.get("stage") || query.get("stage") === "active"))) page = <>
+    <Tabs label="Delivery sections" active={path === "/am/technical" ? "technical" : path === "/am/delivery-queue" ? "queue" : "active"}
+      hrefFor={(k) => `${k === "technical" ? "/am/technical" : k === "queue" ? "/am/delivery-queue" : "/am/delivery"}${query.get("story") ? `?story=${encodeURIComponent(query.get("story")!)}` : ""}`}
+      tabs={[{key: "active", label: "Delivery"}, {key: "queue", label: "Delivery Queue"}, {key: "technical", label: "Technical Work"}]} />
+    {path === "/am/technical" ? <TechnicalWorkbench /> : path === "/am/delivery-queue" ? <DeliveryQueuePage onOpenChange={openChange} /> : <Pipeline onOpenChange={openChange} {...target} navFilter={{...target.navFilter, stage: "active"}} />}
+  </>;
   else if (match("/am/as-built", path)) page = <AsBuiltWorkbench />;
   else if (match("/am/changes", path)) page = <Pipeline onOpenChange={openChange} {...target} />;
   else if ((m = match("/am/changes/:id", path))) page = <ChangeDetail key={m.id} changeId={m.id} onBack={() => (window.history.length > 1 ? window.history.back() : navigate("/am/changes"))} />;
@@ -65,6 +63,8 @@ export function AmWorkspace() {
 
   const stage = query.get("stage");
   const isOn = (it: { to: string; stage?: string }) =>
+    it.to === "/am/architecture-review" && path === "/am/process" ? true :
+    it.to === "/am/delivery" && (["/am/delivery", "/am/delivery-queue", "/am/technical"].includes(path) || (path === "/am/changes" && (!stage || stage === "active" || stage === "all"))) ? true :
     it.stage ? path === "/am/changes" && stage === it.stage : path === it.to.split("?")[0];
 
   return (

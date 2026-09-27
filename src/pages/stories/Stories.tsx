@@ -1,3 +1,4 @@
+import { INSIGHT_PERIODS, inInsightPeriod } from "../../services/insightPeriod";
 import { useEffect, useMemo, useState } from "react";
 import { DemandNav } from "../demand/DemandNav";
 import { api } from "../../services/api";
@@ -41,12 +42,14 @@ export function StoriesPage() {
   const owner = query.get("owner") ?? "";
   const priority = query.get("priority") ?? "";
   const view = query.get("view") === "board" ? "board" : "list";
+  const period = INSIGHT_PERIODS.find((p) => p.key === query.get("period"));
   const showDone = query.get("done") === "1";
 
   const rows = useMemo(() => {
     const all = data ?? [];
     const needle = q.trim().toLowerCase();
     return all.filter((c) => {
+      if (period && !inInsightPeriod(c.createdAt, period.key)) return false;
       const lc = c.lifecycle;
       if (!showDone && !phase && lc?.phase === "done") return false;
       if (needle && !`${c.id} ${c.title} ${c.userStory?.statement ?? ""} ${info.domainName(c.businessDomainId) ?? ""}`.toLowerCase().includes(needle)) return false;
@@ -59,7 +62,7 @@ export function StoriesPage() {
       if (health && health !== "attention" && health !== "stuck" && lc?.health !== health) return false;
       return true;
     });
-  }, [data, q, phase, domain, health, owner, priority, showDone, info]);
+  }, [data, q, phase, domain, health, owner, priority, showDone, info, period]);
 
   const doneCount = (data ?? []).filter((c) => c.lifecycle?.phase === "done").length;
   const filtered = !!(q || phase || domain || health || owner || priority);
@@ -81,6 +84,7 @@ export function StoriesPage() {
           <Link className="btn primary" to="/stories/new">New request</Link>
         </>} />
 
+      {period && <p className="muted">Insights cohort: {period.label} · stories created in this period, shown at their current status.</p>}
       {retrieveError !== null && <ErrorState error={retrieveError} title="Could not retrieve new requests" />}
       {retrieved && (
         <div className="noticebar ok">{retrieved.imported.length} new request{retrieved.imported.length === 1 ? "" : "s"} imported

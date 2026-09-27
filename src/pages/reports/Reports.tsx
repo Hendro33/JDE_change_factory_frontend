@@ -1,3 +1,4 @@
+import { INSIGHT_PERIODS, inInsightPeriod, type InsightPeriod } from "../../services/insightPeriod";
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type { DeliveryQueueEntry, FactoryMetrics } from "../../types/domain";
@@ -5,7 +6,7 @@ import { PHASES } from "../../types/domain";
 import {
   EmptyState, ErrorState, HealthIndicator, Loading, PageHeader, PhaseLabel, Section, storyTitle, useAsync, useSessionInfo,
 } from "../../components/design";
-import { Link, navigate, storyPath } from "../../router";
+import { Link, navigate, setQueryParam, useLocation, storyPath } from "../../router";
 import { DEFAULT_DASHBOARD_THRESHOLDS, toneForValue } from "../../services/dashboardThresholds";
 
 /** One series, one hue: a labelled horizontal bar per row, each a link to the stories behind it. */
@@ -46,15 +47,18 @@ function AlertStat({ value, label, to, thresholds }: { value: number; label: str
  */
 export function ReportsPage() {
   const info = useSessionInfo();
-  const { data: metrics, error } = useAsync<FactoryMetrics>(() => api.getMetrics(), []);
-  const { data: changes } = useAsync(() => api.listChanges(), []);
+  const { query } = useLocation();
+  const period = (INSIGHT_PERIODS.find((p) => p.key === query.get("period"))?.key ?? "month") as InsightPeriod;
+  const { data: metrics, error, loading: metricsLoading } = useAsync<FactoryMetrics>(() => api.getMetrics(period), [period]);
+  const { data: allChanges } = useAsync(() => api.listChanges(), []);
   const { data: thresholds } = useAsync(() => api.getDashboardThresholds().catch(() => DEFAULT_DASHBOARD_THRESHOLDS), []);
   const [queue, setQueue] = useState<DeliveryQueueEntry[]>([]);
   useEffect(() => { api.listDeliveryQueue().then(setQueue).catch(() => setQueue([])); }, []);
 
-  if (error) return <ErrorState error={error} title="Reports could not be loaded" />;
-  if (!metrics || !changes) return <Loading what="reports" />;
+  if (error) return <ErrorState error={error} title="Insights could not be loaded" />;
+  if (metricsLoading || !metrics || !allChanges) return <Loading what="insights" />;
 
+  const changes = allChanges.filter((c) => inInsightPeriod(c.createdAt, period));
   const phases = metrics.phases?.length ? metrics.phases : PHASES.map((p) => ({ stage: p.label, count: changes.filter((c) => c.lifecycle?.phase === p.key).length }));
   const health = (metrics.health ?? []).filter((h) => h.count > 0);
   const byId = new Map(changes.map((c) => [c.id, c]));
@@ -62,13 +66,17 @@ export function ReportsPage() {
 
   return (
     <div className="reports">
-      <PageHeader title="Reports" subtitle="Demand, flow and delivery across all stories for this customer." />
+      <PageHeader title="Insights" subtitle="Demand, flow and delivery for this customer." />
+      <div className="toolbar"><label htmlFor="insight-period">Period</label><select id="insight-period" value={period} onChange={(e) => setQueryParam("period", e.target.value)}>
+        {INSIGHT_PERIODS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+      </select></div>
+      <p className="muted">Stories created in the selected period (7, 30 or 365 days, or lifetime), shown at their current lifecycle status. This is a story cohort, not a count of events during that period.</p>
 
       <div className="statrow">
         <div className="statcard"><span className="stat-value">{changes.filter((c) => c.lifecycle?.phase !== "done").length}</span><span className="stat-label">stories in progress</span></div>
-        <AlertStat to="/stories?health=waiting_decision" value={changes.filter((c) => c.lifecycle?.health === "waiting_decision").length}
+        <AlertStat to={`/stories?health=waiting_decision&period=${period}`} value={changes.filter((c) => c.lifecycle?.health === "waiting_decision").length}
                    label="waiting for a decision" thresholds={thresholds ?? DEFAULT_DASHBOARD_THRESHOLDS} />
-        <AlertStat to="/stories?health=stuck" value={changes.filter((c) => c.lifecycle?.health === "failed" || c.lifecycle?.health === "blocked").length}
+        <AlertStat to={`/stories?health=stuck&period=${period}`} value={changes.filter((c) => c.lifecycle?.health === "failed" || c.lifecycle?.health === "blocked").length}
                    label="blocked or needing attention" thresholds={thresholds ?? DEFAULT_DASHBOARD_THRESHOLDS} />
         <div className="statcard"><span className="stat-value">{changes.filter((c) => c.lifecycle?.outcome === "delivered").length}</span><span className="stat-label">delivered</span></div>
       </div>
@@ -76,15 +84,15 @@ export function ReportsPage() {
       <div className="reportgrid">
         <Section title="Stories by lifecycle phase" description="Click a phase to see its stories.">
           <Bars label="Stories by phase" rows={phases.map((p) => ({ label: p.stage, count: p.count }))}
-                onRow={(i) => navigate(`/stories?phase=${PHASES[i].key}${PHASES[i].key === "done" ? "&done=1" : ""}`)} />
+                onRow={(i) => navigate(`/stories?period=${period}&phase=${PHASES[i].key}${PHASES[i].key === "done" ? "&done=1" : ""}`)} />
         </Section>
         <Section title="Health of open work">
           {health.length === 0 ? <EmptyState title="No open work" /> : <Bars label="Stories by health" rows={health.map((h) => ({ label: h.stage, count: h.count }))} />}
         </Section>
-        <Section title="Demand by business domain" description="Current backlog and delivery. Click a domain to open it.">
+        <Section title="Demand by business domain" description="Backlog and delivery in this cohort. Click a domain to see its stories.">
           {metrics.businessDomainBreakdown.length === 0 ? <EmptyState title="No domain data yet" /> : (
             <Bars label="Demand by business domain" rows={metrics.businessDomainBreakdown.map((d) => ({ label: d.domainName, count: d.count }))}
-                  onRow={(i) => { const d = metrics.businessDomainBreakdown[i]; navigate(d.domainId ? `/business/${encodeURIComponent(d.domainId)}` : "/stories?domain=none"); }} />
+                  onRow={(i) => { const d = metrics.businessDomainBreakdown[i]; navigate(`/stories?done=1&period=${period}&domain=${encodeURIComponent(d.domainId ?? "none")}`); }} />
           )}
         </Section>
         <Section title="Business impact stated" description="Counts only impact a requester actually stated; a low count means missing information, not zero impact.">
@@ -92,6 +100,7 @@ export function ReportsPage() {
         </Section>
       </div>
 
+      <Section title="Change types"><Bars label="Change types" rows={metrics.changeTypes.map((t) => ({label: t.type, count: t.count}))} /></Section>
       <Section title="Quality and governance">
         <div className="statrow">
           <div className="statcard plain"><span className="stat-value">{perf.firstTimeSuccessRate}%</span><span className="stat-label">stories that passed JADE's quality check without a revision</span></div>
@@ -101,11 +110,11 @@ export function ReportsPage() {
       </Section>
 
       {info.appManagement && <Section title="Delivery queue" description="Work authorised for delivery, in order. Phase and health come from each story's own lifecycle."
-        actions={<Link to="/am/delivery-queue">Open the Delivery Queue</Link>}>
-        {queue.length === 0 ? <EmptyState title="Nothing authorised for delivery yet" /> : (
+        actions={<Link to="/am/delivery">Open Delivery</Link>}>
+        {queue.filter((e) => byId.has(e.changeId)).length === 0 ? <EmptyState title="Nothing authorised for delivery yet" /> : (
           <table className="data">
             <thead><tr><th>#</th><th>Story</th><th>Phase</th><th>Health</th><th>Authorised by</th></tr></thead>
-            <tbody>{queue.map((e) => {
+            <tbody>{queue.filter((e) => byId.has(e.changeId)).map((e) => {
               const c = byId.get(e.changeId);
               return (
                 <tr key={e.changeId}>

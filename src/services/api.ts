@@ -213,7 +213,7 @@ export interface ChangeFactoryApi {
   /** Rejects that same exact operation instead — the other half of Section 6.5's Gate 2 decision, already real on the backend (mcp_server's reject_change). */
   rejectExactChange(id: string, input: DecisionInput): Promise<Change>;
 
-  getMetrics(): Promise<FactoryMetrics>;
+  getMetrics(period?: import("./insightPeriod").InsightPeriod): Promise<FactoryMetrics>;
   getActivity(): Promise<ActivityEntry[]>;
 
   /** Business domain ownership and domain-aware governance (all scoped to the active customer). */

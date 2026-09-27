@@ -1,9 +1,12 @@
+import { HealthIndicator, PhaseLabel } from "../../components/design";
+import { Link, navigate, setQueryParam } from "../../router";
+import { AM_STAGES, inAmStage } from "./workflow";
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
-import type { Change, LifecycleState } from "../../types/domain";
+import type { Change } from "../../types/domain";
 import type { NavTarget } from "../../types/nav";
 import { ChangeGrid, useChangeListControls, type GridColumn } from "../../components/WorkQueue";
-import { ApiNote, Loading, PIPELINE_STATES, PipelineFlow, PriorityBadge, StateBadge } from "../../components/ui";
+import { ApiNote, Loading, PriorityBadge } from "../../components/ui";
 
 /**
  * One reusable page for the post-Delivery-Queue stages of the
@@ -13,20 +16,12 @@ import { ApiNote, Loading, PIPELINE_STATES, PipelineFlow, PriorityBadge, StateBa
  */
 type StagePreset = "active" | "validation" | "release" | "completed" | "all";
 
-const STAGE_STATES: Record<StagePreset, LifecycleState[]> = {
-  active: ["APPROVED", "ARCHITECTING", "SPEC_READY", "CHANGE_APPROVED", "EXECUTING"],
-  validation: ["TESTING", "VALIDATED"],
-  release: ["CNC_HANDOFF"],
-  completed: ["CLOSED", "VALIDATED", "CNC_HANDOFF", "RESOLVED_WITHOUT_CHANGE"],
-  all: PIPELINE_STATES,
-};
-
 const STAGE_COPY: Record<StagePreset, { title: string; sub: string }> = {
-  active: { title: "Active Changes", sub: "Approved work currently in progress, from architecture analysis through execution." },
-  validation: { title: "Validation", sub: "Changes that have been tested and are awaiting Business Validation." },
-  release: { title: "Ready for Release / CNC", sub: "Validated changes handed to CNC for package build and promotion." },
-  completed: { title: "Completed", sub: "Changes that have reached Closed, Validated, CNC hand-off, or were resolved without a change." },
-  all: { title: "Active Changes", sub: "Approved changes, and exactly how far each one has actually got." },
+  active: { title: "Delivery", sub: "Architecture-approved work, from implementation preparation through execution." },
+  validation: { title: "Validation", sub: "Changes in canonical validation, including tests in progress or needing attention." },
+  release: { title: "Ready for Release / CNC", sub: "Delivered stories with completed JADE records, ready for external release / CNC handover. Production promotion remains outside JADE." },
+  completed: { title: "Completed", sub: "Stories the canonical lifecycle records as delivered or resolved without a change." },
+  all: { title: "Delivery", sub: "Approved changes, and exactly how far each one has actually got." },
 };
 
 function presetFrom(navFilter: Record<string, string> | undefined): StagePreset {
@@ -40,15 +35,19 @@ export function Pipeline({ onOpenChange, navFilter, navToken }: { onOpenChange: 
 
   useEffect(() => {
     api.listChanges().then((all) =>
-      setChanges(all.filter((c) => STAGE_STATES.all.includes(c.state) || c.state === "RESOLVED_WITHOUT_CHANGE"))
+      setChanges(all)
     );
   }, []);
 
   useEffect(() => { setPreset(presetFrom(navFilter)); }, [navToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const states = STAGE_STATES[preset];
-  const scoped = (changes ?? []).filter((c) => states.includes(c.state));
-  const countIn = (s: LifecycleState) => changes?.filter((c) => c.state === s).length ?? 0;
+  const scoped = (changes ?? []).filter((c) => !navFilter?.story || c.id === navFilter.story).filter((c) => {
+    if (navFilter?.queue === "approved" || navFilter?.queue === "delivery") return inAmStage(c, navFilter.queue);
+    if (preset === "active") return inAmStage(c, "approved") || inAmStage(c, "delivery");
+    if (preset === "all") return ["architecture", "approved", "delivery", "validation", "asbuilt", "completed"].some((s) => inAmStage(c, s as Parameters<typeof inAmStage>[1]));
+    return inAmStage(c, preset);
+  });
+
 
   const columns: GridColumn[] = [
     { key: "id", header: "Change", render: (c) => <span className="mono">{c.id}</span>, sortValue: (c) => c.id },
@@ -62,7 +61,8 @@ export function Pipeline({ onOpenChange, navFilter, navToken }: { onOpenChange: 
       c.testResult?.outcome === "pass" ? <span className="badge ok">Passed</span>
         : c.testResult?.outcome === "fail" ? <span className="badge stop">Failed</span>
         : <span className="badge grey">Not run</span> },
-    { key: "status", header: "Status", render: (c) => <StateBadge state={c.state} /> },
+    { key: "status", header: "Phase / health", render: (c) => <><PhaseLabel lifecycle={c.lifecycle} /><HealthIndicator lifecycle={c.lifecycle} /></> },
+    { key: "next", header: "Next action", render: (c) => c.lifecycle?.nextAction.summary ?? "—" },
     { key: "priority", header: "Priority", render: (c) => <PriorityBadge priority={c.priority} /> },
   ];
 
@@ -86,22 +86,14 @@ export function Pipeline({ onOpenChange, navFilter, navToken }: { onOpenChange: 
         <div className="stack">
           <section className="panel">
             <h2>Where everything sits</h2>
-            <div className="sub" style={{ marginBottom: 12 }}>
-              {preset === "all"
-                ? "Every stage after approval, and how many changes are in it right now."
-                : "Shaded green: the stage(s) the Stage filter below is currently showing."}
-            </div>
-            <PipelineFlow
-              states={PIPELINE_STATES}
-              counts={Object.fromEntries(PIPELINE_STATES.map((s) => [s, countIn(s)]))}
-              highlightStates={preset === "all" ? undefined : STAGE_STATES[preset]}
-            />
+            <div className="btnrow">{AM_STAGES.map((s) => <Link className="btn small" key={s.key} to={s.to}>{s.label} · {(changes ?? []).filter((c) => inAmStage(c, s.key)).length}</Link>)}</div>
           </section>
 
           <div className="panel filterbar">
             <div className="field">
+              {navFilter?.queue && <p>{navFilter.queue === "approved" ? "Approved for Delivery" : "In Delivery"} · <button className="linkish" onClick={() => setQueryParam("queue", "")}>Show all delivery</button></p>}
               <label htmlFor="stagepreset">Stage</label>
-              <select id="stagepreset" value={preset} onChange={(e) => setPreset(e.target.value as StagePreset)}>
+              <select id="stagepreset" value={preset} onChange={(e) => navigate(`/am/changes?stage=${e.target.value}`)}>
                 <option value="all">All active + completed</option>
                 <option value="active">Active Changes</option>
                 <option value="validation">Validation</option>
@@ -121,7 +113,7 @@ export function Pipeline({ onOpenChange, navFilter, navToken }: { onOpenChange: 
               changes={filtered}
               columns={columns}
               onRowClick={onOpenChange}
-              emptyMessage="Nothing in this view. Jade has no Phase 3 work at this stage yet."
+              emptyMessage="No changes in this queue."
               sortKey={sortKey}
               sortDir={sortDir}
               onSortChange={onSortChange}

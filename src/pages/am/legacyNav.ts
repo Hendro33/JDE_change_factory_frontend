@@ -27,7 +27,7 @@ const PAGE_PATH: Record<Page, string> = {
   "admin-agents": "/admin/agents",
   "admin-ai": "/admin/agents/ai",
   "admin-agent-config": "/admin/agents/configuration",
-  "admin-knowledge": "/knowledge",
+  "admin-knowledge": "/admin/connections/references",
   "admin-integrations": "/admin/connections/jde",
   "admin-users": "/admin/organisation/users",
 };

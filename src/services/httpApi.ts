@@ -374,9 +374,9 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     });
   }
 
-  async getMetrics(): Promise<FactoryMetrics> {
+  async getMetrics(period: import("./insightPeriod").InsightPeriod = "lifetime"): Promise<FactoryMetrics> {
     const customerId = await this.activeCustomerId();
-    return request<FactoryMetrics>("/metrics", { customerId });
+    return request<FactoryMetrics>(`/metrics?period=${period}`, { customerId });
   }
 
   async getActivity(): Promise<ActivityEntry[]> {

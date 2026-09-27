@@ -209,20 +209,20 @@ const GATES: Record<string, { screen: string; path: string }> = {
   review_story: { screen: "User Story Review", path: "/stories/review" },
   authorise_delivery: { screen: "Backlog Review", path: "/am/backlog-review" },
   approve_exact_change: { screen: "Architecture Review", path: "/am/architecture-review" },
-  approve_design: { screen: "Technical Work", path: "/am/technical" },
-  approve_package: { screen: "Technical Work", path: "/am/technical" },
-  start_technical_prepare: { screen: "Technical Work", path: "/am/technical" },
-  start_technical_execute: { screen: "Technical Work", path: "/am/technical" },
-  start_technical_verify: { screen: "Technical Work", path: "/am/technical" },
-  record_cnc: { screen: "Technical Work", path: "/am/technical" },
-  reconcile_technical: { screen: "Technical Work", path: "/am/technical" },
+  approve_design: { screen: "Architecture Review", path: "/am/architecture-review?view=design" },
+  approve_package: { screen: "Delivery", path: "/am/technical" },
+  start_technical_prepare: { screen: "Delivery", path: "/am/technical" },
+  start_technical_execute: { screen: "Delivery", path: "/am/technical" },
+  start_technical_verify: { screen: "Delivery", path: "/am/technical" },
+  record_cnc: { screen: "Delivery", path: "/am/technical" },
+  reconcile_technical: { screen: "Delivery", path: "/am/technical" },
   reconcile_functional: { screen: "Architecture Review", path: "/am/architecture-review" },
-  finalise_asbuilt: { screen: "As-built Records", path: "/am/as-built" },
+  finalise_asbuilt: { screen: "As-Built", path: "/am/as-built" },
 };
 
 export function gateFor(action: string, storyId: string): { screen: string; to: string } | undefined {
   const g = GATES[action];
-  return g && { screen: g.screen, to: `${g.path}?story=${encodeURIComponent(storyId)}` };
+  return g && { screen: g.screen, to: `${g.path}${g.path.includes("?") ? "&" : "?"}story=${encodeURIComponent(storyId)}` };
 }
 
 /** The exact functional change in one readable line (decision dialogs, Solution tab). */

@@ -1,3 +1,5 @@
+import { inAmStage } from "./workflow";
+import { KnowledgePage } from "../knowledge/Knowledge";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, IS_MOCK_MODE } from "../../services/api";
 import type { Change } from "../../types/domain";
@@ -23,8 +25,8 @@ function Workbench({ title, intro, at, filter, empty, render }: {
 }) {
   const { query } = useLocation();
   const [changes, setChanges] = useState<Change[] | null>(null);
-  useEffect(() => { api.listChanges().then((all) => setChanges(all.filter(filter))).catch(() => setChanges([])); // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { api.listChanges().then((all) => setChanges(all.filter(filter).filter((c) => query.get("queue") !== "asbuilt" || inAmStage(c, "asbuilt")))).catch(() => setChanges([])); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query.get("queue")]);
   if (IS_MOCK_MODE) return <section className="panel"><h1>{title}</h1><p className="notstated">Needs the real backend.</p></section>;
   if (!changes) return <Loading what={title.toLowerCase()} />;
   const wanted = query.get("story");
@@ -69,24 +71,24 @@ export function ProcessWorkbench() {
   );
 }
 
-export function TechnicalWorkbench() {
+export function TechnicalWorkbench({ design = false }: { design?: boolean }) {
   const info = useSessionInfo();
   return (
-    <Workbench title="Technical Work" at="implementation"
+    <Workbench title={design ? "Technical design" : "Technical Work"} at={design ? "design" : "implementation"}
       intro={<>From an approved Architect design to a verified change in the <strong>simulated</strong> DEV estate. The Technical Agent prepares;
         people approve the design and each exact package revision; a human CNC activates; Jade's executor re-checks everything before each milestone.</>}
       filter={(c) => TECHNICAL_ROUTES.has(c.architectDecision?.recommendedRoute ?? "")}
       empty="No story has a design routed to the Technical Agent."
-      render={(id) => <TechnicalWorkPanel storyId={id} roles={info.roles} />} />
+      render={(id) => <TechnicalWorkPanel storyId={id} roles={info.roles} designOnly={design} />} />
   );
 }
 
 export function AsBuiltWorkbench() {
   return (
-    <Workbench title="As-built Records" at="asbuilt"
+    <><Workbench title="As-Built" at="asbuilt"
       intro="What was actually delivered: generated from the story, its confirmed processes and maps, the approved design, the applied implementation and its verification evidence -- with deviations and open limitations. Finalised only when every required checkpoint is complete."
       filter={(c) => !!c.architectDecision || !!c.exactChange}
       empty="No story has a design yet."
-      render={(id) => <section className="panel"><AsBuiltPanel storyId={id} /></section>} />
+      render={(id) => <section className="panel"><AsBuiltPanel storyId={id} /></section>} /><KnowledgePage part="solutions" /></>
   );
 }

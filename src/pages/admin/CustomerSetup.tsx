@@ -217,7 +217,7 @@ export function CustomerSetup() {
           <section className="panel">
             <h2>Report alert thresholds</h2>
             <div className="sub" style={{ marginBottom: 12 }}>
-              When a count in Reports (stories waiting for a decision, or blocked) should draw attention — a count above the
+              When a count in Insights (stories waiting for a decision, or blocked) should draw attention — a count above the
               first value turns orange, above the second turns red. Saved for this company and shared
               by everyone who uses it; only an Admin can change them.
             </div>

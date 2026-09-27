@@ -168,7 +168,7 @@ export function PackageCard({ storyId, p, roles, onChanged }: { storyId: string;
  * milestones, the human actions and the simulated DEV estate. Every
  * control is the same governed action as before.
  */
-export function TechnicalWorkPanel({ storyId, roles, onChanged }: { storyId: string; roles: CompanyRole[]; onChanged?: () => void }) {
+export function TechnicalWorkPanel({ storyId, roles, onChanged, designOnly = false }: { storyId: string; roles: CompanyRole[]; onChanged?: () => void; designOnly?: boolean }) {
   const [view, setView] = useState<TechnicalWorkView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -216,6 +216,7 @@ export function TechnicalWorkPanel({ storyId, roles, onChanged }: { storyId: str
           </dl>
         )}
       </section>
+      {!designOnly && <>
       <section className="panel">
         <h2 style={{ marginTop: 0 }}>Technical Agent runs</h2>
         {a?.design_approval && (
@@ -256,6 +257,7 @@ export function TechnicalWorkPanel({ storyId, roles, onChanged }: { storyId: str
             ))}</tbody></table>
         </section>
       )}
+      </>}
     </div>
   );
 }
