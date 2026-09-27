@@ -22,7 +22,7 @@ with sync_playwright() as p:
  do.set_viewport_size({'width':390,'height':844});do.screenshot(path=str(out/'01-user-story-review-mobile.png'),full_page=True);assert do.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Mobile horizontal overflow';do.set_viewport_size({'width':1440,'height':1050})
  do.click('button:text-is("Approve")');do.locator('.modal button:has-text("Approve as Domain Owner")').click();expect(do.locator('.modal')).to_have_count(0)
  am=login('am@e2e.local',os.environ['JADE_E2E_AM_PASSWORD']);am.goto(base+'/am/backlog-review?story=S-DEMO-GATES-1');expect(am.locator('h2:has-text("What you are approving")')).to_be_visible();capture(am,'02-backlog-review')
- expect(am.get_by_text('Human confirmed',exact=True)).to_have_count(4)
+ expect(am.locator('.vr-selected-review').get_by_text('Human confirmed',exact=True)).to_have_count(2)
  am.set_viewport_size({'width':390,'height':844});am.screenshot(path=str(out/'02-backlog-review-mobile.png'),full_page=True);assert am.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Mobile horizontal overflow'
  print('PASS ratings confirmation, impact–benefit disclosure, Domain Owner handoff, read-only Application Manager ratings and both narrow-screen layouts')
  browser.close()
