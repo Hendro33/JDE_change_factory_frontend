@@ -1,3 +1,5 @@
+import { ReviewDetail, DeliveryRouteIndicator } from "../../components/visualReview";
+import { EvidenceChain, ValidationSummary } from "../../components/workspaceVisuals";
 import { IS_MOCK_MODE } from "../../services/api";
 import { EmptyState, Section, SimulationBadge, formatDateTime, useSessionInfo } from "../../components/design";
 import { Link, storyPath } from "../../router";
@@ -34,7 +36,8 @@ export function DeliveryTab({ ctx }: { ctx: StoryCtx }) {
   const cnc = pkg?.approval?.cnc_activation;
 
   return (
-    <div className="delivery">
+    <div className="delivery vr-pilot">
+      {change.architectDecision && <DeliveryRouteIndicator route={change.architectDecision.recommendedRoute} confidence={change.architectDecision.confidence} />}
       <Section title="Progress">
         <ol className="deliverysteps">
           {steps.map((s) => (
@@ -42,20 +45,26 @@ export function DeliveryTab({ ctx }: { ctx: StoryCtx }) {
               <span className="ds-dot" aria-hidden="true">{s.state === "done" ? "✓" : s.state === "failed" ? "!" : s.state === "current" ? "●" : ""}</span>
               <span className="ds-label">{s.label}</span>
               <span className="ds-state">{s.state === "done" ? "Completed" : s.state === "current" ? "In progress" : s.state === "failed" ? "Needs attention" : "Not started"}</span>
-              {s.detail && <span className="ds-detail">{s.detail}</span>}
+              {s.detail && <ReviewDetail title="Stage details"><span className="ds-detail">{s.detail}</span></ReviewDetail>}
             </li>
           ))}
         </ol>
         {lc.simulated && <p className="muted"><SimulationBadge /> Delivered in a simulated JD Edwards DEV environment; no customer system is changed.</p>}
       </Section>
 
+      <EvidenceChain items={[
+        {label:"Requirement", detail:change.userStory ? `${change.userStory.acceptanceCriteria.length} acceptance criteria` : "Not recorded",to:storyPath(change.id,"story")},
+        {label:"Architecture",detail:change.architectDecision?.recommendedRoute ?? "Not recorded",to:storyPath(change.id,"solution")},
+        {label:"Delivered result",detail:pkg ? `Package revision ${pkg.revision}` : ex ? (EXEC_WORDS[ex.writeState] ?? ex.writeState) : "Not recorded"},
+        {label:"Test evidence",detail:ver ? `${ver.results.length} recorded results` : change.testResult?.outcome ?? "Not recorded",to:storyPath(change.id,"evidence")},
+      ]} />
       <Section id="implementation" title="Implementation summary"
                actions={info.technical ? <Link to={storyPath(change.id, "technical")}>View technical implementation</Link> : undefined}>
         {pkg ? (
           <>
-            <p>{explanation.text || "JADE prepared the implementation package."}</p>
+            <ReviewDetail title="Implementation explanation"><p>{explanation.text || "JADE prepared the implementation package."}</p></ReviewDetail>
             {pkg.content.requirement_trace.length > 0 && (
-              <ul className="checklist">{pkg.content.requirement_trace.map((t, i) => <li key={i}><strong>{t.requirement}</strong> — {t.how}</li>)}</ul>
+              <ReviewDetail title="Requirement trace"><ul className="checklist">{pkg.content.requirement_trace.map((t, i) => <li key={i}><strong>{t.requirement}</strong> — {t.how}</li>)}</ul></ReviewDetail>
             )}
             <p className="muted">Package revision {pkg.revision}{pkg.approval?.status === "approved" ? `, approved by ${pkg.approval.approved_by}` : pkg.approval?.status === "rejected" ? ", rejected" : ", awaiting approval"}
               {cnc && <> · activated in DEV by {cnc.by} ({cnc.package_name}) on {formatDateTime(isoOf(cnc.at))}</>}.</p>
@@ -68,6 +77,9 @@ export function DeliveryTab({ ctx }: { ctx: StoryCtx }) {
 
       {pkg && pkg.content.test_plan.length > 0 && (
         <Section title="Validation">
+          <ValidationSummary passed={pkg.content.test_plan.filter((t) => ver?.results.find((r) => r.name === t.name)?.passed === true).length}
+            failed={pkg.content.test_plan.filter((t) => ver?.results.find((r) => r.name === t.name)?.passed === false).length}
+            pending={pkg.content.test_plan.filter((t) => !ver?.results.some((r) => r.name === t.name)).length} />
           <table className="data">
             <thead><tr><th>Test</th><th>Kind</th><th>Result</th></tr></thead>
             <tbody>{pkg.content.test_plan.map((t) => {

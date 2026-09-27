@@ -69,7 +69,7 @@ export function AdministrationPage({ section, sub }: { section?: string; sub?: s
           <Link key={s.key} to={`/admin/${s.key}`} className={active?.key === s.key ? "on" : ""} aria-current={active?.key === s.key ? "page" : undefined}>{s.label}</Link>
         ))}
       </aside>
-      <div className={`admin-main${section === "connections" ? " vr-pilot" : ""}`}>
+      <div className="admin-main vr-pilot">
         {!active ? (
           <>
             <PageHeader title="Administration" subtitle="Set up and operate JADE for this customer." />
@@ -114,7 +114,7 @@ function ConnectionOverview() {
     {connectionError && <div className="callout" role="alert">{connectionError}</div>}
     <div className="vr-connections-grid">
       {ai && <ConnectionHealthCard name="AI provider" status={aiState ?? "Unknown"} connected={aiState === "Connected"} detail={ai.providerLabel + (ai.testProvider ? " · TEST PROVIDER" : "")} model={ai.model} checkedAt={ai.lastTest?.at} to="/admin/agents/ai" />}
-      {(integrations ?? []).map((i) => <ConnectionHealthCard key={i.name} name={i.name} status={i.connected ? "Connected (reported)" : "Not connected"} connected={i.connected} detail={i.detail} to={i.name.toLowerCase().includes("jira") ? "/admin/connections/jira" : "/admin/connections/jde"} />)}
+      {(integrations ?? []).map((i) => <ConnectionHealthCard key={i.name} name={i.name} status={i.connected ? "Connected (reported)" : "Not connected"} connected={i.connected} detail={i.detail} to={i.name.toLowerCase().includes("jira") ? "/admin/connections/jira" : /jd edwards|jde/i.test(i.name) ? "/admin/connections/jde" : undefined} />)}
     </div>
   </div>;
 }

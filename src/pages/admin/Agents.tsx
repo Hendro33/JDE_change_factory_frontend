@@ -1,8 +1,10 @@
+import { ReviewDetail } from "../../components/visualReview";
+import { aiApi, type RoleHealth } from "../../services/aiApi";
 import { agentSettingsApi, type AgentSettings } from "../../services/agentSettingsApi";
 import { saveErrorMessage } from "../../services/saveErrors";
 import { useEffect, useState } from "react";
 import type { SVGProps } from "react";
-import { api } from "../../services/api";
+import { api, IS_MOCK_MODE } from "../../services/api";
 import type { AgentDefinition, AgentHealth, AgentInventoryEntry, Capability } from "../../types/domain";
 import { ApiNote, CapabilityStatusBadge, Loading, NotStated } from "../../components/ui";
 import {
@@ -69,6 +71,9 @@ function statusFor(entry: RosterEntry, byName: Map<string, AgentDefinition>): Ag
 }
 
 export function Agents() {
+  const [roleHealth, setRoleHealth] = useState<RoleHealth[]>([]);
+  const [healthError, setHealthError] = useState("");
+  const [skills, setSkills] = useState<string[]>([]);
   const [settings, setSettings] = useState<AgentSettings | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -79,6 +84,7 @@ export function Agents() {
   const [capabilities, setCapabilities] = useState<Capability[] | null>(null);
 
   useEffect(() => {
+    if (!IS_MOCK_MODE) aiApi.health().then((h) => setRoleHealth(h.roles)).catch(() => setHealthError("Customer AI health could not be loaded."));
     api.listAgentInventory().then((inv) => setRoster(toRoster(inv))).catch(() => setRoster([]));
     api.listAgents().then(async (list) => {
       setAgents(list);
@@ -102,6 +108,12 @@ export function Agents() {
   }
   const enabledFor = (key: string | null) => settings?.agents.find((a) => a.name === key)?.enabled;
 
+  const selectedHealth = roleHealth.find((h) => h.role === selected);
+  useEffect(() => {
+    let active = true; setSkills([]);
+    if (selectedHealth?.pack) aiApi.revision(selectedHealth.pack.packId,selectedHealth.pack.revision).then((p) => { if (active) setSkills(p.content.skills.map((s) => s.name)); }).catch(() => { if(active) setSkills(["Skills could not be loaded"]); });
+    return () => { active = false; };
+  }, [selectedHealth?.pack?.packId, selectedHealth?.pack?.revision]);
   const byName = new Map((agents ?? []).map((a) => [a.name, a]));
   const openEntry = roster.find((r) => r.key === selected) ?? roster[0];
   if (!openEntry) return <Loading what="the agent team" />;
@@ -115,12 +127,12 @@ export function Agents() {
         <div>
           <h2 style={{ margin: 0 }}>Your JADE agents</h2>
           <div className="sub">
-            The {roster.length} agents in JADE, what each does, and whether it runs for this customer. A switched-off agent is never
-            started. Platform safeguards are not editable.
+            {roster.length} agents · configuration, current health and recent activity.
           </div>
         </div>
       </div>
 
+      {healthError && <div className="callout" role="alert">{healthError}</div>}
       {!agents ? (
         <Loading what="the agent team" />
       ) : (
@@ -131,6 +143,7 @@ export function Agents() {
                 <div className="agentgroup-label">{group}</div>
                 <div className="agentgrid">
                   {roster.filter((r) => r.group === group).map((entry) => {
+                    const customerHealth = roleHealth.find((h) => h.role === entry.key);
                     const h = entry.internalName ? healthByAgent[entry.internalName] : undefined;
                     const status = statusFor(entry, byName);
                     const totalRuns = h ? Object.values(h.runCounts).reduce((n, c) => n + c, 0) : undefined;
@@ -150,16 +163,23 @@ export function Agents() {
                           </span>
                           <div>
                             <div className="agentcard-name">{entry.displayName}</div>
-                            <span className={`badge ${STATUS_BADGE[status]}`}>{status}</span>{" "}
+                            <span className={`badge ${STATUS_BADGE[status]}`}>{status === "Active" ? "Available" : status}</span>{" "}
                             {enabledFor(entry.key) === false && <span className="badge stop">Off for this customer</span>}
                           </div>
                         </div>
                         <div className="agentcard-role">{entry.purpose}</div>
+                        <div className="vr-agent-health">
+                          <span><strong>{customerHealth?.state ?? (status === "Planned" ? "Not available" : "Health not reported")}</strong></span>
+                          <span>Model: {customerHealth?.configuredModel ?? "No AI model assigned"}</span>
+                          <span>Instructions: {customerHealth?.pack?.packName ?? "No pack assigned"}</span>
+                          {customerHealth?.lastRun?.status === "failed" && <span className="badge stop">Last run failed</span>}
+                          {customerHealth?.blockedReason && <span>{customerHealth.blockedReason}</span>}
+                        </div>
                         <div className="agentcard-stats">
                           {status === "Planned" ? (
                             <span className="notstated">Not enabled</span>
                           ) : h === undefined ? (
-                            <span className="notstated">loading…</span>
+                            <span className="notstated">No run history reported</span>
                           ) : totalRuns === 0 ? (
                             <span className="notstated">No recorded runs yet</span>
                           ) : (
@@ -207,10 +227,16 @@ export function Agents() {
               )}
               {settingsError && <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}>{settingsError}</div>}
               <div className="callout" style={{ marginBottom: 16 }}>
-                <strong><span className={`badge ${STATUS_BADGE[openStatus]}`}>{openStatus}</span></strong>
+                <strong><span className={`badge ${STATUS_BADGE[openStatus]}`}>{openStatus === "Active" ? "Available" : openStatus}</span></strong>
                 {STATUS_NOTE[openStatus]}
               </div>
 
+              <ReviewDetail title="Assigned skills & recent run details">
+                <p>{skills.length ? skills.join(" · ") : "No skills recorded in the assigned pack."}</p>
+                {selectedHealth?.lastRun && <p>Last execution: {new Date(selectedHealth.lastRun.started_at).toLocaleString("en-GB")} · {selectedHealth.lastRun.status}</p>}
+                {selectedHealth?.lastRun?.error && <p role="alert">{selectedHealth.lastRun.error}</p>}
+              </ReviewDetail>
+              <ReviewDetail title="Agent definition & runtime">
               {openAgent ? (
                 <>
                   <dl className="facts">
@@ -248,6 +274,7 @@ export function Agents() {
                   happen to be implemented so far.
                 </div>
               )}
+              </ReviewDetail>
             </section>
 
             <section className="panel">

@@ -1,3 +1,4 @@
+import { ReviewDetail } from "../../components/visualReview";
 import { inAmStage } from "./workflow";
 import { KnowledgePage } from "../knowledge/Knowledge";
 import { useEffect, useState, type ReactNode } from "react";
@@ -34,10 +35,10 @@ function Workbench({ title, intro, at, filter, empty, render }: {
   const open = changes.find((c) => c.id === openId);
 
   return (
-    <div className="stack">
+    <div className="stack vr-pilot">
       <section className="panel">
         <h1 style={{ marginTop: 0 }}>{title}</h1>
-        <p className="hint">{intro}</p>
+        <ReviewDetail title="About this workspace"><p className="hint">{intro}</p></ReviewDetail>
         {changes.length === 0 ? <p className="notstated">{empty}</p> : (
           <div className="btnrow" role="tablist" aria-label="Stories">{changes.map((c) => (
             <button key={c.id} role="tab" aria-selected={c.id === openId} title={storyTitle(c)}

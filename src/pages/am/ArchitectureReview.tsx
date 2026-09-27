@@ -1,3 +1,5 @@
+import { processApi, type Mapping } from "../../services/processApi";
+import { IS_MOCK_MODE } from "../../services/api";
 import { useSessionInfo } from "../../components/design";
 import { StoryRatingsPanel } from "../../components/StoryRatings";
 import { ReviewFlow, ReviewDetail, BusinessContextMap, AcceptanceChecklist, QuestionCards, BacklogComparison, SolutionArchitectureMap, IntegrityPanel } from "../../components/visualReview";
@@ -23,6 +25,7 @@ import { JourneyBar } from "./JourneyBar";
  */
 export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<NavTarget> & { onNavigate?: Navigate } = {}) {
   const info = useSessionInfo();
+  const [mapping, setMapping] = useState<Mapping | null>(null);
   const [changes, setChanges] = useState<Change[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<"approve" | "reject" | null>(null);
@@ -47,6 +50,12 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
     if (!openId) { setDomainReview(null); setRun(null); return; }
     api.getDomainReview(openId).then((r) => setDomainReview(r ?? null));
     api.getArchitectureReview(openId).then((r) => setRun(r ?? null));
+  }, [openId]);
+
+  useEffect(() => {
+    let active = true; setMapping(null);
+    if (openId && !IS_MOCK_MODE) processApi.story(openId).then((p) => { if(active) setMapping(p.mapping); }).catch(() => {});
+    return () => { active = false; };
   }, [openId]);
 
   const columns: GridColumn[] = [
@@ -88,7 +97,7 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
         <div>
           <h1>Architecture Review</h1>
           <div className="sub">
-            Gate 2 — the Architect's recommendation and the one exact operation it proposes.
+            Review the proposed solution, its effects and the exact change to approve.
           </div>
         </div>
         <div className="meta">
@@ -129,7 +138,7 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
             </div>
           </section>
 
-          {architectDecision && <><SolutionArchitectureMap change={open} decision={architectDecision} spec={implementationSpec} domain={info.domainName(open.businessDomainId)} /><IntegrityPanel decision={architectDecision} /></>}
+          {architectDecision && <><SolutionArchitectureMap change={open} decision={architectDecision} spec={implementationSpec} domain={info.domainName(open.businessDomainId)} mapping={mapping} /><IntegrityPanel decision={architectDecision} /></>}
           <StoryRatingsPanel key={open.id} change={open} mode="technical" />
           {architectDecision ? (
             <ReviewDetail title="Full Architect recommendation & alternatives">
@@ -191,7 +200,7 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
             </section>
           )}
 
-          {run && run.history.length > 0 && <DesignEvidencePanel changeId={open.id} designCount={run.history.length} />}
+          {run && run.history.length > 0 && <DesignEvidencePanel compact changeId={open.id} designCount={run.history.length} />}
 
           {implementationSpec && (
             <ReviewDetail title="Implementation specification & MCP operations">
@@ -308,7 +317,7 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
                   </div>
                 </>
               )}
-              <ExecutionPanel changeId={open.id} execution={ec.execution} approvalStatus={open.changeApproval?.status} onChanged={reload} />
+              <ExecutionPanel compact changeId={open.id} execution={ec.execution} approvalStatus={open.changeApproval?.status} onChanged={reload} />
             </section>
           )}
         </div>

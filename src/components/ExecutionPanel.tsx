@@ -24,9 +24,10 @@ function StateBadge({ state }: { state: ExecutionState }) {
  * reconciliation that must happen before anything runs again.
  */
 export function ExecutionPanel({
-  changeId, execution, approvalStatus, onChanged,
+  changeId, execution, approvalStatus, onChanged, compact = false,
 }: {
   changeId: string;
+  compact?: boolean;
   execution?: ExecutionStatus;
   /** Re-asks the gate when the approval changes, not only the execution state. */
   approvalStatus?: string;
@@ -170,7 +171,7 @@ export function ExecutionPanel({
         {preflightError && <div className="notstated">{preflightError}</div>}
         {preflight && (
           <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13.5 }}>
-            {preflight.checks.map((c) => (
+            {preflight.checks.filter((c) => !compact || !c.ok).map((c) => (
               <li key={c.check}>
                 <span style={{ color: c.ok ? "var(--ok)" : "var(--stop)" }}>{c.ok ? "✓" : "✗"}</span> {c.check}
                 {!c.ok && c.detail && <div className="hint">{c.detail}</div>}
@@ -178,6 +179,7 @@ export function ExecutionPanel({
             ))}
           </ul>
         )}
+        {compact && preflight && <details className="vr-detail"><summary>{preflight.checks.filter((c) => c.ok).length} checks passed · view details</summary><ul>{preflight.checks.filter((c) => c.ok).map((c) => <li key={c.check}>✓ {c.check}</li>)}</ul></details>}
         <div className="hint" style={{ marginTop: 6 }}>
           Jade itself never starts the write: an agent or operator does, and the gate re-runs every check above at that moment.
         </div>

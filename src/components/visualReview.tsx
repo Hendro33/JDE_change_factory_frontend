@@ -1,3 +1,5 @@
+import type { Mapping } from "../services/processApi";
+import { ROUTE_LABEL } from "../pages/stories/storyContext";
 import { RatingBadge } from "./StoryRatings";
 import "./visualReview.css";
 import type { ReactNode } from "react";
@@ -78,12 +80,12 @@ export function DeliveryRouteIndicator({ route, confidence }: {route: string; co
   return <div className="vr-route"><span className="vr-route-icon" aria-hidden="true">↗</span><div><span className="vr-label">Recommended delivery route</span><strong>{route}</strong><span className="vr-note">Architect confidence {Math.round(confidence * 100)}% · recommendation, not execution approval</span></div></div>;
 }
 
-export function SolutionArchitectureMap({ change, decision, spec, domain }: {change: Change; decision: ArchitectDecision; spec?: ImplementationSpecification; domain?: string}) {
+export function SolutionArchitectureMap({ change, decision, spec, domain, mapping }: {change: Change; decision: ArchitectDecision; spec?: ImplementationSpecification; domain?: string; mapping?: Mapping | null}) {
   return <section className="panel vr-architecture"><div className="vr-section-meta"><h2>Solution at a glance</h2><span className="vr-label">Proposed architecture</span></div>
     <div className="vr-architecture-map">
-      <div className="vr-map-node"><span className="vr-map-index">01</span><span className="vr-label">Business context</span><strong>{domain || "Business domain not assigned"}</strong><p>{shortText(change.userStory?.statement || change.title, 200)}</p></div>
+      <div className="vr-map-node"><span className="vr-map-index">01</span><span className="vr-label">Business context</span><strong>{domain || "Business domain not assigned"}</strong><p>{shortText(change.userStory?.statement || change.title, 200)}</p><span className="vr-label">Business process</span>{mapping?.status === "confirmed" ? mapping.refs.map((ref) => <p key={ref.node_key}>{ref.path.map((p) => p.name).join(" › ")}</p>) : <span className="vr-note">{mapping?.status === "no_mapping" ? "No process mapping applies" : "No confirmed process mapping"}</span>}</div>
       <span className="vr-connector" aria-hidden="true">→</span>
-      <div className="vr-map-node emphasis"><span className="vr-map-index">02</span><span className="vr-label">Proposed approach</span><strong>{change.exactChange ? `${change.exactChange.application} · ${change.exactChange.option}` : decision.recommendedRoute}</strong>
+      <div className="vr-map-node emphasis"><span className="vr-map-index">02</span><span className="vr-label">Proposed approach</span><strong>{ROUTE_LABEL[decision.recommendedRoute]?.title ?? decision.recommendedRoute}</strong><span className="vr-note">{change.exactChange ? `${change.exactChange.application} · ${change.exactChange.option}` : "See implementation specification"}</span>
         <p>{change.exactChange ? `${change.exactChange.currentValue || "(empty)"} → ${change.exactChange.proposedValue}` : shortText(spec?.sequence[0] || "Implementation details not yet recorded", 180)}</p>
         <span className="vr-note">{change.exactChange?.environment || "Environment not stated here"}</span></div>
       <span className="vr-connector" aria-hidden="true">→</span>
@@ -102,16 +104,16 @@ export function IntegrityPanel({ decision }: {decision: ArchitectDecision}) {
       <Signal label="Rollback strategy" text={decision.rollbackStrategy} note="Recorded plan; availability is not independently verified here." /></div>
     <div className={`vr-dependencies${decision.dependenciesAndConflicts.length ? " attention" : ""}`}><strong>{decision.dependenciesAndConflicts.length ? "! Dependencies & concerns" : "No dependencies or conflicts identified in this assessment"}</strong>
       {decision.dependenciesAndConflicts.length > 0 && <ul>{decision.dependenciesAndConflicts.map((d,i) => <li key={i}>{d}</li>)}</ul>}</div>
-    <p className="vr-note">Interface, data and regression effects are not separately rated. Review the recorded concerns and validation evidence before deciding.</p>
+    <ReviewDetail title="Scope of this assessment"><p>Interface, data and regression effects are not separately rated. Review the recorded concerns and validation evidence before deciding.</p></ReviewDetail>
   </section>;
 }
 
-export function ConnectionHealthCard({ name, status, connected, detail, to, model, checkedAt }: {name: string; status: string; connected: boolean; detail: string; to: string; model?: string; checkedAt?: string}) {
+export function ConnectionHealthCard({ name, status, connected, detail, to, model, checkedAt }: {name: string; status: string; connected: boolean; detail: string; to?: string; model?: string; checkedAt?: string}) {
   return <article className={`vr-connection ${connected ? "connected" : "unconfirmed"}`}>
     <div className="vr-connection-top"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v5m8-5v5M6 8h12v3a6 6 0 0 1-12 0V8Zm6 9v4" /></svg><span className="vr-status"><span aria-hidden="true">{connected ? "●" : "○"}</span> {status}</span></div>
-    <h2>{name}</h2><p>{detail}</p>
+    <h2>{name}</h2>{/simulat|test provider/i.test(detail) && <span className="badge warn">{ /simulat/i.test(detail) ? "SIMULATION" : "TEST PROVIDER"}</span>}<ReviewDetail title="Connection details"><p>{detail}</p></ReviewDetail>
     {model && <div className="vr-connection-fact"><span>Model</span><strong>{model}</strong></div>}
     <div className="vr-connection-fact"><span>Last check</span><strong>{checkedAt ? new Date(checkedAt).toLocaleString("en-GB") : "Not reported"}</strong></div>
-    <Link className="btn small" to={to}>Configure <span aria-hidden="true">→</span></Link>
+    {to ? <Link className="btn small" to={to}>Configure <span aria-hidden="true">→</span></Link> : <span className="vr-note">No configuration screen available</span>}
   </article>;
 }

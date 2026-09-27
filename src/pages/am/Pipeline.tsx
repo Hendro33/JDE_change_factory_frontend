@@ -1,3 +1,4 @@
+import { ReviewDetail } from "../../components/visualReview";
 import { HealthIndicator, PhaseLabel } from "../../components/design";
 import { Link, navigate, setQueryParam } from "../../router";
 import { AM_STAGES, inAmStage } from "./workflow";
@@ -73,7 +74,7 @@ export function Pipeline({ onOpenChange, navFilter, navToken }: { onOpenChange: 
   const copy = STAGE_COPY[preset];
 
   return (
-    <>
+    <div className="vr-pilot">
       <div className="pagehead">
         <div>
           <h1>{copy.title}</h1>
@@ -84,10 +85,9 @@ export function Pipeline({ onOpenChange, navFilter, navToken }: { onOpenChange: 
 
       {!changes ? <Loading what="the pipeline" /> : (
         <div className="stack">
-          <section className="panel">
-            <h2>Where everything sits</h2>
+          <ReviewDetail title="All Application Management queues">
             <div className="btnrow">{AM_STAGES.map((s) => <Link className="btn small" key={s.key} to={s.to}>{s.label} · {(changes ?? []).filter((c) => inAmStage(c, s.key)).length}</Link>)}</div>
-          </section>
+          </ReviewDetail>
 
           <div className="panel filterbar">
             <div className="field">
@@ -122,6 +122,6 @@ export function Pipeline({ onOpenChange, navFilter, navToken }: { onOpenChange: 
           </section>
         </div>
       )}
-    </>
+    </div>
   );
 }

@@ -1,3 +1,4 @@
+import { ReviewDetail } from "../../components/visualReview";
 import { INSIGHT_PERIODS, inInsightPeriod, type InsightPeriod } from "../../services/insightPeriod";
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
@@ -65,12 +66,12 @@ export function ReportsPage() {
   const perf = metrics.performance;
 
   return (
-    <div className="reports">
+    <div className="reports vr-pilot">
       <PageHeader title="Insights" subtitle="Demand, flow and delivery for this customer." />
       <div className="toolbar"><label htmlFor="insight-period">Period</label><select id="insight-period" value={period} onChange={(e) => setQueryParam("period", e.target.value)}>
         {INSIGHT_PERIODS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
       </select></div>
-      <p className="muted">Stories created in the selected period (7, 30 or 365 days, or lifetime), shown at their current lifecycle status. This is a story cohort, not a count of events during that period.</p>
+      <ReviewDetail title="How to read these insights"><p className="muted">Stories created in the selected period (7, 30 or 365 days, or lifetime), shown at their current lifecycle status. This is a story cohort, not a count of events during that period.</p></ReviewDetail>
 
       <div className="statrow">
         <div className="statcard"><span className="stat-value">{changes.filter((c) => c.lifecycle?.phase !== "done").length}</span><span className="stat-label">stories in progress</span></div>
@@ -95,8 +96,16 @@ export function ReportsPage() {
                   onRow={(i) => { const d = metrics.businessDomainBreakdown[i]; navigate(`/stories?done=1&period=${period}&domain=${encodeURIComponent(d.domainId ?? "none")}`); }} />
           )}
         </Section>
-        <Section title="Business impact stated" description="Counts only impact a requester actually stated; a low count means missing information, not zero impact.">
-          <Bars label="Business impact stated" rows={metrics.businessImpactBreakdown.map((b) => ({ label: b.category, count: b.count }))} />
+        <Section title="Confirmed business benefit" description="Human-confirmed ratings for this story cohort.">
+          <Bars label="Confirmed business benefit" rows={["High","Medium","Small"].map((level) => ({label:level,count:changes.filter((c) => c.ratings?.businessBenefit.confirmed === level).length}))} />
+          <span className="vr-note">{changes.filter((c) => !c.ratings?.businessBenefit.confirmed).length} stories without a current confirmed benefit</span>
+        </Section>
+        <Section title="Confirmed business impact">
+          <Bars label="Confirmed business impact" rows={["High","Medium","Low"].map((level) => ({label:level,count:changes.filter((c) => c.ratings?.businessImpact.confirmed === level).length}))} />
+          <ReviewDetail title="Original impact coverage"><Bars label="Business impact stated" rows={metrics.businessImpactBreakdown.map((b) => ({label:b.category,count:b.count}))} /><p>Counts stated narrative impact, not its severity.</p></ReviewDetail>
+        </Section>
+        <Section title="Recommended delivery routes" description="Architecture recommendations, not completed deliveries.">
+          <Bars label="Recommended delivery routes" rows={[...new Set(changes.map((c) => c.architectDecision?.recommendedRoute ?? "Not assessed"))].map((route) => ({label:route,count:changes.filter((c) => (c.architectDecision?.recommendedRoute ?? "Not assessed") === route).length}))} />
         </Section>
       </div>
 

@@ -1,3 +1,4 @@
+import { ReviewDetail, SolutionArchitectureMap, IntegrityPanel } from "../../components/visualReview";
 import { useEffect, useState } from "react";
 import { api, IS_MOCK_MODE } from "../../services/api";
 import { discoveryApi, type DesignBaselineView } from "../../services/discoveryApi";
@@ -34,7 +35,7 @@ export function SolutionTab({ ctx }: { ctx: StoryCtx }) {
     // A proposed exact change without a recorded solution analysis (e.g. proposed directly):
     // the exact change is the whole proposal.
     return (
-      <div className="solution">
+      <div className="solution vr-pilot">
         <Section title="Proposed solution" description="An exact, reviewable change. No wider solution analysis is recorded for this story.">
           <ExactChangeSummary ctx={ctx} />
         </Section>
@@ -72,7 +73,10 @@ export function SolutionTab({ ctx }: { ctx: StoryCtx }) {
     ...(lc?.openItems ?? []),
   ];
   return (
-    <div className="solution">
+    <div className="solution vr-pilot">
+      <SolutionArchitectureMap change={change} decision={decision} spec={spec} domain={info.domainName(change.businessDomainId)} mapping={ctx.process?.mapping} />
+      <IntegrityPanel decision={decision} />
+      <ReviewDetail title="Full solution rationale">
       <Section title="Proposed solution">
         <p className="lead-strong">{route.title} {found.simulated && <SimulationBadge />}</p>
         <p className="muted">{route.summary}</p>
@@ -80,24 +84,25 @@ export function SolutionTab({ ctx }: { ctx: StoryCtx }) {
         {change.exactChange && <ExactChangeSummary ctx={ctx} />}
       </Section>
 
+      </ReviewDetail>
       <div className="solution-grid">
-        <Section title="What changes">
+        <ReviewDetail title="Implementation steps & objects">
           {spec?.sequence.length ? <ol className="compactlist">{spec.sequence.map((s, i) => <li key={i}>{s}</li>)}</ol> : <p className="muted">No steps recorded.</p>}
           {decision.objectsAffected.length > 0 && <p className="muted">JD Edwards objects: <span className="mono">{decision.objectsAffected.join(", ")}</span></p>}
-        </Section>
-        <Section title="Risk and dependencies">
+        </ReviewDetail>
+        <ReviewDetail title="Full risk & rollback notes">
           {decision.dependenciesAndConflicts.length
             ? <ul className="compactlist">{decision.dependenciesAndConflicts.map((d, i) => <li key={i}>{d}</li>)}</ul>
             : <p>No conflicts identified.</p>}
           {decision.rollbackStrategy && <p className="muted">If it needs undoing: {decision.rollbackStrategy}.</p>}
-        </Section>
-        <Section title="How it will be tested">
+        </ReviewDetail>
+        <ReviewDetail title="Validation approach">
           <p>{spec?.validationApproach || <span className="muted">Not stated.</span>}</p>
           {spec?.humanActionsRequired.length ? <p className="muted">People involved: {spec.humanActionsRequired.join("; ")}</p> : null}
-        </Section>
-        <Section title="Effort">
+        </ReviewDetail>
+        <ReviewDetail title="Effort assessment">
           <p>{change.complexitySignal === "Unknown" ? <span className="muted">Not estimated.</span> : `${change.complexitySignal} complexity (JADE's estimate, not a commitment).`}</p>
-        </Section>
+        </ReviewDetail>
       </div>
 
       {decision.alternativesConsidered.length > 0 && (
