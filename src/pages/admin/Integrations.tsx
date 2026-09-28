@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type { IntegrationStatus, JiraConnectionStatus, JiraIntegrationConfig, JiraSyncResult, JiraTestConnectionResult } from "../../types/domain";
-import { ApiNote, Loading } from "../../components/ui";
+import { Loading } from "../../components/ui";
 import { saveErrorMessage } from "../../services/saveErrors";
 import { JdeDiscoveryPanel } from "../../components/JdeDiscoveryPanel";
 
@@ -183,7 +183,6 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
               ))}
             </tbody>
           </table>
-          <ApiNote endpoint="GET /admin/integrations" />
         </section>
       ))}
 
@@ -228,7 +227,6 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
             <dt>Mode</dt>
             <dd>
               {jiraStatus.state === "live" && <span className="badge ok">Live</span>}
-              {jiraStatus.state === "demo" && <span className="badge grey">Demo (simulated Jira)</span>}
               {(jiraStatus.state === "unavailable" || !jiraStatus.state) && (
                 <>
                   <span className="badge stop">Unavailable</span>
@@ -383,7 +381,6 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
           </div>
         )}
 
-        <ApiNote endpoint="GET/PUT /admin/jira-integration, PUT /admin/jira-credentials, POST /admin/jira-integration/test-connection, POST /admin/jira-integration/sync" />
       </section>}
     </>
   );

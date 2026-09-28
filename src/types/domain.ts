@@ -3,10 +3,9 @@
  *
  * These types mirror the artefacts defined in the ConsultIQ design
  * document (Sections 6.1-6.6). They are the contract between this UI
- * and the Python/FastAPI backend that will eventually serve them.
+ * and the Python/FastAPI backend that serves them.
  *
- * Nothing in here is UI-specific on purpose: when the mock service is
- * swapped for real REST calls, these types should not need to change.
+ * Nothing in here is UI-specific on purpose.
  */
 
 /* ------------------------------------------------------------------ */
@@ -28,14 +27,10 @@ export interface Customer {
   toolsRelease: string;
   /** Which JDE environment this engagement's pilot targets. */
   environment: string;
-  /** Demo customers hold test data only; simulated JDE exists only inside them. */
-  isDemo?: boolean;
   /**
    * This user's roles on THIS company specifically — a user can hold
    * different roles on different companies. See CompanyRole's own
-   * comment for what each role means. Only meaningful in real
-   * (non-mock) mode; the mock service leaves this empty since its own
-   * persona picker already governs what it shows.
+   * comment for what each role means.
    */
   roles: CompanyRole[];
 }
@@ -1188,13 +1183,10 @@ export interface JiraTestConnectionResult {
 
 /** Status only — NEVER a credential. credentialsConfigured reflects THIS customer's own saved Jira credential, never its value. */
 export interface JiraConnectionStatus {
-  /** True only in explicit demo mode. */
-  mockMode: boolean;
   /**
-   * demo: simulated Jira, by explicit deployment setting · live · unavailable:
-   * real mode without a usable setup -- every Jira operation is blocked, never mocked.
+   * live · unavailable: no usable setup -- every Jira operation is blocked.
    */
-  state?: "demo" | "live" | "unavailable";
+  state?: "live" | "unavailable";
   unavailableReason?: string;
   credentialsConfigured: boolean;
   configConfigured: boolean;

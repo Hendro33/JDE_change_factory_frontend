@@ -129,7 +129,7 @@ export function StoriesPage() {
       {error ? <ErrorState error={error} title="Stories could not be loaded" /> : !data ? <Loading what="stories" /> : rows.length === 0 ? (
         <EmptyState title={filtered ? "No stories match these filters" : "No stories yet"}
           action={filtered ? <button className="btn" onClick={() => navigate("/stories", { replace: true })}>Clear filters</button> : <Link className="btn primary" to="/stories/new">New request</Link>}>
-          {filtered ? "Try fewer filters." : "Stories appear here as requests come in from Jira, Topdesk, email or a person."}
+          {filtered ? "Try fewer filters." : "Stories appear here as requests come in from Jira or are entered by a person."}
         </EmptyState>
       ) : view === "board" ? <Board rows={rows} /> : <StoryTable rows={rows} />}
 

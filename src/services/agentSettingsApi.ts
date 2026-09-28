@@ -1,5 +1,5 @@
-/** Which agents are switched on for the active customer (Admin > Agents). Real backend only. */
-import { api, IS_MOCK_MODE } from "./api";
+/** Which agents are switched on for the active customer (Admin > Agents). */
+import { api } from "./api";
 import { request } from "./httpApi";
 
 export interface AgentSettings {
@@ -10,7 +10,6 @@ export interface AgentSettings {
 }
 
 async function customerId(): Promise<string> {
-  if (IS_MOCK_MODE) throw new Error("Agent settings need Jade's backend.");
   return (await api.getSession()).activeCustomerId;
 }
 

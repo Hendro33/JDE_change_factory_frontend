@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { IS_MOCK_MODE } from "../services/api";
 import { request } from "../services/httpApi";
 import { saveErrorMessage } from "../services/saveErrors";
 
@@ -19,7 +18,6 @@ export function SetupHandover({ onDone }: { onDone: (email: string) => void }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (IS_MOCK_MODE) return;
     request<{ isSetupAccount: boolean; minPasswordLength: number }>("/auth/setup-handover").then(setStatus).catch(() => setStatus(null));
   }, []);
   if (!status?.isSetupAccount) return null;

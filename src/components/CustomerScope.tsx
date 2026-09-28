@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import type { Session } from "../types/domain";
-import { getMockPersona, setMockPersona, type PersonaKey } from "../services/session";
 
 /**
  * Shows which customer's data is on screen.
@@ -43,7 +42,6 @@ export function CustomerScope({
       <div className="cscope">
         <span className="cscope-label">Customer</span>
         <span className="cscope-name">{active.name}</span>
-        {active.isDemo && <span className="badge warn" style={{ marginLeft: 6 }}>DEMO</span>}
       </div>
     );
   }
@@ -59,7 +57,6 @@ export function CustomerScope({
         title={active.name}
       >
         <span className="cscope-name">{active.name}</span>
-        {active.isDemo && <span className="badge warn" style={{ marginLeft: 6 }}>DEMO</span>}
         <span aria-hidden="true" style={{ marginLeft: 8 }}>▾</span>
       </button>
       {open && (
@@ -73,7 +70,7 @@ export function CustomerScope({
                   if (c.id !== active.id) onSwitch(c.id);
                 }}
               >
-                <span className="nm">{c.name}{c.isDemo ? " (demo)" : ""}</span>
+                <span className="nm">{c.name}</span>
                 <span className="meta">Tools Release {c.toolsRelease} · {c.environment}</span>
               </button>
             </li>
@@ -81,33 +78,5 @@ export function CustomerScope({
         </ul>
       )}
     </div>
-  );
-}
-
-/**
- * Prototype-only control.
- *
- * Real sign-in decides who you are and what you can reach. This exists
- * purely so both behaviours can be demonstrated without a login screen,
- * and is labelled so nobody mistakes it for a product feature.
- */
-export function PersonaSwitch({ onChange }: { onChange: () => void }) {
-  const [persona, setPersona] = useState<PersonaKey>(getMockPersona());
-  return (
-    <label className="persona">
-      <span>Prototype: view as</span>
-      <select
-        value={persona}
-        onChange={(e) => {
-          const next = e.target.value as PersonaKey;
-          setMockPersona(next);
-          setPersona(next);
-          onChange();
-        }}
-      >
-        <option value="consultant">Consultant, 3 customers</option>
-        <option value="customer-user">Customer user, 1 customer</option>
-      </select>
-    </label>
   );
 }

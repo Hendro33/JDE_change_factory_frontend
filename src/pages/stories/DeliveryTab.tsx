@@ -1,6 +1,5 @@
 import { ReviewDetail, DeliveryRouteIndicator } from "../../components/visualReview";
 import { EvidenceChain, ValidationSummary } from "../../components/workspaceVisuals";
-import { IS_MOCK_MODE } from "../../services/api";
 import { EmptyState, Section, SimulationBadge, formatDateTime, useSessionInfo } from "../../components/design";
 import { Link, storyPath } from "../../router";
 import { AsBuiltPanel } from "../AsBuiltPanel";
@@ -94,7 +93,7 @@ export function DeliveryTab({ ctx }: { ctx: StoryCtx }) {
 
       <Section id="release" title="Release and as-built record"
                description="The as-built record is what was actually delivered, generated from JADE's own records. Finalising it completes the story; promotion beyond DEV stays with CNC.">
-        {IS_MOCK_MODE ? <p className="muted">Needs the real backend.</p> : <AsBuiltPanel storyId={change.id} onChanged={ctx.reload} />}
+        <AsBuiltPanel storyId={change.id} onChanged={ctx.reload} />
       </Section>
     </div>
   );

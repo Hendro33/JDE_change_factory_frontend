@@ -33,7 +33,7 @@ uvicorn jde_api_service.main:app --app-dir api_service --port 8000 &
 python3 scripts/seed_demo_technical.py bwm
 
 # 2. Frontend (this repo), real-backend mode
-VITE_USE_MOCK_API=false VITE_API_BASE_URL=http://localhost:8000 npx vite --port 5173 &
+VITE_API_BASE_URL=http://localhost:8000 npx vite --port 5173 &
 
 # 3. Demonstration
 python3 e2e/technical/technical_work.py

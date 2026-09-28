@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { rememberStory } from "../../services/recent";
-import { api, IS_MOCK_MODE } from "../../services/api";
+import { api } from "../../services/api";
 import { processApi, type StoryProcessView } from "../../services/processApi";
 import { technicalApi, type TechnicalWorkView } from "../../services/technicalApi";
 import type { ArchitectureReviewRun, Change, DomainReview, WorkspaceTab } from "../../types/domain";
@@ -58,7 +58,6 @@ export function StoryWorkspace({ storyId, tab }: { storyId: string; tab?: string
     if (!change || !isStory) return;
     api.getDomainReview(storyId).then((r) => setDomainReview(r ?? null)).catch(() => setDomainReview(null));
     api.getArchitectureReview(storyId).then((r) => setRun(r ?? null)).catch(() => setRun(null));
-    if (IS_MOCK_MODE) return;
     processApi.story(storyId).then(setProcess).catch(() => setProcess(null));
     const route = change.lifecycle?.route ?? change.architectDecision?.recommendedRoute;
     if (route === "Technical Agent" || route === "Mixed") technicalApi.work(storyId).then(setTech).catch(() => setTech(null));

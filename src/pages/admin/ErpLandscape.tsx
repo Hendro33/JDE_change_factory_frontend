@@ -11,7 +11,7 @@ import type {
   TestScope,
   TestSideEffect,
 } from "../../types/domain";
-import { ApiNote, Loading } from "../../components/ui";
+import { Loading } from "../../components/ui";
 import { Details } from "../../components/design";
 import { saveErrorMessage } from "../../services/saveErrors";
 
@@ -276,7 +276,6 @@ export function ErpLandscape() {
               <strong>What is per company, and what is not yet</strong>
               {landscape.scopeGloballySharedNote}
             </div>
-            <ApiNote endpoint="GET /admin/erp-landscape" />
           </section>
 
           <section className="panel">
@@ -571,7 +570,6 @@ export function ErpLandscape() {
                 </div>
               </div>
             )}
-            <ApiNote endpoint="GET/PUT /admin/engagement-scope" />
           </section>
 
           <GateCoverage />

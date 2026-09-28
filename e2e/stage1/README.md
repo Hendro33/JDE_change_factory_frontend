@@ -30,7 +30,7 @@ JDE_API_DATA_DIR=$DATA/api JDE_BACKLOG_DIR=$DATA/backlog JDE_CHANGE_DIR=$DATA/ch
 JDE_EVIDENCE_DIR=$DATA/evidence python3 scripts/seed_demo_pending_change.py bwm
 
 # 3. Frontend (from this repo), real-backend mode
-VITE_USE_MOCK_API=false VITE_API_BASE_URL=http://localhost:8000 npx vite --port 5173 &
+VITE_API_BASE_URL=http://localhost:8000 npx vite --port 5173 &
 
 # 4. Demonstrations (pip install playwright; set JADE_E2E_CHROMIUM to a Chromium binary if needed)
 python3 e2e/stage1/s1_1_saved_setup.py

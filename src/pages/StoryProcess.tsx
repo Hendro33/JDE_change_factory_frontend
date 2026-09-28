@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { IS_MOCK_MODE } from "../services/api";
 import { saveErrorMessage } from "../services/saveErrors";
 import {
   processApi, type DiffLine, type FrameworkNode, type MapContent, type MapStep, type PinnedRef, type RefinementView,
@@ -347,7 +346,6 @@ export function StoryProcessPanel({ storyId, onChanged }: { storyId: string; onC
     if (view?.framework) processApi.version(view.framework.framework_id, view.framework.version).then((p) => setNodes(p.nodes)).catch(() => setNodes([]));
   }, [view?.framework?.framework_id, view?.framework?.version]);
 
-  if (IS_MOCK_MODE) return <p className="notstated">Process mapping needs the real backend.</p>;
   if (error) return <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div>;
   if (!view) return <Loading what="processes" />;
   const changed = () => { load(); onChanged?.(); };

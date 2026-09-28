@@ -20,7 +20,7 @@ import {
   type SampleReadPreview,
 } from "../services/discoveryApi";
 import { saveErrorMessage } from "../services/saveErrors";
-import { ApiNote, Loading } from "./ui";
+import { Loading } from "./ui";
 import { Details } from "./design";
 
 const tone: Record<string, string> = { ok: "ok", failed: "stop", unknown: "grey", stale: "warn" };
@@ -333,7 +333,6 @@ export function JdeDiscoveryPanel() {
   const [activity, setActivity] = useState<ActivityRow[] | null>(null);
   const [documents, setDocuments] = useState<ArtifactView[]>([]);
   const [company, setCompany] = useState("");
-  const [isDemo, setIsDemo] = useState(false);
 
   const load = () => {
     discoveryApi.getProfile().then((v) => {
@@ -349,7 +348,6 @@ export function JdeDiscoveryPanel() {
     api.getSession().then((s) => {
       const c = s.customers.find((x) => x.id === s.activeCustomerId);
       setCompany(c?.name ?? s.activeCustomerId);
-      setIsDemo(!!c?.isDemo);
     });
   }, []);
 
@@ -399,10 +397,10 @@ export function JdeDiscoveryPanel() {
         network controls must still restrict the account.
       </div>
 
-      {view.configured && cfg && !live && !isDemo && (
+      {view.configured && cfg && !live && (
         <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}>
-          <strong>This connection is set to Simulation, which real customers cannot use.</strong> Choose Edit settings, select Live and
-          enter the customer's AIS address. Nothing is simulated for this customer.
+          <strong>This connection is set to Simulation, which is not available.</strong> Choose Edit settings, select Live and
+          enter the customer's AIS address.
         </div>
       )}
       {view.configured && cfg && (
@@ -549,8 +547,6 @@ export function JdeDiscoveryPanel() {
               <label className="field">Company<input value={company} disabled /></label>
             </div>
             <div role="radiogroup" aria-label="Connection mode" style={{ marginTop: 6 }}>
-              {isDemo && <label style={{ display: "block", fontWeight: 400 }}><input type="radio" checked={form.connectionMode === "simulation"} onChange={() => set("connectionMode", "simulation")} />{" "}
-                <strong>Simulation</strong> (demo customers only) -- Jade's simulated AIS endpoint; nothing leaves the backend; results are labelled SIMULATION.</label>}
               <label style={{ display: "block", fontWeight: 400 }}><input type="radio" checked={form.connectionMode === "live"} onChange={() => set("connectionMode", "live")} />{" "}
                 <strong>Live</strong> -- the customer's AIS server, read-only. There is no fallback to simulation.
                 {!view.liveAllowedByDeployment && <span className="badge warn"> live access unavailable -- see Connectivity</span>}</label>
@@ -705,7 +701,6 @@ export function JdeDiscoveryPanel() {
           </table>
         )}
       </div>
-      <ApiNote endpoint="GET/PUT /admin/jde/profile, PUT /admin/jde/credential, POST /admin/jde/test-connection|sample-read/preview|sample-read|enable|disable, GET /admin/jde/activity" />
     </section>
   );
 }

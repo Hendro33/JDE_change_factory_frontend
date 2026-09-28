@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../services/api";
 import type { BusinessDomain } from "../types/domain";
 import { navigate } from "../router";
-import { ApiNote, Loading, NotStated } from "../components/ui";
+import { Loading, NotStated } from "../components/ui";
 import { saveErrorMessage } from "../services/saveErrors";
 
 const STATUS_OPTIONS: BusinessDomain["status"][] = ["active", "proposed", "retired"];
@@ -116,7 +116,6 @@ export function BusinessDomains() {
           <button className="btn primary" disabled={saving || !apqcCode.trim() || !name.trim() || !level.trim()} onClick={createDomain}>
             {saving ? "Creating…" : "Create domain"}
           </button>
-          <ApiNote endpoint="POST /admin/business-domains" />
         </section>
       )}
 
@@ -159,7 +158,6 @@ export function BusinessDomains() {
               ))}
             </tbody>
           </table>
-          <ApiNote endpoint="GET /business-domains" />
         </section>
       )}
     </>

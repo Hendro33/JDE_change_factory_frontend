@@ -4,9 +4,9 @@ import { agentSettingsApi, type AgentSettings } from "../../services/agentSettin
 import { saveErrorMessage } from "../../services/saveErrors";
 import { useEffect, useState } from "react";
 import type { SVGProps } from "react";
-import { api, IS_MOCK_MODE } from "../../services/api";
+import { api } from "../../services/api";
 import type { AgentDefinition, AgentHealth, AgentInventoryEntry, Capability } from "../../types/domain";
-import { ApiNote, CapabilityStatusBadge, Loading, NotStated } from "../../components/ui";
+import { CapabilityStatusBadge, Loading, NotStated } from "../../components/ui";
 import {
   ArchitectIcon,
   DevelopmentIcon,
@@ -84,7 +84,7 @@ export function Agents() {
   const [capabilities, setCapabilities] = useState<Capability[] | null>(null);
 
   useEffect(() => {
-    if (!IS_MOCK_MODE) aiApi.health().then((h) => setRoleHealth(h.roles)).catch(() => setHealthError("Customer AI health could not be loaded."));
+    aiApi.health().then((h) => setRoleHealth(h.roles)).catch(() => setHealthError("Customer AI health could not be loaded."));
     api.listAgentInventory().then((inv) => setRoster(toRoster(inv))).catch(() => setRoster([]));
     api.listAgents().then(async (list) => {
       setAgents(list);
@@ -353,7 +353,6 @@ export function Agents() {
                   </tbody>
                 </table>
               )}
-              <ApiNote endpoint="GET /admin/capabilities" />
             </section>
           )}
         </div>

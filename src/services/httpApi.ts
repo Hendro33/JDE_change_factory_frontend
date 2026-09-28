@@ -53,8 +53,7 @@ import { RevisionConflictError } from "./saveErrors";
  * (sendStoryBack, approveStoryForBacklog, approveChange, rejectChange
  * -- the pre-domain-governance story-level decision flow) still have
  * no backend route and throw a clear "not implemented yet" error
- * rather than silently doing nothing; use the mock service for those
- * specific flows until a later phase adds them.
+ * rather than silently doing nothing.
  *
  * SECURITY NOTE: identity comes from a real, httponly session cookie
  * (see auth.ts's login()/logout()) -- this client never asserts who is
@@ -225,8 +224,7 @@ export async function downloadFile(path: string, customerId: string, filename: s
 
 function notImplemented(method: string): never {
   throw new Error(
-    `HttpChangeFactoryApi.${method}() has no backend endpoint yet (Phase 1 is read-only + direct-entry intake). ` +
-      "Set VITE_USE_MOCK_API=true to use the mock service for this flow until a later phase adds it."
+    `HttpChangeFactoryApi.${method}() has no backend endpoint yet.`
   );
 }
 
@@ -250,8 +248,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
    * customer" server-side in Phase 1 (nor does the backend need one --
    * entitlement is re-checked from X-Customer-Id on every actual data
    * call, so "switching" is just choosing which of the caller's own
-   * entitled customers to scope subsequent requests to). This mirrors
-   * how mockApi.ts persists the choice, just without a network call.
+   * entitled customers to scope subsequent requests to).
    */
   async setActiveCustomer(customerId: string): Promise<Session> {
     const base = this.lastSession ?? (await this.getSession());
@@ -724,9 +721,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
 
 // ---------------------------------------------------------------------
 // Auth -- login/logout/password reset/invitation acceptance. Standalone
-// (not part of ChangeFactoryApi) since the mock service has no real
-// login: its existing persona picker (session.ts) is unaffected by any
-// of this, and stays the way to demo the app without a backend.
+// (not part of ChangeFactoryApi): these run before there is a session.
 // ---------------------------------------------------------------------
 export const authApi = {
   async me(): Promise<MeOut> {

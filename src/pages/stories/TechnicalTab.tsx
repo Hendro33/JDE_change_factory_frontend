@@ -1,4 +1,3 @@
-import { IS_MOCK_MODE } from "../../services/api";
 import { ExecutionPanel } from "../../components/ExecutionPanel";
 import { DesignEvidencePanel } from "../../components/DesignEvidencePanel";
 import { CAPABILITY_STATUS_LABEL, CapabilityStatusBadge } from "../../components/ui";
@@ -42,7 +41,7 @@ export function TechnicalTab({ ctx }: { ctx: StoryCtx }) {
         </Section>
       ) : <EmptyState title="No design yet">The Architect has not produced a design for this story.</EmptyState>}
 
-      {!IS_MOCK_MODE && ctx.run && ctx.run.history.length > 0 && (
+      {ctx.run && ctx.run.history.length > 0 && (
         <Section title="Design evidence baseline">
           <DesignEvidencePanel changeId={change.id} designCount={ctx.run.history.length} />
         </Section>
@@ -71,7 +70,7 @@ export function TechnicalTab({ ctx }: { ctx: StoryCtx }) {
         </Section>
       )}
 
-      {!IS_MOCK_MODE && (route === "Technical Agent" || route === "Mixed") && (
+      {(route === "Technical Agent" || route === "Mixed") && (
         <Section title="Technical implementation">
           <TechnicalWorkPanel storyId={change.id} roles={info.roles} onChanged={ctx.reload} />
         </Section>

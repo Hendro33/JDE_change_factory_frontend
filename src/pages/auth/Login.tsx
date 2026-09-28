@@ -1,11 +1,7 @@
 import { useState } from "react";
 import { authApi } from "../../services/httpApi";
 
-/**
- * Real login, replacing the old X-Demo-User-Id header trust. Only ever
- * rendered when VITE_USE_MOCK_API=false — the mock service keeps its
- * own persona picker (footer), which has no real credentials to check.
- */
+/** Sign-in: identity comes from a real session cookie set by the backend. */
 export function Login({ onSignedIn, notice }: { onSignedIn: () => void; notice?: string | null }) {
   const [mode, setMode] = useState<"login" | "forgot">("login");
   const [email, setEmail] = useState("");

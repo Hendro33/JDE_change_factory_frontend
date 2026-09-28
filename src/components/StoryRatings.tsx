@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Change, RatingView, StoryRatings as Ratings } from "../types/domain";
-import { api, IS_MOCK_MODE } from "../services/api";
+import { api } from "../services/api";
 import { request } from "../services/httpApi";
 import { ReviewDetail } from "./visualReview";
 
@@ -29,7 +29,6 @@ export function StoryRatingsPanel({ change, mode = "read", onChanged }: {change:
   const loadVersion = useRef(0);
   const load = async () => {
     const version = ++loadVersion.current;
-    if (IS_MOCK_MODE) return;
     try {
       const customerId = (await api.getSession()).activeCustomerId;
       const r = await request<Ratings>(`/changes/${encodeURIComponent(change.id)}/ratings`, {customerId});

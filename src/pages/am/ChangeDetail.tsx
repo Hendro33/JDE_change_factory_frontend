@@ -3,11 +3,9 @@ import { api } from "../../services/api";
 import { ownersOf } from "../BusinessDomains";
 import { ExecutionPanel } from "../../components/ExecutionPanel";
 import { DocumentCitations, RequestDocuments } from "../../components/RequestDocuments";
-import { IS_MOCK_MODE } from "../../services/api";
 import { saveErrorMessage } from "../../services/saveErrors";
 import type { BusinessDomain, Change, DomainReview } from "../../types/domain";
 import {
-  ApiNote,
   CAPABILITY_STATUS_LABEL,
   CapabilityStatusBadge,
   ConfirmDialog,
@@ -139,7 +137,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
             </Provenance>
           </section>
 
-          {!IS_MOCK_MODE && <RequestDocuments requestId={change.id} />}
+          <RequestDocuments requestId={change.id} />
 
           {domainReview && (
             <section className="panel">
@@ -249,7 +247,6 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                   : "Nothing identified"}</dd>
                 <dt>Rollback</dt><dd>{change.architectDecision.rollbackStrategy}</dd>
               </dl>
-              <ApiNote endpoint="GET /changes/{id}/architecture" />
             </section>
           )}
 
@@ -397,7 +394,6 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                 ))}
               </tbody>
             </table>
-            <ApiNote endpoint="GET /changes/{id}/evidence" />
           </section>
         </div>
 

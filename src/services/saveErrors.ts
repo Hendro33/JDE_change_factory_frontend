@@ -4,8 +4,7 @@
  * (`expectedRevision`). If someone else saved in between, the server
  * refuses with 409 rather than silently overwriting their change; a
  * save of an existing record that states no revision at all is 428.
- * Both carry the current revision. The mock service applies the same
- * rule through nextRevision() below, so demo mode behaves the same.
+ * Both carry the current revision.
  */
 export class RevisionConflictError extends Error {
   constructor(public status: 409 | 428, public currentRevision: number) {
@@ -17,17 +16,6 @@ export class RevisionConflictError extends Error {
     );
     this.name = "RevisionConflictError";
   }
-}
-
-/** Mirrors the backend's persistence/revisions.py next_revision(). */
-export function nextRevision(current: number | undefined, expected: number | undefined): number {
-  if (current === undefined) {
-    if (expected !== undefined && expected !== 0) throw new RevisionConflictError(409, 0);
-    return 1;
-  }
-  if (expected === undefined) throw new RevisionConflictError(428, current);
-  if (expected !== current) throw new RevisionConflictError(409, current);
-  return current + 1;
 }
 
 /** The message to show when a save fails -- never swallowed silently. */

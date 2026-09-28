@@ -124,7 +124,7 @@ Set in the Render dashboard. **Values marked secret are never committed, pasted 
 
 Nothing else is needed for the gate. At startup the backend points `JDE_COMPANY_SCOPE_DIR` and `JDE_STORY_COMPANY_DIR` at its own data directory (S1-2).
 
-**Frontend:** set the GitHub repository variable `VITE_API_BASE_URL=https://api.consultiq.nl`. The existing Pages workflow then builds real mode automatically (`deploy-pages.yml` switches `VITE_USE_MOCK_API` on that variable). **Owner decision D-2:** this replaces the open mock demo with a login screen. If a public demo is still wanted, it needs its own address.
+**Frontend:** set the GitHub repository variable `VITE_API_BASE_URL=https://api.consultiq.nl`. The existing Pages workflow builds against that URL (the frontend has no mock mode). **Owner decision D-2:** this replaces the open mock demo with a login screen. If a public demo is still wanted, it needs its own address.
 
 ## 6. Login, sessions and email
 

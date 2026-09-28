@@ -2,7 +2,7 @@ import { ReviewDetail } from "../../components/visualReview";
 import { inAmStage } from "./workflow";
 import { KnowledgePage } from "../knowledge/Knowledge";
 import { useEffect, useState, type ReactNode } from "react";
-import { api, IS_MOCK_MODE } from "../../services/api";
+import { api } from "../../services/api";
 import type { Change } from "../../types/domain";
 import { Loading, storyTitle, useSessionInfo } from "../../components/design";
 import { Link, setQueryParam, storyPath, useLocation } from "../../router";
@@ -28,7 +28,6 @@ function Workbench({ title, intro, at, filter, empty, render }: {
   const [changes, setChanges] = useState<Change[] | null>(null);
   useEffect(() => { api.listChanges().then((all) => setChanges(all.filter(filter).filter((c) => query.get("queue") !== "asbuilt" || inAmStage(c, "asbuilt")))).catch(() => setChanges([])); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query.get("queue")]);
-  if (IS_MOCK_MODE) return <section className="panel"><h1>{title}</h1><p className="notstated">Needs the real backend.</p></section>;
   if (!changes) return <Loading what={title.toLowerCase()} />;
   const wanted = query.get("story");
   const openId = wanted && changes.some((c) => c.id === wanted) ? wanted : changes[0]?.id ?? null;
@@ -76,7 +75,7 @@ export function TechnicalWorkbench({ design = false }: { design?: boolean }) {
   const info = useSessionInfo();
   return (
     <Workbench title={design ? "Technical design" : "Technical Work"} at={design ? "design" : "implementation"}
-      intro={<>From an approved Architect design to a verified change in the <strong>simulated</strong> DEV estate. The Technical Agent prepares;
+      intro={<>From an approved Architect design to a verified change in the DEV environment. The Technical Agent prepares;
         people approve the design and each exact package revision; a human CNC activates; Jade's executor re-checks everything before each milestone.</>}
       filter={(c) => TECHNICAL_ROUTES.has(c.architectDecision?.recommendedRoute ?? "")}
       empty="No story has a design routed to the Technical Agent."

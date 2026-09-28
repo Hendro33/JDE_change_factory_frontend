@@ -7,7 +7,7 @@ import { api } from "../../services/api";
 import type { Change } from "../../types/domain";
 import type { NavTarget } from "../../types/nav";
 import { ChangeGrid, useChangeListControls, type GridColumn } from "../../components/WorkQueue";
-import { ApiNote, Loading, PriorityBadge } from "../../components/ui";
+import { Loading, PriorityBadge } from "../../components/ui";
 
 /**
  * One reusable page for the post-Delivery-Queue stages of the
@@ -118,7 +118,6 @@ export function Pipeline({ onOpenChange, navFilter, navToken }: { onOpenChange: 
               sortDir={sortDir}
               onSortChange={onSortChange}
             />
-            <ApiNote endpoint="GET /changes · GET /changes/{id}/implementation" />
           </section>
         </div>
       )}

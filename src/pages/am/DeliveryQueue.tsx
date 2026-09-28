@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type { Change, DeliveryQueueEntry, LifecycleState } from "../../types/domain";
-import { ApiNote, Loading, PIPELINE_STATES, PipelineFlow, StateBadge } from "../../components/ui";
+import { Loading, PIPELINE_STATES, PipelineFlow, StateBadge } from "../../components/ui";
 
 /**
  * The Delivery Queue (Increment: Continuous Delivery Flow) — the set
@@ -88,7 +88,6 @@ export function DeliveryQueuePage({ onOpenChange }: { onOpenChange: (id: string)
                   })}
                 </tbody>
               </table>
-              <ApiNote endpoint="GET /delivery-queue" />
             </section>
           )}
         </div>

@@ -1,6 +1,6 @@
 import { KnowledgePage } from "../knowledge/Knowledge";
 import { useEffect, useMemo, useState } from "react";
-import { api, IS_MOCK_MODE } from "../../services/api";
+import { api } from "../../services/api";
 import { processApi, type FrameworkNode, type VersionPreview } from "../../services/processApi";
 import type { Change } from "../../types/domain";
 import {
@@ -59,7 +59,7 @@ export function BusinessArchitecturePage({ domainId }: { domainId?: string }) {
           </div>
         )}
       </Section>
-      {!IS_MOCK_MODE && <ProcessMap selected={node} changes={changes} />}
+      <ProcessMap selected={node} changes={changes} />
       <KnowledgePage part="rules" />
     </div>
   );

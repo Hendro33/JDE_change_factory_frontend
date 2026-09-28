@@ -1,7 +1,7 @@
 import { ConnectionHealthCard } from "../../components/visualReview";
 import { KnowledgePage } from "../knowledge/Knowledge";
 import { useEffect, useState } from "react";
-import { api, IS_MOCK_MODE } from "../../services/api";
+import { api } from "../../services/api";
 import { aiApi, type AiConnection } from "../../services/aiApi";
 import type { IntegrationStatus } from "../../types/domain";
 import { Link, navigate } from "../../router";
@@ -105,7 +105,7 @@ function ConnectionOverview() {
   const [connectionError, setConnectionError] = useState("");
   useEffect(() => {
     api.listIntegrations().then(setIntegrations).catch(() => setConnectionError("Connection status could not be loaded. Refresh to try again."));
-    if (!IS_MOCK_MODE) aiApi.connection().then(setAi).catch(() => setConnectionError("AI connection status could not be loaded. Refresh to try again."));
+    aiApi.connection().then(setAi).catch(() => setConnectionError("AI connection status could not be loaded. Refresh to try again."));
   }, []);
   const aiState = !ai ? null : !ai.configured ? "Not set up" : !ai.enabled ? "Switched off" : ai.tested ? "Connected" : "Set up, not tested";
   const connected = (integrations ?? []).filter((i) => i.connected).length + (aiState === "Connected" ? 1 : 0);
@@ -113,7 +113,7 @@ function ConnectionOverview() {
     <div className="vr-connections-head"><span className="vr-connections-number">{integrations ? connected : "—"}</span><div><h2>Connections reported ready</h2><p>Configuration status from JADE. This overview does not run a live health check. Simulated connections stay labelled.</p></div></div>
     {connectionError && <div className="callout" role="alert">{connectionError}</div>}
     <div className="vr-connections-grid">
-      {ai && <ConnectionHealthCard name="AI provider" status={aiState ?? "Unknown"} connected={aiState === "Connected"} detail={ai.providerLabel + (ai.testProvider ? " · TEST PROVIDER" : "")} model={ai.model} checkedAt={ai.lastTest?.at} to="/admin/agents/ai" />}
+      {ai && <ConnectionHealthCard name="AI provider" status={aiState ?? "Unknown"} connected={aiState === "Connected"} detail={ai.providerLabel} model={ai.model} checkedAt={ai.lastTest?.at} to="/admin/agents/ai" />}
       {(integrations ?? []).map((i) => <ConnectionHealthCard key={i.name} name={i.name} status={i.connected ? "Connected (reported)" : "Not connected"} connected={i.connected} detail={i.detail} to={i.name.toLowerCase().includes("jira") ? "/admin/connections/jira" : /jd edwards|jde/i.test(i.name) ? "/admin/connections/jde" : undefined} />)}
     </div>
   </div>;

@@ -1,5 +1,4 @@
 import { processApi, type Mapping } from "../../services/processApi";
-import { IS_MOCK_MODE } from "../../services/api";
 import { useSessionInfo } from "../../components/design";
 import { StoryRatingsPanel } from "../../components/StoryRatings";
 import { ReviewFlow, ReviewDetail, BusinessContextMap, AcceptanceChecklist, QuestionCards, BacklogComparison, SolutionArchitectureMap, IntegrityPanel } from "../../components/visualReview";
@@ -54,7 +53,7 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
 
   useEffect(() => {
     let active = true; setMapping(null);
-    if (openId && !IS_MOCK_MODE) processApi.story(openId).then((p) => { if(active) setMapping(p.mapping); }).catch(() => {});
+    if (openId) processApi.story(openId).then((p) => { if(active) setMapping(p.mapping); }).catch(() => {});
     return () => { active = false; };
   }, [openId]);
 

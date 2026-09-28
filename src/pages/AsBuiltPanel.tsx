@@ -1,6 +1,5 @@
 import { VisualFacts } from "../components/workspaceVisuals";
 import { useEffect, useState } from "react";
-import { IS_MOCK_MODE } from "../services/api";
 import { saveErrorMessage } from "../services/saveErrors";
 import { processApi, type AsBuiltRecord, type AsBuiltView, type Checkpoint, type MapVersion, type PinnedRef } from "../services/processApi";
 import { Link } from "../router";
@@ -111,7 +110,6 @@ export function AsBuiltPanel({ storyId, onChanged }: { storyId: string; onChange
     try { const r = await fn(); load(r.version); onChanged?.(); } catch (e) { setError(saveErrorMessage(e, "Refused.")); } finally { setBusy(false); }
   }
 
-  if (IS_MOCK_MODE) return <p className="notstated">As-built records need the real backend.</p>;
   if (!view) return error ? <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div> : <Loading what="the as-built record" />;
   const rec = view.records.find((r) => r.version === shown);
   const missing = view.checkpoints_now.filter((c) => !c.complete);

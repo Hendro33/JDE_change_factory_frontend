@@ -1,6 +1,6 @@
 import { ReviewDetail, SolutionArchitectureMap, IntegrityPanel } from "../../components/visualReview";
 import { useEffect, useState } from "react";
-import { api, IS_MOCK_MODE } from "../../services/api";
+import { api } from "../../services/api";
 import { discoveryApi, type DesignBaselineView } from "../../services/discoveryApi";
 import { AskJadePanel } from "../../components/AskJade";
 import { DesignEvidencePanel } from "../../components/DesignEvidencePanel";
@@ -27,7 +27,7 @@ export function SolutionTab({ ctx }: { ctx: StoryCtx }) {
   const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
-    if (IS_MOCK_MODE || !decision) return;
+    if (!decision) return;
     discoveryApi.designEvidence(change.id).then((b) => setEvidence(b[0] ?? null)).catch(() => setEvidence(null));
   }, [change.id, ctx.run?.history.length]);
 
@@ -116,7 +116,7 @@ export function SolutionTab({ ctx }: { ctx: StoryCtx }) {
         {basedOn.length > 0 && <><div className="minihead">Based on</div><ul className="compactlist">{basedOn.map((b) => <li key={b}>{b}</li>)}</ul></>}
         <div className="minihead">Uncertainty</div>
         {uncertainty.length ? <ul className="compactlist warnlist">{uncertainty.map((u) => <li key={u}>{u}</li>)}</ul> : <p className="muted">Nothing flagged.</p>}
-        {!IS_MOCK_MODE && ctx.run && ctx.run.history.length > 0 && (
+        {ctx.run && ctx.run.history.length > 0 && (
           <Details summary="View supporting evidence" id="evidence">
             <DesignEvidencePanel changeId={change.id} designCount={ctx.run.history.length} />
           </Details>

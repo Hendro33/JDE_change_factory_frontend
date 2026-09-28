@@ -75,12 +75,6 @@ export function AiConnections() {
           sign-in and from the JDE discovery account. Use an API key from the Anthropic Console (billed to the
           organisation) — a personal Claude chat subscription or chat password cannot be used and must never be entered.
         </p>
-        {view.testProvider && (
-          <div className="callout" style={{ borderColor: "var(--warn)" }}>
-            <strong>Test provider active</strong> This backend is started with a loopback test provider
-            (JADE_AI_TEST_PROVIDER_URL). Runs made now do not reach Anthropic and never count as real evidence.
-          </div>
-        )}
         <dl className="facts">
           <dt>Provider</dt><dd>{view.providerLabel} · runtime {view.runtimeLabel}</dd>
           <dt>Status</dt>

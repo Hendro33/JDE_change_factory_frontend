@@ -215,8 +215,7 @@ export function AgentConfiguration({ part = "all" }: { part?: "config" | "operat
                   </td>
                   <td>
                     {r.configured_model ?? "—"}
-                    <div className="hint">reported: {r.reported_model ?? "—"} · key: {r.credential_source ?? "—"}
-                      {r.provider === "anthropic-test-provider" && " · TEST PROVIDER"}</div>
+                    <div className="hint">reported: {r.reported_model ?? "—"} · key: {r.credential_source ?? "—"}</div>
                     {r.runtime && <div className="hint">{r.runtime}</div>}
                     {(r.notes ?? []).map((n, i) => <div key={i} className="badge warn" style={{ marginTop: 4 }}>{n}</div>)}
                   </td>

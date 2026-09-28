@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { DemandNav } from "../demand/DemandNav";
-import { api, IS_MOCK_MODE } from "../../services/api";
+import { api } from "../../services/api";
 import type { Attachment } from "../../services/aiApi";
 import type { ChangeSource } from "../../types/domain";
 import { DraftDocuments } from "../../components/RequestDocuments";
@@ -62,7 +62,7 @@ export function NewRequestPage() {
           <textarea id="nr-req" value={request} onChange={(e) => setRequest(e.target.value)}
             placeholder="Paste the ticket text or note exactly as written. Don't tidy it up — JADE works better with the original wording." />
         </div>
-        {!IS_MOCK_MODE && <DraftDocuments value={docs} onChange={setDocs} />}
+        <DraftDocuments value={docs} onChange={setDocs} />
         <label className="checkline"><input type="checkbox" checked={analyse} onChange={(e) => setAnalyse(e.target.checked)} /> Start JADE's analysis straight away</label>
         {error !== null && <ErrorState error={error} title="The request was not created" />}
         <div className="btnrow" style={{ marginTop: 16 }}>

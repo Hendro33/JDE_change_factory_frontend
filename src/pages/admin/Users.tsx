@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type { BusinessDomain, CompanyRole, CompanyUsersOut, InvitationOut, MembershipOut } from "../../types/domain";
-import { ApiNote, Loading } from "../../components/ui";
+import { Loading } from "../../components/ui";
 
 const ALL_ROLES: CompanyRole[] = ["admin", "domain_owner", "product_manager", "dashboard_viewer", "cnc_operator"];
 const ROLE_LABEL: Record<CompanyRole, string> = {
@@ -351,7 +351,6 @@ export function Users() {
             )}
           </section>
 
-          <ApiNote endpoint="GET /admin/users, POST /admin/users/invite, PUT /admin/users/{id}/roles, POST /admin/users/{id}/deactivate|reactivate, POST /admin/users/invitations/{id}/resend|revoke" />
         </>
       )}
     </>

@@ -31,7 +31,6 @@ export interface SessionInfo {
   admin: boolean;
   domains: BusinessDomain[];
   domainName: (id?: string | null) => string | undefined;
-  isDemoCustomer: boolean;
 }
 
 export const SessionContext = createContext<SessionInfo | null>(null);

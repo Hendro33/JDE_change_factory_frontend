@@ -1,11 +1,9 @@
 /**
  * The seam between this UI and the backend.
  *
- * Every component talks to `api` (exported at the bottom of this file)
- * and never to mock data directly. To connect the real ConsultIQ
- * Change Factory engine later, implement ChangeFactoryApi against
- * FastAPI and swap the one line at the bottom — no component should
- * need to change.
+ * Every component talks to `api` (exported at the bottom of this file),
+ * which is the HTTP client for Jade's FastAPI backend. ChangeFactoryApi
+ * documents that contract in one place.
  */
 
 import type {
@@ -48,9 +46,8 @@ import type {
   UserStory, CustomerInput, Customer, MyWork, AgentInventoryEntry } from "../types/domain";
 
 /**
- * The REST endpoints the FastAPI backend is expected to expose.
- * Kept here so the contract is visible in one place while the
- * backend is still being built.
+ * The REST endpoints the FastAPI backend exposes.
+ * Kept here so the contract is visible in one place.
  */
 export const API_ENDPOINTS = {
   /**
@@ -165,8 +162,7 @@ export interface CreateChangeInput {
 export interface DecisionInput {
   // No decidedBy: who decided is derived server-side from the
   // authenticated session (never trusted from the client) -- see
-  // dependencies.py's own docstring on identity. The mock service
-  // derives it from the active persona (session.ts) the same way.
+  // dependencies.py's own docstring on identity.
   note: string;
   /** Only meaningful on a rejection — ignored on an approval. */
   rejectionReason?: FeedbackReasonCode;
@@ -318,7 +314,7 @@ export interface ChangeFactoryApi {
   getCustomerProfile(): Promise<CustomerProfile>;
   /** Admin: edit the active customer's own information. */
   updateCustomerProfile(input: CustomerInput): Promise<CustomerProfile>;
-  /** Admin: create a new (real, non-demo) customer; the creator becomes its Admin. */
+  /** Admin: create a new customer; the creator becomes its Admin. */
   createCustomer(input: CustomerInput): Promise<Customer>;
   /** JDE connection + engagement-scope status. Never a credential value. */
   getErpLandscape(): Promise<ErpLandscape>;
@@ -326,8 +322,8 @@ export interface ChangeFactoryApi {
   getExecutionPreflight(changeId: string): Promise<PreflightResult>;
   /**
    * Settle an unknown write outcome from the ACTUAL target value. Jade reads
-   * it itself where it can (mock mode); otherwise observedValue is what a
-   * person read in JDE, with a note.
+   * it itself where it can; otherwise observedValue is what a person read
+   * in JDE, with a note.
    */
   reconcileExecution(
     changeId: string,
@@ -379,16 +375,15 @@ export interface ChangeFactoryApi {
   updateJiraCredentials(input: JiraCredentialsUpdateInput): Promise<JiraConnectionStatus>;
   /**
    * "Disconnect" — removes this customer's stored Jira credential
-   * entirely (not just blanking it). The connector falls back to mock
-   * immediately; site/project/status configuration is left untouched,
+   * entirely (not just blanking it). Jira operations are unavailable until
+   * a credential is entered again; site/project/status configuration is left untouched,
    * so reconnecting later doesn't mean re-entering all of it.
    */
   disconnectJiraCredentials(): Promise<JiraConnectionStatus>;
   /**
    * "Test Connection" — checks whatever is currently typed in the form
    * (site URL, project key, email, API token), whether or not it has
-   * been saved yet. Always a real call to Jira, regardless of mock
-   * mode; never persists anything.
+   * been saved yet. Always a real call to Jira; never persists anything.
    */
   testJiraConnection(input: JiraTestConnectionInput): Promise<JiraTestConnectionResult>;
   /**
@@ -404,8 +399,7 @@ export interface ChangeFactoryApi {
    * Admin > Users — company member list (active/inactive/pending
    * invitations), inviting, role/domain assignment, deactivate/
    * reactivate, resend/revoke. All require the Admin role on the
-   * active company; enforced server-side (dashboard-only in the mock
-   * service, which has no real role check of its own).
+   * active company; enforced server-side.
    */
   listCompanyUsers(): Promise<CompanyUsersOut>;
   inviteUser(input: InviteInput): Promise<InvitationOut>;
@@ -418,21 +412,7 @@ export interface ChangeFactoryApi {
   reactivateMembership(membershipId: string, expectedRevision: number): Promise<MembershipOut>;
 }
 
-// ---------------------------------------------------------------------
-// Which implementation the app uses.
-//
-// Phase 1 default is still the mock, so nothing breaks without a .env
-// file. Set VITE_USE_MOCK_API=false to point the app at the real
-// FastAPI backend (api_service/) instead -- see .env.example. Almost
-// everything is backed by real endpoints now (see HttpChangeFactoryApi's
-// own comment for the small, named set of older methods that still
-// aren't).
-// ---------------------------------------------------------------------
-import { MockChangeFactoryApi } from "./mockApi";
 import { HttpChangeFactoryApi } from "./httpApi";
 
-// The real backend is the default. The in-browser sample-data mode runs only
-// when explicitly asked for (VITE_USE_MOCK_API=true), and says so on every page.
-export const IS_MOCK_MODE = import.meta.env.VITE_USE_MOCK_API === "true";
-
-export const api: ChangeFactoryApi = IS_MOCK_MODE ? new MockChangeFactoryApi() : new HttpChangeFactoryApi();
+/** The one API client: Jade's FastAPI backend (VITE_API_BASE_URL). */
+export const api: ChangeFactoryApi = new HttpChangeFactoryApi();

@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { IS_MOCK_MODE } from "../services/api";
 import { saveErrorMessage } from "../services/saveErrors";
 import { technicalApi, type PackageView, type TechnicalWorkView } from "../services/technicalApi";
 import type { CompanyRole } from "../types/domain";
@@ -184,7 +183,6 @@ export function TechnicalWorkPanel({ storyId, roles, onChanged, designOnly = fal
     try { await fn(); load(); onChanged?.(); } catch (e) { setError(saveErrorMessage(e, "Refused.")); } finally { setBusy(false); }
   }
 
-  if (IS_MOCK_MODE) return <p className="notstated">Technical work needs the real backend.</p>;
   if (!view) return error ? <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div> : <Loading what="technical work" />;
   const a = view.assignment;
   const canApprove = roles.includes("product_manager") || roles.includes("admin") || roles.includes("domain_owner");

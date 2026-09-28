@@ -2,12 +2,10 @@
  * Technical work -- the Technical Agent's packages, their exact approval,
  * the governed milestones and the human CNC hand-off.
  *
- * Talks to the real backend only; the demo has no Technical workflow and
- * never simulates one in the browser. Response bodies keep the backend's
- * snake_case keys.
+ * Response bodies keep the backend's snake_case keys.
  */
 
-import { api, IS_MOCK_MODE } from "./api";
+import { api } from "./api";
 import { request } from "./httpApi";
 
 export interface TestCase {
@@ -90,14 +88,7 @@ export interface TechnicalWorkView {
                                              build: null | { status: string; log: string[] } }> };
 }
 
-class DemoModeError extends Error {
-  constructor() {
-    super("Technical work needs the real backend. The demo never simulates the Technical Agent in the browser.");
-  }
-}
-
 async function customer(): Promise<string> {
-  if (IS_MOCK_MODE) throw new DemoModeError();
   return (await api.getSession()).activeCustomerId;
 }
 

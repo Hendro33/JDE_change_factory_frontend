@@ -8,7 +8,7 @@ import {
 import { saveErrorMessage } from "../../services/saveErrors";
 import type { CustomerInput, CustomerProfile, DashboardThresholds } from "../../types/domain";
 import { Link } from "../../router";
-import { ApiNote, Loading } from "../../components/ui";
+import { Loading } from "../../components/ui";
 
 const EMPTY: CustomerInput = { name: "", shortName: "", toolsRelease: "", environment: "" };
 
@@ -39,7 +39,7 @@ function CustomerEditor({ profile, isAdmin, onSaved }: { profile: CustomerProfil
   return (
     <section className="panel">
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0 }}>{c.name} {c.isDemo && <span className="badge warn">DEMO customer — test data</span>}</h2>
+        <h2 style={{ margin: 0 }}>{c.name}</h2>
         {isAdmin && !editing && <div className="btnrow">
           <button className="btn" onClick={() => setEditing(true)}>Edit customer</button>
           <button className="btn" onClick={() => { setCreating(!creating); setDraft(EMPTY); }}>New customer</button>
@@ -51,7 +51,6 @@ function CustomerEditor({ profile, isAdmin, onSaved }: { profile: CustomerProfil
           <dt>Short name</dt><dd>{c.shortName}</dd>
           <dt>JDE Tools Release</dt><dd>{c.toolsRelease || <span className="notstated">not stated</span>}</dd>
           <dt>JDE environment</dt><dd>{c.environment || <span className="notstated">not stated</span>}</dd>
-          <dt>Kind</dt><dd>{c.isDemo ? "Demo customer: test data; simulated JDE allowed" : "Real customer: live connections only, nothing simulated"}</dd>
           <dt>Last changed</dt><dd>{profile.updatedAt ? `${new Date(profile.updatedAt).toLocaleString("en-GB")} by ${profile.updatedBy}` : <span className="notstated">not changed since it was created</span>}</dd>
         </dl>
       ) : (
@@ -83,7 +82,6 @@ function CustomerEditor({ profile, isAdmin, onSaved }: { profile: CustomerProfil
       )}
       {error && <div className="callout" role="alert" style={{ borderColor: "var(--stop)", marginTop: 8 }}>{error}</div>}
       {note && <div className="hint" role="status">{note}</div>}
-      <ApiNote endpoint="GET/PUT /admin/customer-profile, POST /admin/customers" />
     </section>
   );
 }
@@ -289,7 +287,6 @@ export function CustomerSetup() {
             ) : (
               <p className="notstated">Only a company Admin can change these.</p>
             )}
-            <ApiNote endpoint="GET/PUT /admin/dashboard-thresholds" />
           </section>
         </div>
       )}

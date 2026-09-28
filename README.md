@@ -3,10 +3,9 @@
 React + TypeScript + Vite. Talks to Jade's backend (the backend repository's
 `scripts/run_local_preview.sh` starts both, from the latest `main`). The
 footer shows the frontend and backend commits that are actually running.
-
-An in-browser sample-data mode still exists for UI development only. It runs
-only with `VITE_USE_MOCK_API=true`, and every page then carries a red
-"Demo mode" banner. It is never the default and is not deployed.
+There is no in-browser mock or demo mode: the app always uses the backend at
+`VITE_API_BASE_URL` (default `http://localhost:8000`, see `.env.example`),
+and every user signs in.
 
 ## Run it
 
@@ -46,24 +45,18 @@ Everything the UI needs is declared in one interface:
 
 ```
 src/services/api.ts      ChangeFactoryApi + API_ENDPOINTS + `export const api`
-src/services/mockApi.ts  the mock implementation used today
+src/services/httpApi.ts  HttpChangeFactoryApi: the FastAPI client behind `api`
 src/types/domain.ts      the domain model (mirrors design doc Sections 6.1-6.6)
 ```
 
-No component imports mock data. Every page calls `api.*`. To connect the
-FastAPI backend:
-
-1. Write `HttpChangeFactoryApi` implementing `ChangeFactoryApi` with `fetch`.
-2. Change the last line of `src/services/api.ts` to export it instead.
-
-That is the whole integration surface. The endpoint paths the backend is
-expected to expose are listed in `API_ENDPOINTS` in the same file.
+Every page calls `api.*`. The endpoint paths the backend exposes are
+listed in `API_ENDPOINTS` in `src/services/api.ts`.
 
 ## Structure
 
 ```
 src/types/domain.ts        Change, Lifecycle, NextAction, MyWork, UserStory, ...
-src/services/              api interface, HTTP and mock implementations
+src/services/              api interface and HTTP clients
 src/router.tsx             small History-API router (hash mode for file:// builds)
 src/components/design.tsx  page building blocks: headers, sections, drawers,
                            lifecycle stepper, health, empty/error/loading states
@@ -125,8 +118,7 @@ be reworked when the real backend enforces it.
 
 Hand-drawn SVG in `components/ui.tsx` — no chart library, so there is
 no dependency to keep current and the styling matches the brand exactly.
-Report figures are computed from the change records in `mockApi.ts`,
-never hard-coded, so they will behave the same against the real API.
+Report figures come from the backend's change records, never hard-coded.
 
 ## Customer scoping (multi-tenancy)
 
@@ -143,13 +135,6 @@ Both are the one `CustomerScope` component, driven by
 `session.customers.length`. Nothing in the pages knows about customers;
 they call `api.*` and get the active customer's data.
 
-`src/services/session.ts` holds two prototype personas so both paths
-can be demonstrated: a single-customer Application Manager, and a
-ConsultIQ consultant with three engagements. Switch between them with
-the control in the footer or `?persona=consultant` /
-`?persona=customer-user`. That control is prototype scaffolding and
-disappears once real sign-in exists.
-
 ### What the backend must do — this part is not optional
 
 The service layer sends the active customer as an `X-Customer-Id`
@@ -165,9 +150,9 @@ as an instruction to obey.** On every request it must:
 
 If the header alone were enough to change scope, switching customer
 would be a client-side edit and any consultant could read any
-customer's estate. The mock enforces the same rule —
-`setMockActiveCustomer` throws for an unentitled customer — so the
-behaviour is identical once the real API is connected.
+customer's estate. The client also refuses to switch to a customer
+outside the session's list (`setActiveCustomer` in `httpApi.ts`), but
+the backend check is the one that counts.
 
 Corresponding changes needed in the Python engine:
 

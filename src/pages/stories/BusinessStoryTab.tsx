@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
-import { api, IS_MOCK_MODE } from "../../services/api";
+import { api } from "../../services/api";
 import type { UserStory } from "../../types/domain";
 import { AskJadePanel } from "../../components/AskJade";
 import { DocumentCitations, RequestDocuments } from "../../components/RequestDocuments";
@@ -161,7 +161,7 @@ export function BusinessStoryTab({ ctx }: { ctx: StoryCtx }) {
         </div>
       )}
 
-      {!IS_MOCK_MODE && us && (
+      {us && (
         <Section id="process" title="Business process"
           description="Where this story sits in the business: the confirmed processes and the as-is and to-be maps. Maps support the story; the story stays the anchor.">
           <StoryProcessPanel storyId={change.id} onChanged={ctx.reload} />
@@ -176,7 +176,7 @@ export function BusinessStoryTab({ ctx }: { ctx: StoryCtx }) {
             <dl className="facts">{Object.entries(change.sourceMetadata).map(([k, v]) => (
               <Fragment key={k}><dt>{k.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}</dt><dd>{v}</dd></Fragment>))}</dl>
           )}
-          {!IS_MOCK_MODE && <RequestDocuments requestId={change.id} />}
+          <RequestDocuments requestId={change.id} />
         </Details>
       </Section>
 

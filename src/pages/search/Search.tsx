@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, IS_MOCK_MODE } from "../../services/api";
+import { api } from "../../services/api";
 import { processApi, type FrameworkNode } from "../../services/processApi";
 import { EmptyState, HealthIndicator, Loading, PageHeader, Section, storyTitle, useAsync, useSessionInfo } from "../../components/design";
 import { Link, storyPath, useLocation } from "../../router";
@@ -13,7 +13,6 @@ export function SearchPage() {
   const { data: changes } = useAsync(() => api.listChanges(), []);
   const [nodes, setNodes] = useState<FrameworkNode[]>([]);
   useEffect(() => {
-    if (IS_MOCK_MODE) return;
     processApi.frameworks().then(async (list) => {
       const fw = list.frameworks.find((f) => f.framework_id === list.settings.selected_framework_id) ?? list.frameworks.find((f) => f.active_version);
       if (fw?.active_version) setNodes((await processApi.version(fw.framework_id, fw.active_version)).nodes);

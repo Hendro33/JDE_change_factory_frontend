@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, IS_MOCK_MODE } from "../../services/api";
+import { api } from "../../services/api";
 import { discoveryApi, type ArtifactView } from "../../services/discoveryApi";
 import { KnowledgeLibrary } from "../admin/KnowledgeLibrary";
 import {
@@ -19,7 +19,7 @@ export function KnowledgePage({ part }: { part?: "rules" | "solutions" | "refere
   const q = (query.get("q") ?? "").trim().toLowerCase();
   const { data: changes, error } = useAsync(() => api.listChanges(), []);
   const [artifacts, setArtifacts] = useState<ArtifactView[]>([]);
-  useEffect(() => { if (!IS_MOCK_MODE && part === "references") discoveryApi.listArtifacts().then(setArtifacts).catch(() => setArtifacts([])); }, [part]);
+  useEffect(() => { if (part === "references") discoveryApi.listArtifacts().then(setArtifacts).catch(() => setArtifacts([])); }, [part]);
 
   const delivered = useMemo(() => (changes ?? []).filter((c) => c.lifecycle?.outcome === "delivered" || c.lifecycle?.phase === "release"), [changes]);
   const rules = useMemo(() => (changes ?? []).filter((c) => c.userStory && c.lifecycle && (c.lifecycle.phaseIndex >= 2 || c.lifecycle.nextAction.action === "authorise_delivery"))
@@ -66,7 +66,7 @@ export function KnowledgePage({ part }: { part?: "rules" | "solutions" | "refere
         )}
       </Section>}
 
-      {part === "references" && !IS_MOCK_MODE && (
+      {part === "references" && (
         <Section title={`JD Edwards objects (${o.length})`} description="Object sources imported for JADE's analysis.">
           {o.length === 0 ? <EmptyState title={q ? "No objects match" : "No objects imported yet"} /> : (
             <table className="data"><thead><tr><th>Object</th><th>Type</th><th>Environment</th><th>Added</th></tr></thead>
@@ -78,7 +78,7 @@ export function KnowledgePage({ part }: { part?: "rules" | "solutions" | "refere
         </Section>
       )}
 
-      {part === "references" && !IS_MOCK_MODE && <KnowledgeLibrary readOnly={!info.has("admin")} />}
+      {part === "references" && <KnowledgeLibrary readOnly={!info.has("admin")} />}
     </div>
   );
 }

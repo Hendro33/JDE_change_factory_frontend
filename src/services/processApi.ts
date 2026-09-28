@@ -1,10 +1,9 @@
 /**
  * Process frameworks, a story's process mapping and maps, and its as-built
- * record. Talks to the real backend only (the demo never simulates these).
- * Response bodies keep the backend's snake_case keys.
+ * record. Response bodies keep the backend's snake_case keys.
  */
 
-import { api, IS_MOCK_MODE } from "./api";
+import { api } from "./api";
 import { request } from "./httpApi";
 
 export type SourceKind = "apqc_authorised" | "customer_defined" | "synthetic_fixture";
@@ -120,7 +119,6 @@ export interface AsBuiltView {
 }
 
 async function customer(): Promise<string> {
-  if (IS_MOCK_MODE) throw new Error("Process frameworks, maps and as-built records need the real backend.");
   return (await api.getSession()).activeCustomerId;
 }
 

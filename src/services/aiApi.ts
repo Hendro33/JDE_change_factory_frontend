@@ -1,12 +1,11 @@
 /**
  * Customer AI connection, Agent Start-up Packs, agent runs/health and
- * request documents. Real backend only: nothing here has a mock.
+ * request documents.
  */
-import { api, IS_MOCK_MODE } from "./api";
+import { api } from "./api";
 import { downloadFile, request } from "./httpApi";
 
 async function customerId(): Promise<string> {
-  if (IS_MOCK_MODE) throw new Error("This needs Jade's backend.");
   return (await api.getSession()).activeCustomerId;
 }
 
@@ -17,7 +16,6 @@ export type DocumentPolicy = "metadata_only" | "permitted_content";
 export interface AiConnection {
   provider: string;
   providerLabel: string;
-  testProvider: boolean;
   runtime: string;
   runtimeLabel: string;
   activities: { id: string; label: string; roles: string[]; note: string; models: string[] }[];

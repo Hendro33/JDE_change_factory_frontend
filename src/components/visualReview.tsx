@@ -111,7 +111,7 @@ export function IntegrityPanel({ decision }: {decision: ArchitectDecision}) {
 export function ConnectionHealthCard({ name, status, connected, detail, to, model, checkedAt }: {name: string; status: string; connected: boolean; detail: string; to?: string; model?: string; checkedAt?: string}) {
   return <article className={`vr-connection ${connected ? "connected" : "unconfirmed"}`}>
     <div className="vr-connection-top"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v5m8-5v5M6 8h12v3a6 6 0 0 1-12 0V8Zm6 9v4" /></svg><span className="vr-status"><span aria-hidden="true">{connected ? "●" : "○"}</span> {status}</span></div>
-    <h2>{name}</h2>{/simulat|test provider/i.test(detail) && <span className="badge warn">{ /simulat/i.test(detail) ? "SIMULATION" : "TEST PROVIDER"}</span>}<ReviewDetail title="Connection details"><p>{detail}</p></ReviewDetail>
+    <h2>{name}</h2>{/simulat/i.test(detail) && <span className="badge warn">SIMULATION</span>}<ReviewDetail title="Connection details"><p>{detail}</p></ReviewDetail>
     {model && <div className="vr-connection-fact"><span>Model</span><strong>{model}</strong></div>}
     <div className="vr-connection-fact"><span>Last check</span><strong>{checkedAt ? new Date(checkedAt).toLocaleString("en-GB") : "Not reported"}</strong></div>
     {to ? <Link className="btn small" to={to}>Configure <span aria-hidden="true">→</span></Link> : <span className="vr-note">No configuration screen available</span>}

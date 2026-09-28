@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, IS_MOCK_MODE } from "../../services/api";
+import { api } from "../../services/api";
 import { saveErrorMessage } from "../../services/saveErrors";
 import {
   fileToBase64, processApi, type Framework, type FrameworkList, type FrameworkNode, type Inspection, type SourceKind,
@@ -227,7 +227,6 @@ export function ProcessFramework() {
     });
   }).catch((e) => setError(saveErrorMessage(e, "Could not load frameworks.")));
   useEffect(() => {
-    if (IS_MOCK_MODE) return;
     load();
     api.getSession().then((s) => setIsAdmin((s.customers.find((c) => c.id === s.activeCustomerId)?.roles ?? []).includes("admin")));
     if (navFilter?.node) setNode(navFilter.node);
@@ -235,7 +234,6 @@ export function ProcessFramework() {
   }, []);
   useEffect(() => { if (open) processApi.version(open.fid, open.version).then(setPreview).catch((e) => setError(saveErrorMessage(e, "Could not load the version."))); }, [open?.fid, open?.version]);
 
-  if (IS_MOCK_MODE) return <section className="panel"><h1>Process Framework</h1><p className="notstated">Needs the real backend.</p></section>;
   if (!list) return <Loading what="process frameworks" />;
   const fw = list.frameworks.find((f) => f.framework_id === open?.fid);
 

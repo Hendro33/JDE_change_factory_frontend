@@ -1,4 +1,3 @@
-import { IS_MOCK_MODE } from "../services/api";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import type { CapabilityStatus, FeedbackReasonCode } from "../types/domain";
@@ -173,11 +172,6 @@ export function NotStated() {
 }
 
 export { Loading } from "./design";
-
-/** Developer plumbing (endpoint names) stays out of the UI; demo mode still says the data is sample data. */
-export function ApiNote(_: { endpoint: string }) {
-  return IS_MOCK_MODE ? <div className="apinote">Sample data in this browser.</div> : null;
-}
 
 // Governance widgets used by the Application Management and User Story Review screens.
 export {

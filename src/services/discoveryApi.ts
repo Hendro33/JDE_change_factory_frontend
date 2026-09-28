@@ -1,14 +1,9 @@
 /**
  * Architect Environment Discovery — Admin > Integrations > JDE, the
  * technical baseline import, and the evidence behind each design.
- *
- * Talks to the real backend only. In mock (demo) mode every call says so
- * rather than inventing discovery results: there is no simulated JDE in
- * the browser. (The backend's own simulated AIS endpoint is available
- * against the real backend, clearly labelled SIMULATION.)
  */
 
-import { api, IS_MOCK_MODE } from "./api";
+import { api } from "./api";
 import { request } from "./httpApi";
 
 export type ConnectionMode = "simulation" | "live";
@@ -295,14 +290,7 @@ export interface EvidenceManifest {
   refresh_changes?: { previous: string; current: string; changed: boolean }[];
 }
 
-class DemoModeError extends Error {
-  constructor() {
-    super("JDE discovery needs the real backend. The demo has no discovery service and never simulates results in the browser.");
-  }
-}
-
 async function customer(): Promise<string> {
-  if (IS_MOCK_MODE) throw new DemoModeError();
   return (await api.getSession()).activeCustomerId;
 }
 

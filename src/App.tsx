@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, IS_MOCK_MODE } from "./services/api";
+import { api } from "./services/api";
 import { authApi } from "./services/httpApi";
 import type { BusinessDomain, CompanyRole, MyWork, Session } from "./types/domain";
-import { CustomerScope, PersonaSwitch } from "./components/CustomerScope";
+import { CustomerScope } from "./components/CustomerScope";
 import { SetupHandover } from "./components/SetupHandover";
 import { ROLE_LABEL, SessionContext, type SessionInfo, attentionOf, storyTitle, Loading } from "./components/design";
 import { GlobalSearch } from "./components/GlobalSearch";
@@ -141,7 +141,7 @@ function Routes() {
   return <NotFoundPage />;
 }
 
-function MainApp({ onSignedOut, onSetupFinished }: { onSignedOut?: () => void; onSetupFinished?: (email: string) => void }) {
+function MainApp({ onSignedOut, onSetupFinished }: { onSignedOut: () => void; onSetupFinished: (email: string) => void }) {
   const [session, setSession] = useState<Session | null>(null);
   const [domains, setDomains] = useState<BusinessDomain[]>([]);
   const [work, setWork] = useState<MyWork | null>(null);
@@ -175,17 +175,15 @@ function MainApp({ onSignedOut, onSetupFinished }: { onSignedOut?: () => void; o
     const byId = new Map(domains.map((d) => [d.id, d]));
     return {
       session, roles, domains,
-      has: (...r: CompanyRole[]) => IS_MOCK_MODE || r.some((x) => roles.includes(x)),
-      technical: IS_MOCK_MODE || roles.some((r) => ["admin", "product_manager", "cnc_operator"].includes(r)),
-      appManagement: IS_MOCK_MODE || roles.some((r) => ["admin", "product_manager", "cnc_operator"].includes(r)),
-      admin: IS_MOCK_MODE || roles.includes("admin"),
+      has: (...r: CompanyRole[]) => r.some((x) => roles.includes(x)),
+      technical: roles.some((r) => ["admin", "product_manager", "cnc_operator"].includes(r)),
+      appManagement: roles.some((r) => ["admin", "product_manager", "cnc_operator"].includes(r)),
+      admin: roles.includes("admin"),
       domainName: (id?: string | null) => (id ? byId.get(id)?.name : undefined),
-      isDemoCustomer: !!active?.isDemo,
     };
   }, [session, domains]);
 
   const section = sectionOf(path);
-  const active = session?.customers.find((c) => c.id === session.activeCustomerId);
 
   return (
     <div className="app">
@@ -220,19 +218,7 @@ function MainApp({ onSignedOut, onSetupFinished }: { onSignedOut?: () => void; o
       </header>
 
       <main className="page" id="main" key={scopeKey}>
-        {onSetupFinished && <SetupHandover onDone={onSetupFinished} />}
-        {IS_MOCK_MODE && (
-          <div className="noticebar stop" role="alert">
-            <strong>Demo mode:</strong> sample data in this browser, not connected to Jade's backend. Start Jade with{" "}
-            <span className="mono">scripts/run_local_preview.sh</span> and sign in there for the real application.
-          </div>
-        )}
-        {!IS_MOCK_MODE && active?.isDemo && (
-          <div className="noticebar">
-            <span className="tag sim">Demo customer</span> {active.name} holds test data; its JD Edwards is simulated.
-            {info?.admin && <> Real customers are set up under <Link to="/admin/organisation">Administration › Organisation</Link>.</>}
-          </div>
-        )}
+        <SetupHandover onDone={onSetupFinished} />
         {!info ? <Loading what="Jade" /> : (
           <SessionContext.Provider value={info}>
             <Routes />
@@ -246,14 +232,7 @@ function MainApp({ onSignedOut, onSetupFinished }: { onSignedOut?: () => void; o
           <span className="footer-tagline">Jade — an AI delivery team for enterprise change</span>
         </div>
         <span style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          {IS_MOCK_MODE ? (
-            <>
-              <PersonaSwitch onChange={() => api.getSession().then((s) => { setSession(s); setScopeKey((k) => k + 1); })} />
-              <span>Jade · prototype · front-end only, mock data</span>
-            </>
-          ) : (
-            <BuildVersions />
-          )}
+          <BuildVersions />
         </span>
       </footer>
     </div>
@@ -271,11 +250,9 @@ function BuildVersions() {
 }
 
 /**
- * Top-level dispatcher. In mock mode this is just MainApp -- the mock
- * service has no real login, only its own persona picker. In real
- * mode: password-reset and invitation-acceptance links (query params)
- * take priority over everything else, then a real session check gates
- * the rest of the app behind Login. The address the person opened is
+ * Top-level dispatcher. Password-reset and invitation-acceptance links
+ * (query params) take priority over everything else, then a real
+ * session check gates the rest of the app behind Login. The address the person opened is
  * kept, so a shared story link still lands on that story after sign-in.
  */
 export default function App() {
@@ -283,13 +260,11 @@ export default function App() {
   const resetToken = params.get("resetToken");
   const acceptToken = params.get("acceptInvitation");
 
-  const [authState, setAuthState] = useState<"checking" | "signed-in" | "signed-out">(
-    IS_MOCK_MODE ? "signed-in" : "checking"
-  );
+  const [authState, setAuthState] = useState<"checking" | "signed-in" | "signed-out">("checking");
   const [loginNotice, setLoginNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (IS_MOCK_MODE || resetToken || acceptToken) return;
+    if (resetToken || acceptToken) return;
     authApi
       .me()
       .then(() => setAuthState("signed-in"))
@@ -306,7 +281,7 @@ export default function App() {
     window.history.replaceState({}, "", url.toString());
   }
 
-  if (!IS_MOCK_MODE && resetToken) {
+  if (resetToken) {
     return (
       <ResetPassword
         token={resetToken}
@@ -318,7 +293,7 @@ export default function App() {
     );
   }
 
-  if (!IS_MOCK_MODE && acceptToken) {
+  if (acceptToken) {
     return (
       <AcceptInvitation
         token={acceptToken}
@@ -337,8 +312,8 @@ export default function App() {
   if (authState === "checking") return null;
   if (authState === "signed-out") return <Login notice={loginNotice} onSignedIn={() => { setLoginNotice(null); setAuthState("signed-in"); }} />;
 
-  return <MainApp onSignedOut={IS_MOCK_MODE ? undefined : () => setAuthState("signed-out")}
-    onSetupFinished={IS_MOCK_MODE ? undefined : (email) => {
+  return <MainApp onSignedOut={() => setAuthState("signed-out")}
+    onSetupFinished={(email) => {
       setLoginNotice(`Setup finished. The setup account is switched off. Sign in as ${email} with the password you just chose.`);
       setAuthState("signed-out");
     }} />;
