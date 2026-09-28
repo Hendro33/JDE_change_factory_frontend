@@ -1,13 +1,15 @@
 import { ReviewDetail, DeliveryRouteIndicator } from "../../components/visualReview";
 import { EvidenceChain, ValidationSummary } from "../../components/workspaceVisuals";
-import { EmptyState, Section, SimulationBadge, formatDateTime, useSessionInfo } from "../../components/design";
+import { EmptyState, Section, formatDateTime, useSessionInfo } from "../../components/design";
+import { ExecutionPanel } from "../../components/ExecutionPanel";
+import { PackageActions, RecordedSteps } from "../TechnicalPanel";
 import { Link, storyPath } from "../../router";
 import { AsBuiltPanel } from "../AsBuiltPanel";
 import { isoOf } from "./OverviewTab";
 import { cleanAgentText, type StoryCtx } from "./storyContext";
 
 const EXEC_WORDS: Record<string, string> = {
-  ready: "Not applied yet", in_progress: "Being applied", applied: "Applied in DEV", completed: "Completed",
+  ready: "Not applied yet", in_progress: "Being applied", applied: "Applied in DEV (recorded)", completed: "Test recorded",
   unknown: "Outcome uncertain — needs reconciling", diverged: "DEV differs from what was approved",
 };
 
@@ -33,6 +35,8 @@ export function DeliveryTab({ ctx }: { ctx: StoryCtx }) {
   const explanation = cleanAgentText(pkg?.content.explanation);
   const ver = pkg?.approval?.verification;
   const cnc = pkg?.approval?.cnc_activation;
+  const functionalTest = ex?.verification && Object.keys(ex.verification).length ? ex.verification as { passed?: boolean; source?: string } : null;
+  const functionalApproved = !pkg && !!change.exactChange && change.changeApproval?.status === "approved";
 
   return (
     <div className="delivery vr-pilot">
@@ -48,14 +52,14 @@ export function DeliveryTab({ ctx }: { ctx: StoryCtx }) {
             </li>
           ))}
         </ol>
-        {lc.simulated && <p className="muted"><SimulationBadge /> Delivered in a simulated JD Edwards DEV environment; no customer system is changed.</p>}
+        <p className="muted">JADE never writes to JD Edwards: people apply the approved change in DEV and record each step, and JADE checks what it can live.</p>
       </Section>
 
       <EvidenceChain items={[
         {label:"Requirement", detail:change.userStory ? `${change.userStory.acceptanceCriteria.length} acceptance criteria` : "Not recorded",to:storyPath(change.id,"story")},
         {label:"Architecture",detail:change.architectDecision?.recommendedRoute ?? "Not recorded",to:storyPath(change.id,"solution")},
         {label:"Delivered result",detail:pkg ? `Package revision ${pkg.revision}` : ex ? (EXEC_WORDS[ex.writeState] ?? ex.writeState) : "Not recorded"},
-        {label:"Test evidence",detail:ver ? `${ver.results.length} recorded results` : change.testResult?.outcome ?? "Not recorded",to:storyPath(change.id,"evidence")},
+        {label:"Test evidence",detail:ver ? `${ver.results.length} recorded results` : functionalTest ? `Test ${functionalTest.passed ? "passed" : "failed"} (${functionalTest.source ?? "recorded"})` : change.testResult?.outcome ?? "Not recorded",to:storyPath(change.id,"evidence")},
       ]} />
       <Section id="implementation" title="Implementation summary"
                actions={info.technical ? <Link to={storyPath(change.id, "technical")}>View technical implementation</Link> : undefined}>
@@ -74,6 +78,20 @@ export function DeliveryTab({ ctx }: { ctx: StoryCtx }) {
         ) : <p className="muted">No implementation recorded yet.</p>}
       </Section>
 
+      {functionalApproved && info.appManagement && (
+        <Section id="record" title="Delivery in DEV" description="Apply the approved value in JD Edwards DEV, record it here, then test it and record the result.">
+          <ExecutionPanel compact changeId={change.id} exactChange={change.exactChange} approvalStatus={change.changeApproval?.status} onChanged={ctx.reload} />
+        </Section>
+      )}
+
+      {pkg && (
+        <Section id="record" title="Recorded delivery steps"
+                 description="Each step is performed by a person in DEV and recorded with its evidence; JADE re-checks the approval before recording it.">
+          <RecordedSteps p={pkg} />
+          {info.appManagement && <div style={{ marginTop: 12 }}><PackageActions storyId={change.id} p={pkg} roles={info.roles} onChanged={ctx.reload} /></div>}
+        </Section>
+      )}
+
       {pkg && pkg.content.test_plan.length > 0 && (
         <Section title="Validation">
           <ValidationSummary passed={pkg.content.test_plan.filter((t) => ver?.results.find((r) => r.name === t.name)?.passed === true).length}
@@ -84,10 +102,10 @@ export function DeliveryTab({ ctx }: { ctx: StoryCtx }) {
             <tbody>{pkg.content.test_plan.map((t) => {
               const r = ver?.results.find((x) => x.name === t.name);
               return <tr key={t.name}><td>{t.name}</td><td>{t.kind}</td>
-                <td>{r ? <span className={`tag ${r.passed ? "ok" : "stop"}`}>{r.passed ? "Passed" : "Failed"}</span> : <span className="muted">Not run</span>}</td></tr>;
+                <td>{r ? <span className={`tag ${r.passed ? "ok" : "stop"}`}>{r.passed ? "Passed" : "Failed"}</span> : <span className="muted">Not recorded</span>}{r?.note && <div className="muted">{r.note}</div>}</td></tr>;
             })}</tbody>
           </table>
-          {ver && <p className="muted">{ver.runtime_is_approved_artifact ? "Tested against exactly the approved, active change." : "The active DEV runtime is not the approved change — the result does not count."}</p>}
+          {ver && <p className="muted">{ver.runtime_is_approved_artifact ? `Tested against exactly the approved, active change (stated by ${ver.by ?? "the recorder"}).` : "The active DEV runtime is not the approved change — the result does not count."}{ver.evidence_reference ? ` Evidence: ${ver.evidence_reference}.` : ""}</p>}
         </Section>
       )}
 

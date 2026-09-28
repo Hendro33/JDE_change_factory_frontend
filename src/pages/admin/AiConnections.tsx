@@ -35,6 +35,8 @@ export function AiConnections() {
   const [busy, setBusy] = useState(false);
   const [confirmTest, setConfirmTest] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
+  const [keyNotice, setKeyNotice] = useState<string | null>(null);
+  const [keyError, setKeyError] = useState<string | null>(null);
 
   function adopt(v: AiConnection) {
     setView(v);
@@ -50,7 +52,7 @@ export function AiConnections() {
   }, []);
 
   async function run(fn: () => Promise<AiConnection>, done: string) {
-    setBusy(true); setError(null); setNotice(null);
+    setBusy(true); setError(null); setNotice(null); setKeyNotice(null); setKeyError(null);
     try {
       adopt(await fn());
       setNotice(done);
@@ -61,7 +63,25 @@ export function AiConnections() {
     }
   }
 
-  if (!view) return error ? <div className="badge stop">{error}</div> : <Loading what="AI connection" />;
+  async function saveKey() {
+    const wasConfigured = !!view?.configured;
+    setBusy(true); setError(null); setNotice(null); setKeyNotice(null); setKeyError(null);
+    try {
+      const v = await aiApi.saveKey(key.trim());
+      setKey("");
+      adopt(v);
+      const parts = [`API key stored (encrypted${v.credentialHint ? `, ends ${v.credentialHint}` : ""}${v.credentialRevision ? `, key revision ${v.credentialRevision}` : ""}).`];
+      if (!wasConfigured) parts.push(`The connection was created with model ${v.model ?? "—"}, ${v.enabled ? "switched on" : "switched off"}, documents shared as ${POLICY_COPY[v.documentPolicy ?? "metadata_only"]?.label.toLowerCase() ?? v.documentPolicy}.`);
+      parts.push(v.enabled ? "Use Test connection to check it with Anthropic." : "Switch the connection on in Settings before agents can use it.");
+      setKeyNotice(parts.join(" "));
+    } catch (e) {
+      setKeyError(saveErrorMessage(e, "The API key was not saved."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!view) return error ? <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}><strong>Could not load the AI connection</strong>{error}</div> : <Loading what="AI connection" />;
   const lastTest = view.lastTest;
   const monthly = view.limits?.monthly_usd;
 
@@ -192,7 +212,7 @@ export function AiConnections() {
         <div className="btnrow">
           <button className="btn primary" disabled={busy || !model} onClick={() => run(() => aiApi.saveConnection({
             model, enabled, documentPolicy: policy, limits, activityModels: overrides, expectedRevision: view.revision ?? null,
-          }), "Settings saved.")}>Save settings</button>
+          }), `Settings saved: model ${model}, ${enabled ? "switched on" : "switched off"}, documents shared as ${POLICY_COPY[policy].label.toLowerCase()}, USD ${limits.max_usd_per_run} per run, USD ${limits.monthly_usd} per month.`)}>Save settings</button>
         </div>
       </section>
 
@@ -205,21 +225,24 @@ export function AiConnections() {
         <div className="field">
           <label htmlFor="ai-key">{view.credentialHint ? "Replace the API key" : "Anthropic API key"}</label>
           <input id="ai-key" type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)}
-            placeholder="sk-ant-api03-…" disabled={!view.configured} />
-          {!view.configured && <div className="hint">Save the settings first.</div>}
+            placeholder="sk-ant-api03-…" />
+          {!view.configured && <div className="hint">You can save the key straight away: if no settings are saved yet, the connection is
+            created with the defaults (the recommended model, switched on, documents as metadata only, default limits). Change them above at any time.</div>}
         </div>
         <div className="btnrow">
-          <button className="btn primary" disabled={busy || !key.trim() || !view.configured}
-            onClick={() => run(async () => { const v = await aiApi.saveKey(key.trim()); setKey(""); return v; }, "API key stored.")}>
-            Save key
+          <button className="btn primary" disabled={busy || !key.trim() || !view.serverKeyConfigured}
+            onClick={() => saveKey()}>
+            {busy ? "Saving…" : "Save key"}
           </button>
           <button className="btn" disabled={busy || !view.credentialHint} onClick={() => setConfirmRevoke(true)}>Revoke key</button>
           <button className="btn" disabled={busy || !view.credentialHint || !view.enabled} onClick={() => setConfirmTest(true)}>Test connection…</button>
         </div>
+        {keyNotice && <div className="callout" role="status" style={{ marginTop: 12 }}><strong>Saved</strong>{keyNotice}</div>}
+        {keyError && <div className="callout" role="alert" style={{ marginTop: 12, borderColor: "var(--stop)" }}><strong>Not saved</strong>{keyError}</div>}
       </section>
 
-      {notice && <div className="badge ok" role="status">{notice}</div>}
-      {error && <div className="badge stop" role="alert">{error}</div>}
+      {notice && <div className="callout" role="status"><strong>Done</strong>{notice}</div>}
+      {error && <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}><strong>Not done</strong>{error}</div>}
 
       <section className="panel">
         <h2>History</h2>

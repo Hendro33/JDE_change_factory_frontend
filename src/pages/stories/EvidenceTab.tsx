@@ -15,7 +15,7 @@ export function EvidenceTab({ ctx }: { ctx: StoryCtx }) {
   if (!domainReview?.applicationManagerApproval && change.storyApproval) decisions.push({ when: change.storyApproval.approvedAt, what: `Story ${change.storyApproval.status}`, who: change.storyApproval.approvedBy, note: change.storyApproval.note });
   if (change.changeApproval) decisions.push({ when: change.changeApproval.approvedAt, what: `Exact change ${change.changeApproval.status}`, who: change.changeApproval.approvedBy, note: change.changeApproval.note });
   for (const h of ctx.tech?.human_actions ?? []) {
-    decisions.push({ when: typeof h.at === "number" ? new Date(h.at * 1000).toISOString() : h.at, what: h.action.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) + (h.simulated ? " (simulated)" : ""), who: h.by, note: h.detail });
+    decisions.push({ when: typeof h.at === "number" ? new Date(h.at * 1000).toISOString() : h.at, what: h.action.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()), who: h.by, note: h.detail });
   }
   if (change.humanValidation) decisions.push({ when: change.humanValidation.validatedAt, what: "Validated by a person", who: change.humanValidation.validatedBy, note: change.humanValidation.note });
   decisions.sort((a, b) => (b.when ?? "").localeCompare(a.when ?? ""));

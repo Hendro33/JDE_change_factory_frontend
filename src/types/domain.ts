@@ -250,8 +250,9 @@ export interface ExactChange {
    */
   capabilityId?: string;
   capabilityStatus?: CapabilityStatus;
+  /** Whether a person may deliver this change (false only for a Restricted or Suspended capability). */
   capabilityExecutable?: boolean;
-  /** Whether the approved write (and its test) actually happened. */
+  /** Whether the approved change was applied in DEV (and tested), as recorded. */
   execution?: ExecutionStatus;
 }
 
@@ -304,12 +305,58 @@ export interface ExecutionStatus {
   /** Kept apart: a write reconciliation settles whether the value is in JDE, a test one whether the test ran. */
   writeReconciliations: Reconciliation[];
   testReconciliations: Reconciliation[];
+  /** The recorded delivery: who recorded the change as applied, the value observed (live read or stated), evidence. */
+  applied?: RecordedApplied | Record<string, never>;
+  /** The test outcome: passed, source (live orchestration / recorded by a person), evidence. */
+  verification?: RecordedVerification | Record<string, never>;
+}
+
+/** A person applied the approved change in DEV; Jade read it back live, or the person stated what they read. */
+export interface RecordedApplied {
+  by?: string;
+  user_id?: string;
+  observed_value?: string;
+  source?: string;
+  evidence_reference?: string;
+  note?: string;
+  /** Seconds since the epoch. */
+  at?: number;
+}
+
+export interface RecordedVerification {
+  passed?: boolean;
+  source?: "live orchestration" | "recorded by a person" | string;
+  by?: string;
+  at?: number;
+  evidence_reference?: string;
+  note?: string;
+  orchestration?: string;
+}
+
+/** POST /changes/{id}/delivery/applied */
+export interface RecordAppliedResult {
+  outcome: "applied";
+  observedValue: string;
+  beforeValue?: string | null;
+  source: string;
+  evidenceReference: string;
+  evidenceEntryHash: string;
+}
+
+/** POST /changes/{id}/delivery/run-test and /delivery/test-result */
+export interface DeliveryTestResult {
+  outcome: "completed";
+  passed: boolean;
+  orchestration?: string;
+  answer?: unknown;
+  evidenceEntryHash?: string;
 }
 
 /** What the execution gate would decide right now, check by check. Nothing is executed. */
 export interface PreflightResult {
   changeId: string;
-  mode: "mock" | "live" | "unknown";
+  /** "recorded": a person applies the change in DEV and records it; Jade never writes to JDE. */
+  mode: string;
   executable: boolean;
   writeState: ExecutionState;
   testState: ExecutionState;
@@ -667,7 +714,6 @@ export interface Lifecycle {
   deliverySteps: LifecycleStep[];
   openItems: string[];
   route?: string | null;
-  simulated: boolean;
 }
 
 /** GET /work — what needs the signed-in person, from the canonical lifecycle. */
@@ -855,10 +901,15 @@ export interface InvitationPreview {
   reason?: string | null;
 }
 
-/** Status only — NEVER a credential. One AIS connection today, shared by every customer. */
+/**
+ * Status only — NEVER a credential. How approved changes reach this
+ * customer's JDE: applied in DEV by a person and recorded, verified live
+ * through the customer's own JD Edwards connection once it is tested and enabled.
+ */
 export interface AisConnectionStatus {
-  mockMode: boolean;
+  deliveryMode: "recorded" | string;
   baseUrlConfigured: boolean;
+  liveVerification: boolean;
   environment?: string;
   role?: string;
 }

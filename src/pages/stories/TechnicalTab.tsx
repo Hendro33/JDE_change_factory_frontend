@@ -48,7 +48,7 @@ export function TechnicalTab({ ctx }: { ctx: StoryCtx }) {
       )}
 
       {ec && (
-        <Section title="Exact change and execution">
+        <Section title="Exact change and delivery">
           <dl className="facts">
             <dt>Operation</dt><dd className="mono">{ec.tool}</dd>
             <dt>Target</dt><dd className="mono">{ec.application} / {ec.version} / option {ec.option}</dd>
@@ -60,13 +60,12 @@ export function TechnicalTab({ ctx }: { ctx: StoryCtx }) {
           </dl>
           {ec.capabilityId && ec.capabilityExecutable === false && (
             <div className="callout" style={{ marginTop: 12, borderColor: "var(--warn)" }}>
-              <strong>Approving this does not make it execute</strong>
-              The capability is {CAPABILITY_STATUS_LABEL[ec.capabilityStatus!]}, not Validated. The Functional Agent refuses to
-              execute it until a functional owner and technical validator promote it (or, for a Needs-spike capability, this exact
-              target is approved as a bounded DEV validation experiment).
+              <strong>This change is not delivered</strong>
+              The capability is {CAPABILITY_STATUS_LABEL[ec.capabilityStatus!]}. A Restricted or Suspended capability is not
+              delivered, even when approved, until the catalogue entry itself is changed.
             </div>
           )}
-          <ExecutionPanel changeId={change.id} execution={ec.execution} approvalStatus={change.changeApproval?.status} onChanged={ctx.reload} />
+          <ExecutionPanel changeId={change.id} exactChange={ec} approvalStatus={change.changeApproval?.status} onChanged={ctx.reload} />
         </Section>
       )}
 

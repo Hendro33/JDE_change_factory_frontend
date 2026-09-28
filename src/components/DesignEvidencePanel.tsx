@@ -69,7 +69,7 @@ export function DesignEvidencePanel({ changeId, designCount, compact = false }: 
             <dt>Environment investigated</dt>
             <dd>{m.environment_profile
               ? <>{m.environment_profile.environment} · path code {m.environment_profile.path_code} · application {m.environment_profile.application_release}, Tools {m.environment_profile.tools_release} · profile revision {m.environment_profile.revision}{" "}
-                <span className={`badge ${m.environment_profile.mode === "simulation" ? "warn" : "ok"}`}>{m.environment_profile.mode === "simulation" ? "SIMULATION" : "live"}</span></>
+                <span className="badge ok">live</span></>
               : <span className="badge stop">not investigated</span>}</dd>
           </dl>
 

@@ -1,6 +1,6 @@
 import { Link, storyPath } from "../../router";
 import {
-  EmptyState, Fact, Section, SimulationBadge, businessNeed, formatDateTime, needText, useSessionInfo,
+  EmptyState, Fact, Section, businessNeed, formatDateTime, needText, useSessionInfo,
 } from "../../components/design";
 import { ROUTE_LABEL, cleanAgentText, type StoryCtx } from "./storyContext";
 
@@ -84,7 +84,7 @@ export function OverviewTab({ ctx }: { ctx: StoryCtx }) {
             </EmptyState>
           ) : (
             <>
-              <p className="lead-strong">{route?.title ?? decision.recommendedRoute} {found.simulated && <SimulationBadge />}</p>
+              <p className="lead-strong">{route?.title ?? decision.recommendedRoute}</p>
               {found.text && <p className="clamp-4">{found.text}</p>}
               {(ctx.run?.implementationSpec ?? change.implementationSpec)?.sequence.length ? (
                 <ol className="compactlist">{(ctx.run?.implementationSpec ?? change.implementationSpec)!.sequence.slice(0, 3).map((s, i) => <li key={i}>{s}</li>)}</ol>

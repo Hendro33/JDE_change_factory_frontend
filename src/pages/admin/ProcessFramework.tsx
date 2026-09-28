@@ -7,6 +7,7 @@ import {
 } from "../../services/processApi";
 import { Link, useLocation } from "../../router";
 import { Loading } from "../../components/ui";
+import { useSessionInfo } from "../../components/design";
 
 const statusTone: Record<string, string> = { active: "ok", draft: "warn", superseded: "grey" };
 
@@ -210,7 +211,7 @@ export function ProcessFramework() {
   const { query } = useLocation();
   const navFilter = { framework: query.get("framework") ?? undefined, version: query.get("version") ?? undefined, node: query.get("node") ?? undefined };
   const [list, setList] = useState<FrameworkList | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const isAdmin = useSessionInfo().has("admin");
   const [open, setOpen] = useState<{ fid: string; version: number } | null>(null);
   const [preview, setPreview] = useState<VersionPreview | null>(null);
   const [node, setNode] = useState<string | null>(null);
@@ -228,13 +229,12 @@ export function ProcessFramework() {
   }).catch((e) => setError(saveErrorMessage(e, "Could not load frameworks.")));
   useEffect(() => {
     load();
-    api.getSession().then((s) => setIsAdmin((s.customers.find((c) => c.id === s.activeCustomerId)?.roles ?? []).includes("admin")));
     if (navFilter?.node) setNode(navFilter.node);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { if (open) processApi.version(open.fid, open.version).then(setPreview).catch((e) => setError(saveErrorMessage(e, "Could not load the version."))); }, [open?.fid, open?.version]);
 
-  if (!list) return <Loading what="process frameworks" />;
+  if (!list) return error ? <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}><strong>Could not load</strong>{error}</div> : <Loading what="process frameworks" />;
   const fw = list.frameworks.find((f) => f.framework_id === open?.fid);
 
   return (

@@ -252,9 +252,7 @@ export function ErpLandscape() {
                     {landscape.discoveryProfile.environment} ({landscape.discoveryProfile.environmentPurpose === "isolated_trial" ? "approved isolated trial" : "development"}) · path code {landscape.discoveryProfile.pathCode} · application{" "}
                     {landscape.discoveryProfile.applicationRelease}, Tools {landscape.discoveryProfile.toolsRelease} · revision{" "}
                     {landscape.discoveryProfile.revision}{" "}
-                    <span className={`badge ${landscape.discoveryProfile.mode === "simulation" ? "warn" : "ok"}`}>
-                      {landscape.discoveryProfile.mode === "simulation" ? "SIMULATION" : "live"}
-                    </span>{" "}
+                    <span className="badge ok">live</span>{" "}
                     <span className={`badge ${landscape.discoveryProfile.discoveryEnabled ? "ok" : "grey"}`}>
                       {landscape.discoveryProfile.discoveryEnabled ? "discovery enabled" : landscape.discoveryProfile.disabled ? "disabled" : "discovery off"}
                     </span>
@@ -264,10 +262,16 @@ export function ErpLandscape() {
                   </>
                 ) : <span className="notstated">not configured — Admin → Integrations → JDE</span>}
               </dd>
-              <dt>Execution connection</dt>
+              <dt>Delivery</dt>
               <dd>
-                <span className={`badge ${landscape.ais.mockMode ? "grey" : "ok"}`}>{landscape.ais.mockMode ? "Mock" : "Live"}</span>{" "}
-                <span className="hint">Separate from discovery; used only by the execution gate, never by the Architect.</span>
+                <span className="badge info">Recorded</span>{" "}
+                <span className={`badge ${landscape.ais.liveVerification ? "ok" : "warn"}`}>{landscape.ais.liveVerification ? "Live verification on" : "Live verification not available yet"}</span>
+                <div className="hint">
+                  {landscape.ais.liveVerification
+                    ? <>Changes are applied in DEV by a person and verified live through the JD Edwards connection{landscape.ais.environment ? <> (environment <span className="mono">{landscape.ais.environment}</span>{landscape.ais.role ? <>, role <span className="mono">{landscape.ais.role}</span></> : null})</> : null}. JADE never writes to JD Edwards.</>
+                    : <>Changes are applied in DEV by a person and recorded; JADE never writes to JD Edwards. Live read-back starts once the JD Edwards
+                      connection is tested and enabled (Systems &amp; Connections → JD Edwards). Until then, the person recording a step states the value they read in JDE, with evidence.</>}
+                </div>
               </dd>
               <dt>Engagement scope</dt>
               <dd><span className={`badge ${landscape.engagementScopeConfigured ? "ok" : "warn"}`}>{landscape.engagementScopeConfigured ? "Configured" : "Not yet configured"}</span></dd>
@@ -284,9 +288,9 @@ export function ErpLandscape() {
               {!editing && <button className="btn" onClick={() => setEditing(true)}>Edit</button>}
             </div>
             <div className="sub" style={{ marginBottom: 12 }}>
-              What this company's changes may touch in JDE and who may approve them. The execution gate enforces exactly what is saved here, for this company's stories
+              What this company's changes may touch in JDE and who may approve them. The delivery gate enforces exactly what is saved here, for this company's stories
               only. Anything missing authorises nothing: no approval policy means nothing can be approved,
-              and an unconfirmed DEV environment means nothing can run.
+              and an unconfirmed DEV environment means nothing can be recorded as delivered.
             </div>
 
             {!editing ? (
@@ -580,17 +584,17 @@ export function ErpLandscape() {
 }
 
 /**
- * What the execution gate actually does today, kept next to the scope it
+ * What the delivery gate actually does today, kept next to the scope it
  * reads so nobody mistakes a field on this screen for a control. Mirrors
  * docs/stage1/04_REVIEW_PACK.md §4 (safeguard inventory).
  */
 function GateCoverage() {
   return (
-    <Details summary="What the execution gate enforces" tone="technical">
+    <Details summary="What the delivery gate enforces" tone="technical">
     <section>
       <div className="grid halves">
         <div>
-          <strong>Checked before every JDE write or test run</strong>
+          <strong>Checked before a delivery step or test is recorded</strong>
           <ul style={{ fontSize: 13.5, paddingLeft: 18 }}>
             <li>The story is approved, and linked to this company</li>
             <li>The exact change is approved by a role this company's approval policy allows, and has not expired</li>
@@ -600,8 +604,9 @@ function GateCoverage() {
             <li>The option's category is declared, not protected (pricing, tax, GL/AAI, security, payments, outbound integration) and not never-touch</li>
             <li>DEV isolation is confirmed, and the JDE connection points at the bound DEV environment</li>
             <li>The target is an approved version and option, the value is allowed, and the version is not XJDE/ZJDE</li>
-            <li>No earlier attempt is in flight, already applied, or of unknown outcome</li>
-            <li>A test runs only after its write is applied, only the test named in the approval, only if it is an approved test, and only if its declared side effects are none or a DEV transaction</li>
+            <li>No earlier step is in flight, already recorded, or of unknown outcome</li>
+            <li>Only the approved value is recorded as applied: JADE reads it back live, or the person states the value they read in JDE with evidence</li>
+            <li>A test runs only after the change is recorded as applied, only the test named in the approval, only if it is an approved test, and only if its declared side effects are none or a DEV transaction</li>
           </ul>
         </div>
         <div>
@@ -609,13 +614,12 @@ function GateCoverage() {
           <ul style={{ fontSize: 13.5, paddingLeft: 18 }}>
             <li>Never-touch notes and the free-text approver lists (reference only)</li>
             <li>Whether a test's declared side effects are true: they are declared by a person, not observed</li>
-            <li>Technical Agent object types, product code and naming prefix: no technical write tool exists</li>
+            <li>Technical check-in, build and verification results: recorded as stated by the person, with their evidence</li>
           </ul>
-          <strong>Not available yet</strong>
+          <strong>Never done by JADE</strong>
           <ul style={{ fontSize: 13.5, paddingLeft: 18 }}>
-            <li>Any live JDE write: the processing-option request is not recorded (Experiment A)</li>
-            <li>Reading a live value back automatically: a person reads it in JDE and records it</li>
-            <li>Every capability except processing-option update: proposal only, for Human Implementation</li>
+            <li>Writing to JD Edwards: a person applies every change in DEV and records it</li>
+            <li>Every capability except processing-option update and the technical package route: proposal only, for Human Implementation</li>
             <li>Change Sets (several dependent operations): refused</li>
           </ul>
         </div>

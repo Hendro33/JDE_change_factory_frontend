@@ -163,10 +163,6 @@ export function JadeWorking({ children }: { children: ReactNode }) {
   return <div className="jadeworking"><span className="pulse" aria-hidden="true" />{children}</div>;
 }
 
-export function SimulationBadge({ title }: { title?: string }) {
-  return <span className="tag sim" title={title ?? "Simulated JD Edwards environment -- no customer system is changed"}>Simulation</span>;
-}
-
 export function Tag({ children, tone = "neutral", title }: { children: ReactNode; tone?: "neutral" | "ok" | "warn" | "stop" | "info" | "ai" | "brand"; title?: string }) {
   return <span className={`tag ${tone}`} title={title}>{children}</span>;
 }

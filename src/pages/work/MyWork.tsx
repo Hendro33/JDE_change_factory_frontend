@@ -14,7 +14,9 @@ export const ACTION_VERB: Record<string, string> = {
   review_story: "Review story", authorise_delivery: "Review and authorise", approve_design: "Review solution",
   approve_exact_change: "Review solution", approve_package: "Review implementation", record_cnc: "Record activation",
   finalise_asbuilt: "Review release", start_analysis: "Start analysis", rerun_solutioning: "Run solutioning",
-  start_technical_prepare: "Continue delivery", start_technical_execute: "Continue delivery", start_technical_verify: "Run validation",
+  start_technical_prepare: "Continue delivery", start_technical_repair: "Start repair",
+  record_technical_apply: "Record check-in", record_technical_build: "Record build", record_technical_verify: "Record verification",
+  record_applied: "Record applied in DEV", run_or_record_test: "Test and record",
   reconcile_technical: "Resolve", reconcile_functional: "Resolve", assign_domain: "Place in a domain", clarify: "Answer question",
 };
 

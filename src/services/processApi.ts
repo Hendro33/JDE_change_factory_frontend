@@ -108,9 +108,9 @@ export interface DiffLine { section: string; op: " " | "+"; line: string; findin
 
 export interface Checkpoint { id: string; label: string; complete: boolean; detail: string }
 export interface AsBuiltRecord {
-  story_id: string; version: number; status: "draft" | "final" | "superseded"; delivery_mode: "simulation" | "live";
+  story_id: string; version: number; status: "draft" | "final" | "superseded"; delivery_mode: "recorded" | string;
   content: { checkpoints: Checkpoint[]; all_checkpoints_complete: boolean; deviations: string[]; limitations: string[];
-             simulated_notice: string | null; route: string | null; [k: string]: unknown };
+             delivery_mode?: string; route: string | null; [k: string]: unknown };
   markdown: string; content_sha256: string; generated_by: string; generated_at: string;
   finalised_by: string | null; finalised_at: string | null;
 }

@@ -9,6 +9,7 @@ import { saveErrorMessage } from "../../services/saveErrors";
 import type { CustomerInput, CustomerProfile, DashboardThresholds } from "../../types/domain";
 import { Link } from "../../router";
 import { Loading } from "../../components/ui";
+import { useSessionInfo } from "../../components/design";
 
 const EMPTY: CustomerInput = { name: "", shortName: "", toolsRelease: "", environment: "" };
 
@@ -106,8 +107,10 @@ function CustomerConfigLinks() {
 }
 
 export function CustomerSetup() {
+  const info = useSessionInfo();
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const isAdmin = info.has("admin");
   // What the server holds (null until loaded) and the form's working copy.
   const [stored, setStored] = useState<DashboardThresholds | null>(null);
   const [warnAt, setWarnAt] = useState(DEFAULT_DASHBOARD_THRESHOLDS.warnAt);
@@ -131,11 +134,8 @@ export function CustomerSetup() {
   }
 
   useEffect(() => {
-    api.getCustomerProfile().then(setProfile);
-    api.getSession().then((s) => {
-      const active = s.customers.find((c) => c.id === s.activeCustomerId);
-      setIsAdmin(!!active?.roles?.includes("admin"));
-    });
+    api.getCustomerProfile().then((p) => { setProfile(p); setProfileError(null); })
+      .catch((e) => setProfileError(saveErrorMessage(e, "Could not load the customer profile.")));
     loadThresholds();
   }, []);
 
@@ -185,7 +185,9 @@ export function CustomerSetup() {
       </div>
 
       {!profile ? (
-        <Loading what="the customer profile" />
+        profileError
+          ? <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}><strong>Could not load the customer profile</strong>{profileError}</div>
+          : <Loading what="the customer profile" />
       ) : (
         <div className="stack">
           <CustomerEditor profile={profile} isAdmin={isAdmin} onSaved={setProfile} />

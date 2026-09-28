@@ -25,13 +25,12 @@ export const ROUTE_LABEL: Record<string, { title: string; summary: string }> = {
   "Clarification Required": { title: "A business answer is needed first", summary: "The information so far contradicts itself or leaves an open business question." },
 };
 
-/** Strip demo-script markers from agent text; the Simulation badge carries that fact instead. */
-export function cleanAgentText(text: string | undefined | null): { text: string; simulated: boolean } {
+/** Agent text for display, without leading run markers. */
+export function cleanAgentText(text: string | undefined | null): { text: string } {
   const raw = text ?? "";
-  const simulated = /SCRIPTED STAND-IN|SYNTHETIC|SIMULATION/i.test(raw);
   const cleaned = raw
     .replace(/^\s*SCRIPTED STAND-IN(?:\s*\(not a model run\))?\s*:\s*/i, "")
     .replace(/^\s*SYNTHETIC\s*:\s*/i, "")
     .trim();
-  return { text: cleaned.charAt(0).toUpperCase() + cleaned.slice(1), simulated };
+  return { text: cleaned.charAt(0).toUpperCase() + cleaned.slice(1) };
 }

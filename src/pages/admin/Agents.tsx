@@ -7,6 +7,7 @@ import type { SVGProps } from "react";
 import { api } from "../../services/api";
 import type { AgentDefinition, AgentHealth, AgentInventoryEntry, Capability } from "../../types/domain";
 import { CapabilityStatusBadge, Loading, NotStated } from "../../components/ui";
+import { useSessionInfo } from "../../components/design";
 import {
   ArchitectIcon,
   DevelopmentIcon,
@@ -76,7 +77,9 @@ export function Agents() {
   const [skills, setSkills] = useState<string[]>([]);
   const [settings, setSettings] = useState<AgentSettings | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const isAdmin = useSessionInfo().has("admin");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [capabilitiesError, setCapabilitiesError] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentDefinition[] | null>(null);
   const [healthByAgent, setHealthByAgent] = useState<Record<string, AgentHealth>>({});
   const [roster, setRoster] = useState<RosterEntry[]>([]);
@@ -84,8 +87,9 @@ export function Agents() {
   const [capabilities, setCapabilities] = useState<Capability[] | null>(null);
 
   useEffect(() => {
-    aiApi.health().then((h) => setRoleHealth(h.roles)).catch(() => setHealthError("Customer AI health could not be loaded."));
-    api.listAgentInventory().then((inv) => setRoster(toRoster(inv))).catch(() => setRoster([]));
+    aiApi.health().then((h) => setRoleHealth(h.roles)).catch((e) => setHealthError(`Customer AI health could not be loaded: ${saveErrorMessage(e, "unknown error")}`));
+    api.listAgentInventory().then((inv) => setRoster(toRoster(inv)))
+      .catch((e) => setLoadError(`The agent team could not be loaded: ${saveErrorMessage(e, "unknown error")}`));
     api.listAgents().then(async (list) => {
       setAgents(list);
       // Every card needs its own real health snapshot, not just the
@@ -93,10 +97,10 @@ export function Agents() {
       // itself has to show, not a byproduct of clicking through.
       const pairs = await Promise.all(list.map(async (a) => [a.name, await api.getAgentHealth(a.name)] as const));
       setHealthByAgent(Object.fromEntries(pairs));
-    });
-    api.listCapabilities().then((c) => setCapabilities([...c.capabilities].sort((a, b) => a.priority - b.priority)));
+    }).catch((e) => setLoadError(`The agent definitions could not be loaded: ${saveErrorMessage(e, "unknown error")}`));
+    api.listCapabilities().then((c) => setCapabilities([...c.capabilities].sort((a, b) => a.priority - b.priority)))
+      .catch((e) => setCapabilitiesError(saveErrorMessage(e, "The capability catalogue could not be loaded.")));
     agentSettingsApi.get().then(setSettings).catch((e) => setSettingsError(saveErrorMessage(e, "Could not load the agent settings.")));
-    api.getSession().then((s) => setIsAdmin(!!s.customers.find((c) => c.id === s.activeCustomerId)?.roles?.includes("admin")));
   }, []);
 
   async function toggle(name: string, enabled: boolean) {
@@ -116,7 +120,7 @@ export function Agents() {
   }, [selectedHealth?.pack?.packId, selectedHealth?.pack?.revision]);
   const byName = new Map((agents ?? []).map((a) => [a.name, a]));
   const openEntry = roster.find((r) => r.key === selected) ?? roster[0];
-  if (!openEntry) return <Loading what="the agent team" />;
+  if (!openEntry) return loadError ? <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}>{loadError}</div> : <Loading what="the agent team" />;
   const openAgent = openEntry.internalName ? byName.get(openEntry.internalName) : undefined;
   const openHealth = openEntry.internalName ? healthByAgent[openEntry.internalName] : undefined;
   const openStatus = statusFor(openEntry, byName);
@@ -134,7 +138,7 @@ export function Agents() {
 
       {healthError && <div className="callout" role="alert">{healthError}</div>}
       {!agents ? (
-        <Loading what="the agent team" />
+        loadError ? <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}>{loadError}</div> : <Loading what="the agent team" />
       ) : (
         <div className="stack">
           <div className="agentteam">
@@ -331,7 +335,7 @@ export function Agents() {
                 Additional approval on a single change never does that on its own.
               </p>
               {!capabilities ? (
-                <Loading what="the capability catalogue" />
+                capabilitiesError ? <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}>{capabilitiesError}</div> : <Loading what="the capability catalogue" />
               ) : (
                 <table className="data">
                   <thead>

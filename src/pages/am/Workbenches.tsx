@@ -4,11 +4,12 @@ import { KnowledgePage } from "../knowledge/Knowledge";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../../services/api";
 import type { Change } from "../../types/domain";
-import { Loading, storyTitle, useSessionInfo } from "../../components/design";
+import { ErrorState, Loading, storyTitle, useSessionInfo } from "../../components/design";
 import { Link, setQueryParam, storyPath, useLocation } from "../../router";
 import { StoryProcessPanel } from "../StoryProcess";
 import { TechnicalWorkPanel } from "../TechnicalPanel";
 import { AsBuiltPanel } from "../AsBuiltPanel";
+import { ExecutionPanel } from "../../components/ExecutionPanel";
 import { JourneyBar } from "./JourneyBar";
 import { changePath } from "./legacyNav";
 
@@ -22,12 +23,17 @@ const TECHNICAL_ROUTES = new Set(["Technical Agent", "Mixed"]);
  */
 function Workbench({ title, intro, at, filter, empty, render }: {
   title: string; intro: ReactNode; at: string; filter: (c: Change) => boolean; empty: string;
-  render: (storyId: string) => ReactNode;
+  render: (storyId: string, change: Change, reload: () => void) => ReactNode;
 }) {
   const { query } = useLocation();
   const [changes, setChanges] = useState<Change[] | null>(null);
-  useEffect(() => { api.listChanges().then((all) => setChanges(all.filter(filter).filter((c) => query.get("queue") !== "asbuilt" || inAmStage(c, "asbuilt")))).catch(() => setChanges([])); // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query.get("queue")]);
+  const [loadError, setLoadError] = useState<unknown>(null);
+  const [tick, setTick] = useState(0);
+  const reload = () => setTick((t) => t + 1);
+  useEffect(() => {
+    api.listChanges().then((all) => { setChanges(all.filter(filter).filter((c) => query.get("queue") !== "asbuilt" || inAmStage(c, "asbuilt"))); setLoadError(null); })
+      .catch((e) => { setLoadError(e); setChanges((prev) => prev ?? []); }); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query.get("queue"), tick]);
   if (!changes) return <Loading what={title.toLowerCase()} />;
   const wanted = query.get("story");
   const openId = wanted && changes.some((c) => c.id === wanted) ? wanted : changes[0]?.id ?? null;
@@ -38,6 +44,7 @@ function Workbench({ title, intro, at, filter, empty, render }: {
       <section className="panel">
         <h1 style={{ marginTop: 0 }}>{title}</h1>
         <ReviewDetail title="About this workspace"><p className="hint">{intro}</p></ReviewDetail>
+        {loadError !== null && <ErrorState error={loadError} title="The stories could not be loaded" />}
         {changes.length === 0 ? <p className="notstated">{empty}</p> : (
           <div className="btnrow" role="tablist" aria-label="Stories">{changes.map((c) => (
             <button key={c.id} role="tab" aria-selected={c.id === openId} title={storyTitle(c)}
@@ -54,7 +61,7 @@ function Workbench({ title, intro, at, filter, empty, render }: {
               <span className="mono">{open.id}</span> · <Link to={changePath(open.id)}>Change record</Link> · <Link to={storyPath(open.id)}>Story</Link>
             </div>
           </section>
-          <div key={open.id}>{render(open.id)}</div>
+          <div key={open.id}>{render(open.id, open, reload)}</div>
         </>
       )}
     </div>
@@ -75,11 +82,16 @@ export function TechnicalWorkbench({ design = false }: { design?: boolean }) {
   const info = useSessionInfo();
   return (
     <Workbench title={design ? "Technical design" : "Technical Work"} at={design ? "design" : "implementation"}
-      intro={<>From an approved Architect design to a verified change in the DEV environment. The Technical Agent prepares;
-        people approve the design and each exact package revision; a human CNC activates; Jade's executor re-checks everything before each milestone.</>}
-      filter={(c) => TECHNICAL_ROUTES.has(c.architectDecision?.recommendedRoute ?? "")}
-      empty="No story has a design routed to the Technical Agent."
-      render={(id) => <TechnicalWorkPanel storyId={id} roles={info.roles} designOnly={design} />} />
+      intro={<>From an approved solution to a verified change in the DEV environment. JADE never writes to JD Edwards: for a configuration
+        change, the Application Manager applies the approved value in DEV and records it, JADE reads it back live, and the test is run or recorded.
+        For custom objects, the Technical Agent prepares the package; people approve it, check it in through OMW, build it, a CNC activates it and
+        the test plan is recorded -- JADE re-checks the approval before recording each step.</>}
+      filter={(c) => TECHNICAL_ROUTES.has(c.architectDecision?.recommendedRoute ?? "")
+        || (!design && !!c.exactChange && c.changeApproval?.status === "approved")}
+      empty={design ? "No story has a design routed to the Technical Agent." : "No story has an approved solution to deliver yet."}
+      render={(id, c, reload) => TECHNICAL_ROUTES.has(c.architectDecision?.recommendedRoute ?? "")
+        ? <TechnicalWorkPanel storyId={id} roles={info.roles} designOnly={design} onChanged={reload} />
+        : <section className="panel"><ExecutionPanel changeId={id} exactChange={c.exactChange} approvalStatus={c.changeApproval?.status} onChanged={reload} /></section>} />
   );
 }
 

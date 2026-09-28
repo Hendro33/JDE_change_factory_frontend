@@ -316,7 +316,7 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
                   </div>
                 </>
               )}
-              <ExecutionPanel compact changeId={open.id} execution={ec.execution} approvalStatus={open.changeApproval?.status} onChanged={reload} />
+              <ExecutionPanel compact changeId={open.id} exactChange={ec} approvalStatus={open.changeApproval?.status} onChanged={reload} />
             </section>
           )}
         </div>

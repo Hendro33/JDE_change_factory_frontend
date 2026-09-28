@@ -24,7 +24,6 @@ export function RecordView({ rec }: { rec: AsBuiltRecord }) {
   const design = c.design;
   return (
     <div className="stack">
-      {c.simulated_notice && <div className="callout" style={{ borderColor: "var(--warn)" }}><strong>{c.simulated_notice}</strong></div>}
       <section><h3>Delivery checkpoints</h3><Checkpoints items={c.checkpoints} /></section>
       <section><h3>Story</h3><p>{us?.statement ?? c.story?.title}</p>
         {c.story_revision && <p className="hint">Story revision {c.story_revision.revision} by {c.story_revision.author_name}, applying {c.story_revision.applied_findings.length} finding(s);
@@ -54,32 +53,42 @@ export function RecordView({ rec }: { rec: AsBuiltRecord }) {
       </section>
       <section><h3>Implementation</h3>
         {tech ? (<>
-          <p>Package revision {tech.revision} ({tech.mode}) approved by {tech.approval?.approved_by}. Objects: {tech.objects.map((o: any) => `${o.object_name} (${o.object_type})`).join(", ")}.</p>
-          <p className="hint">{tech.format_label}</p>
+          <p>Package revision {tech.revision} approved by {tech.approval?.approved_by}. Objects: {tech.objects.map((o: any) => `${o.object_name} (${o.object_type})`).join(", ")}.</p>
+          {(tech.milestones ?? []).length > 0 && <ul>{tech.milestones.map((m: any, i: number) => (
+            <li key={i}>{String(m.milestone).replace(/_/g, " ")}{m.actor ? ` by ${m.actor}` : ""}{m.omw_project ? ` (OMW project ${m.omw_project})` : ""}{m.build_reference ? ` (${m.build_reference})` : ""}</li>))}</ul>}
           <details><summary>Exact change (diff)</summary><pre className="mono" style={{ fontSize: 12, overflowX: "auto" }}>{tech.diff}</pre></details>
-          {tech.cnc_activation && <p>CNC activation of {tech.cnc_activation.package_name} by {tech.cnc_activation.by} ({tech.cnc_activation.evidence_reference}){tech.cnc_activation.simulated ? " -- SIMULATED" : ""}.</p>}
+          {tech.cnc_activation && <p>CNC activation of {tech.cnc_activation.package_name} by {tech.cnc_activation.by} ({tech.cnc_activation.evidence_reference}).</p>}
         </>) : func ? (<>
           <p>Exact change <span className="mono">{func.change_id}</span> ({func.capability_id}), {func.environment}: <span className="mono">{func.operation.tool}</span>{" "}
             {func.operation.application}/{func.operation.version} option {func.operation.option}:{" "}
             <strong>{String(func.binding?.before_state?.value)} → {String(func.operation.value)}</strong></p>
           <p>Approved by {func.approval?.approvedBy ?? func.approval?.approved_by} (roles {(func.approver_authority?.roles ?? []).join(", ")}).</p>
           <ul>{(["write", "test"] as const).flatMap((k) => (func.attempts?.[k] ?? []).map((a: any) => (
-            <li key={a.attempt_id}>{k} attempt: <strong>{a.outcome}</strong> -- {a.detail}</li>)))}</ul>
+            <li key={a.attempt_id}>{k === "write" ? "Change" : "Test"}: <strong>{a.outcome}</strong> -- {a.detail}</li>)))}</ul>
         </>) : <p className="notstated">No implementation recorded.</p>}
       </section>
       <section><h3>Verification</h3>
         {tech?.verification ? (
+          <>
           <table className="grid"><thead><tr><th>Test</th><th>Kind</th><th>Result</th></tr></thead>
             <tbody>{tech.verification.results.map((r: any) => <tr key={r.name}><td>{r.name}</td><td>{r.kind}</td>
-              <td><span className={`badge ${r.passed ? "ok" : "stop"}`}>{r.passed ? "passed" : "failed"}</span></td></tr>)}</tbody></table>
+              <td><span className={`badge ${r.passed ? "ok" : "stop"}`}>{r.passed ? "passed" : "failed"}</span>{r.note && <div className="hint">{r.note}</div>}</td></tr>)}</tbody></table>
+          <p className="hint">Recorded by {tech.verification.by ?? "—"}; the active DEV runtime {tech.verification.runtime_is_approved_artifact ? "is" : "is NOT"} the approved package (stated by the recorder){tech.verification.evidence_reference ? `; evidence: ${tech.verification.evidence_reference}` : ""}.</p>
+          </>
         ) : func ? (<>
-          <div>Test orchestration {func.test_orchestration}: {func.exact_change.execution.test_state}{" "}
-            {func.test_is_stub && <span className="badge warn">SIMULATION STUB -- fixed PASS, not behavioural evidence</span>}
-            <div className="hint">{func.test_note}</div></div>
-          <p><strong>Verification (read-back)</strong></p>
-          <p>Read-back of the target: <strong>{String(func.readback?.value)}</strong>{" "}
-            <span className={`badge ${func.readback?.matches_approved ? "ok" : "stop"}`}>{func.readback?.matches_approved ? "matches the approved value" : "does not match"}</span>
-            <span className="hint"> {func.readback?.source}</span></p>
+          <div>Test{func.test_orchestration ? <> (orchestration <span className="mono">{func.test_orchestration}</span>)</> : null}:{" "}
+            {func.verification && Object.keys(func.verification).length > 0
+              ? <span className={`badge ${func.verification.passed ? "ok" : "stop"}`}>{func.verification.passed ? "passed" : "failed"}</span>
+              : func.exact_change?.execution?.test_state}
+            <div className="hint">{func.test_note}</div>
+            {func.verification?.note && <div className="hint">What was tested: {func.verification.note}</div>}</div>
+          <p><strong>Applied value</strong></p>
+          {func.readback ? (
+            <p>Value in DEV: <strong>{String(func.readback.value)}</strong>{" "}
+              <span className={`badge ${func.readback.matches_approved ? "ok" : "stop"}`}>{func.readback.matches_approved ? "matches the approved value" : "does not match"}</span>{" "}
+              <span className={`badge ${func.readback.live ? "ok" : "warn"}`}>{func.readback.live ? "read back live" : "stated by a person"}</span>
+              <span className="hint"> recorded by {func.readback.by ?? "—"} · {func.readback.source}{func.readback.evidence_reference ? ` · evidence: ${func.readback.evidence_reference}` : ""}</span></p>
+          ) : <p className="notstated">Not recorded as applied.</p>}
         </>) : <p className="notstated">No verification evidence.</p>}
       </section>
       <section><h3>Deviations from the design</h3>{c.deviations.length ? <ul>{c.deviations.map((x: string, i: number) => <li key={i}>{x}</li>)}</ul> : <p>None found.</p>}</section>
@@ -123,7 +132,6 @@ export function AsBuiltPanel({ storyId, onChanged }: { storyId: string; onChange
         {missing.length === 0
           ? "Every required delivery checkpoint is complete."
           : `${missing.length} required checkpoint${missing.length === 1 ? " is" : "s are"} not complete yet: ${missing.map((c) => c.label.toLowerCase()).join("; ")}.`}
-        {view.delivery_mode_now === "simulation" && <> <span className="tag sim">Simulation</span></>}
       </p>
       <Details summary={`Delivery checkpoints (${view.checkpoints_now.length - missing.length} of ${view.checkpoints_now.length} complete)`}>
         <Checkpoints items={view.checkpoints_now} />

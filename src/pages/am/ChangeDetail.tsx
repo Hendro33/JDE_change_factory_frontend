@@ -57,13 +57,20 @@ const LIFECYCLE: { key: string; title: string; reached: (c: Change) => boolean; 
   },
   {
     key: "execute", title: "Applied in JDE DEV",
-    reached: (c) => ["EXECUTING", "TESTING", "VALIDATED", "CNC_HANDOFF", "CLOSED"].includes(c.state),
-    detail: () => undefined,
+    reached: (c) => c.exactChange?.execution?.writeState === "applied" || ["EXECUTING", "TESTING", "VALIDATED", "CNC_HANDOFF", "CLOSED"].includes(c.state),
+    detail: (c) => {
+      const a = c.exactChange?.execution?.applied as { by?: string; source?: string } | undefined;
+      return a?.by ? `Recorded by ${a.by}${a.source?.toLowerCase().startsWith("live") ? ", read back live" : ", stated"}` : undefined;
+    },
   },
   {
     key: "test", title: "Tested",
-    reached: (c) => c.testResult?.outcome === "pass" || c.testResult?.outcome === "fail",
-    detail: (c) => c.testResult?.outcome === "pass" ? "Passed" : c.testResult?.outcome === "fail" ? "Failed" : undefined,
+    reached: (c) => c.testResult?.outcome === "pass" || c.testResult?.outcome === "fail" || c.exactChange?.execution?.testState === "completed",
+    detail: (c) => {
+      const v = c.exactChange?.execution?.verification as { passed?: boolean } | undefined;
+      if (v && typeof v.passed === "boolean") return v.passed ? "Passed" : "Failed";
+      return c.testResult?.outcome === "pass" ? "Passed" : c.testResult?.outcome === "fail" ? "Failed" : undefined;
+    },
   },
   {
     key: "validate", title: "Human validation",
@@ -257,10 +264,10 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                 {ec.capabilityStatus && <CapabilityStatusBadge status={ec.capabilityStatus} />}
               </div>
               <Provenance
-                kind={applied ? "executed" : "proposed"}
-                label={applied
-                  ? "Applied to JD Edwards DEV"
-                  : "Proposed only — nothing has been written to JD Edwards"}
+                kind={applied || ec.execution?.writeState === "applied" ? "executed" : "proposed"}
+                label={applied || ec.execution?.writeState === "applied"
+                  ? "Applied in JD Edwards DEV by a person (recorded)"
+                  : "Not applied yet — JADE never writes to JD Edwards"}
               >
                 <dl className="facts">
                   <dt>Operation</dt><dd className="mono">{ec.tool}</dd>
@@ -270,21 +277,18 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                   <dt>Current value</dt><dd className="mono">{ec.currentValue}</dd>
                   <dt>Proposed value</dt><dd className="mono"><strong>{ec.proposedValue}</strong></dd>
                   <dt>Environment</dt><dd className="mono">{ec.environment}</dd>
-                  <dt>Verified by</dt><dd className="mono">{ec.testOrchestration}</dd>
+                  <dt>Tested by</dt><dd className="mono">{ec.testOrchestration || "a recorded test result"}</dd>
                   {ec.capabilityId && <><dt>Capability</dt><dd className="mono">{ec.capabilityId}</dd></>}
                 </dl>
               </Provenance>
 
               {ec.capabilityId && ec.capabilityExecutable === false && (
                 <div className="callout" style={{ marginTop: 14, borderColor: "var(--warn)" }}>
-                  <strong>Approving this will not make it execute</strong>
+                  <strong>Approving this will not make it deliverable</strong>
                   The capability behind this operation is currently{" "}
-                  <strong>{CAPABILITY_STATUS_LABEL[ec.capabilityStatus!]}</strong>, not Validated — the
-                  Functional Agent refuses to execute it regardless of exact-change approval, until a
-                  designated functional owner and technical validator promote it (or, for a Needs-spike
-                  capability, this exact target is explicitly approved as a bounded DEV validation
-                  experiment). Your decision below is still a real, recorded governance decision — it just
-                  will not result in a write to JD Edwards yet.
+                  <strong>{CAPABILITY_STATUS_LABEL[ec.capabilityStatus!]}</strong>. A Restricted or Suspended
+                  capability is not delivered, whatever the exact-change approval, until the catalogue entry
+                  itself is changed. Your decision below is still a real, recorded governance decision.
                 </div>
               )}
 
@@ -299,8 +303,8 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                     </div>
                     {change.changeApproval.status === "approved" && (
                       <div className="mono" style={{ fontSize: 12, marginTop: 8, color: "var(--muted)" }}>
-                        Bound to hash {change.changeApproval.changeHash} — if the operation differs at
-                        execution by even one character, it is refused.
+                        Bound to hash {change.changeApproval.changeHash} — if what is recorded as delivered
+                        differs by even one character, it is refused.
                       </div>
                     )}
                   </Provenance>
@@ -328,7 +332,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                   </div>
                 </div>
               )}
-              <ExecutionPanel changeId={change.id} execution={ec.execution} approvalStatus={change.changeApproval?.status} onChanged={reload} />
+              <ExecutionPanel changeId={change.id} exactChange={ec} approvalStatus={change.changeApproval?.status} onChanged={reload} />
             </section>
           )}
 

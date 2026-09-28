@@ -5,7 +5,7 @@ import { discoveryApi, type DesignBaselineView } from "../../services/discoveryA
 import { AskJadePanel } from "../../components/AskJade";
 import { DesignEvidencePanel } from "../../components/DesignEvidencePanel";
 import {
-  Details, EmptyState, ErrorState, JadeWorking, Section, SimulationBadge, formatDateTime, useSessionInfo,
+  Details, EmptyState, ErrorState, JadeWorking, Section, formatDateTime, useSessionInfo,
 } from "../../components/design";
 import { ExactChangeSummary } from "./NextActionCard";
 import { ROUTE_LABEL, cleanAgentText, type StoryCtx } from "./storyContext";
@@ -78,7 +78,7 @@ export function SolutionTab({ ctx }: { ctx: StoryCtx }) {
       <IntegrityPanel decision={decision} />
       <ReviewDetail title="Full solution rationale">
       <Section title="Proposed solution">
-        <p className="lead-strong">{route.title} {found.simulated && <SimulationBadge />}</p>
+        <p className="lead-strong">{route.title}</p>
         <p className="muted">{route.summary}</p>
         {found.text && <p>{found.text}</p>}
         {change.exactChange && <ExactChangeSummary ctx={ctx} />}

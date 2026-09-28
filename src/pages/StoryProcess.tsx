@@ -68,7 +68,7 @@ export function MappingSection({ view, nodes, onChanged }: { view: StoryProcessV
       <h4>JADE's suggestions</h4>
       {!run ? <p className="notstated">No process analysis yet.</p> : (
         <div className="callout">
-          <div>{run.scripted ? <span className="tag sim" title="Scripted demonstration, not a model run">Simulation</span>
+          <div>{run.scripted ? <span className="tag sim" title="Scripted run, not a model run">Scripted</span>
             : <span className="badge grey">Process analysis</span>}
             {" "}<span className="hint">{run.status} · framework version {run.framework_version}</span></div>
           {run.error && <p style={{ color: "var(--stop)" }}>{run.error}</p>}
@@ -130,7 +130,7 @@ export function MappingSection({ view, nodes, onChanged }: { view: StoryProcessV
 
 
 const sourceLabel: Record<string, JSX.Element> = {
-  scripted_refinement: <span className="tag sim">Simulation</span>,
+  scripted_refinement: <span className="tag sim" title="Scripted run, not a model run">Scripted</span>,
   refinement_agent: <span className="badge grey">JADE</span>,
   architect: <span className="badge grey">Architect</span>,
 };

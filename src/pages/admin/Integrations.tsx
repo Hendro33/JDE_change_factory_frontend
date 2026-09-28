@@ -3,6 +3,8 @@ import { api } from "../../services/api";
 import type { IntegrationStatus, JiraConnectionStatus, JiraIntegrationConfig, JiraSyncResult, JiraTestConnectionResult } from "../../types/domain";
 import { Loading } from "../../components/ui";
 import { saveErrorMessage } from "../../services/saveErrors";
+import { HttpError } from "../../services/httpApi";
+import { useSessionInfo } from "../../components/design";
 import { JdeDiscoveryPanel } from "../../components/JdeDiscoveryPanel";
 
 /**
@@ -30,7 +32,12 @@ function baseUrlIssue(raw: string): string | null {
 
 /** part: which connection to show (Administration › Systems & Connections has one tab each). */
 export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" } = {}) {
+  const info = useSessionInfo();
   const [integrations, setIntegrations] = useState<IntegrationStatus[] | null>(null);
+  const [integrationsError, setIntegrationsError] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [configForbidden, setConfigForbidden] = useState(false);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [jiraConfig, setJiraConfig] = useState<JiraIntegrationConfig | null>(null);
   const [jiraStatus, setJiraStatus] = useState<JiraConnectionStatus | null>(null);
   const [editing, setEditing] = useState(false);
@@ -59,7 +66,10 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
   const [requestTypeField, setRequestTypeField] = useState("");
 
   const load = () => {
-    api.listIntegrations().then(setIntegrations);
+    if (part === "all") {
+      api.listIntegrations().then((i) => { setIntegrations(i); setIntegrationsError(null); })
+        .catch((e) => setIntegrationsError(saveErrorMessage(e, "Could not load the integration status.")));
+    }
     api
       .getJiraIntegration()
       .then((c) => {
@@ -74,11 +84,11 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
       })
       .catch((e) => {
         setJiraConfig(null);
-        setConfigAccessError(
-          e instanceof Error ? e.message : "Could not load the Jira configuration for this company."
-        );
+        setConfigForbidden(e instanceof HttpError && e.status === 403);
+        setConfigAccessError(saveErrorMessage(e, "Could not load the Jira configuration for this company."));
       });
-    api.getJiraIntegrationStatus().then(setJiraStatus);
+    api.getJiraIntegrationStatus().then((st) => { setJiraStatus(st); setStatusError(null); })
+      .catch((e) => setStatusError(saveErrorMessage(e, "Could not load the Jira connection status.")));
     // The credential is write-only -- there is nothing to prefill here,
     // on purpose. A blank field on save means "leave it as it is".
     setEmail("");
@@ -88,8 +98,25 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
   useEffect(load, []);
 
   async function save() {
-    setSaving(true);
     setSaveError(null);
+    setSaveNotice(null);
+    const typedEmail = email.trim();
+    const typedToken = apiToken.trim();
+    // The credential is saved only as a pair: both fields, or (to keep the
+    // stored one) neither. Never close the form pretending half of it saved.
+    if ((typedEmail || typedToken) && !(typedEmail && typedToken)) {
+      setSaveError(`Nothing was saved: enter ${typedEmail ? "the API token" : "the Jira account e-mail"} as well (both are needed to store the credential).`);
+      return;
+    }
+    if (typedEmail && !typedEmail.includes("@")) {
+      setSaveError("Nothing was saved: the Jira account e-mail is not a valid e-mail address.");
+      return;
+    }
+    if (!typedEmail && !jiraStatus?.credentialsConfigured) {
+      setSaveError("Nothing was saved: enter the Jira account e-mail and the API token.");
+      return;
+    }
+    setSaving(true);
     try {
       const savedConfig = await api.updateJiraIntegration({
         baseUrl: baseUrl.trim(),
@@ -103,9 +130,20 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
       // Keep the new revision even if the credential step below fails, so a
       // retry is not refused as stale.
       setJiraConfig(savedConfig);
-      if (email.trim() && apiToken.trim()) {
-        await api.updateJiraCredentials({ email: email.trim(), apiToken: apiToken.trim() });
+      let credentialStored = false;
+      if (typedEmail && typedToken) {
+        try {
+          const st = await api.updateJiraCredentials({ email: typedEmail, apiToken: typedToken });
+          setJiraStatus(st);
+          credentialStored = true;
+        } catch (e) {
+          setSaveError(`The site and workflow settings were saved (revision ${savedConfig.revision}), but the credential was not: ${saveErrorMessage(e, "it was refused.")}`);
+          return;
+        }
       }
+      setSaveNotice(`Saved: site ${savedConfig.baseUrl || "(not set)"}, project ${savedConfig.projectKey || "(not set)"}, pickup status "${savedConfig.pickupStatus}", ` +
+        `post-pickup status "${savedConfig.postPickupStatus}" (revision ${savedConfig.revision}). ` +
+        (credentialStored ? `Credential stored for ${typedEmail}; the token is encrypted and never shown again.` : "The stored credential was kept."));
       setEditing(false);
       setSyncResult(null);
       setSyncError(null);
@@ -167,7 +205,9 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
 
   return (
     <>
-      {part === "all" && (!integrations ? (
+      {part === "all" && (integrationsError ? (
+        <div className="callout" role="alert" style={{ marginBottom: 16, borderColor: "var(--stop)" }}><strong>Could not load the integration status</strong>{integrationsError}</div>
+      ) : !integrations ? (
         <Loading what="integration status" />
       ) : (
         <section className="panel" style={{ marginBottom: 16 }}>
@@ -193,7 +233,7 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
           <h2 style={{ margin: 0 }}>Jira</h2>
           {!editing && !configAccessError && (
             <div className="btnrow" style={{ margin: 0 }}>
-              <button className="btn" onClick={() => setEditing(true)}>{configured ? "Edit" : "Configure"}</button>
+              <button className="btn" onClick={() => { setSaveNotice(null); setEditing(true); }}>{configured ? "Edit" : "Configure"}</button>
               {jiraStatus?.credentialsConfigured && (
                 <button className="btn danger" disabled={disconnecting} onClick={disconnect}>
                   {disconnecting ? "Disconnecting…" : "Disconnect"}
@@ -203,10 +243,30 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
           )}
         </div>
         {configAccessError && (
-          <div className="callout" style={{ marginBottom: 16 }}>
-            <strong>Admin role required</strong>
-            Only company Admins can view or change the Jira configuration and credential. The status below is
-            visible to everyone.
+          configForbidden && !info.has("admin") ? (
+            <div className="callout" style={{ marginBottom: 16 }}>
+              <strong>Admin role required</strong>
+              Only company Admins can view or change the Jira configuration and credential. The status below is
+              visible to everyone.
+            </div>
+          ) : (
+            <div className="callout" role="alert" style={{ marginBottom: 16, borderColor: "var(--stop)" }}>
+              <strong>Could not load the Jira configuration</strong>
+              {configAccessError}
+              <div><button className="btn small" style={{ marginTop: 8 }} onClick={load}>Try again</button></div>
+            </div>
+          )
+        )}
+        {statusError && (
+          <div className="callout" role="alert" style={{ marginBottom: 16, borderColor: "var(--stop)" }}>
+            <strong>Could not load the Jira connection status</strong>
+            {statusError}
+          </div>
+        )}
+        {saveNotice && !editing && (
+          <div className="callout" role="status" style={{ marginBottom: 16 }}>
+            <strong>Jira configuration saved</strong>
+            {saveNotice}
           </div>
         )}
         {disconnectError && (
@@ -283,9 +343,11 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
               <input id="jiraProjectKey" type="text" value={projectKey} onChange={(e) => setProjectKey(e.target.value)} placeholder="CON" />
             </div>
             <div className="field">
-              <label htmlFor="jiraEmail">Jira email</label>
+              <label htmlFor="jiraEmail">Jira account e-mail</label>
               <input id="jiraEmail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jade-bot@yourcompany.com" />
-              <span className="hint">The account the API token below belongs to.</span>
+              <span className="hint">The account the API token below belongs to. {jiraStatus?.credentialsConfigured
+                ? "Leave both this and the token blank to keep the stored credential; to replace it, enter both."
+                : "Required, together with the API token."}</span>
             </div>
             <div className="field">
               <label htmlFor="jiraApiToken">Jira API token</label>
@@ -341,7 +403,7 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
               <button className="btn primary" disabled={!canSave} onClick={save}>
                 {saving ? "Saving…" : "Save Jira configuration"}
               </button>
-              <button className="btn" onClick={() => { setEditing(false); setTestResult(null); setSaveError(null); load(); }}>Cancel</button>
+              <button className="btn" onClick={() => { setEditing(false); setTestResult(null); setSaveError(null); setSaveNotice(null); load(); }}>Cancel</button>
             </div>
           </div>
         )}

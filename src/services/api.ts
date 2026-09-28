@@ -27,6 +27,8 @@ import type {
   PasswordResetLinkOut,
   PreflightResult,
   ReconcileResult,
+  RecordAppliedResult,
+  DeliveryTestResult,
   ErpLandscape,
   FactoryMetrics,
   FeedbackReasonCode,
@@ -79,9 +81,9 @@ export const API_ENDPOINTS = {
 
   approveExactChange: "POST /changes/{id}/approve-change",
   rejectExactChange: "POST /changes/{id}/reject-change",
-  executeChange: "POST /changes/{id}/execute",
-  runTest: "POST /changes/{id}/test",
-  validate: "POST /changes/{id}/validate",
+  recordApplied: "POST /changes/{id}/delivery/applied",
+  runDeliveryTest: "POST /changes/{id}/delivery/run-test",
+  recordTestResult: "POST /changes/{id}/delivery/test-result",
 
   getEvidence: "GET /changes/{id}/evidence",
 
@@ -318,8 +320,19 @@ export interface ChangeFactoryApi {
   createCustomer(input: CustomerInput): Promise<Customer>;
   /** JDE connection + engagement-scope status. Never a credential value. */
   getErpLandscape(): Promise<ErpLandscape>;
-  /** Read-only: what the execution gate would decide right now. */
+  /** Read-only: what the delivery gate would decide right now. */
   getExecutionPreflight(changeId: string): Promise<PreflightResult>;
+  /**
+   * The recorded delivery route: a person applied the approved value in DEV.
+   * Jade reads it back live; only when it cannot does statedValue (the value
+   * the person read in JDE, with an evidence reference) count. 409 = refused,
+   * nothing recorded.
+   */
+  recordApplied(changeId: string, input: { evidenceReference: string; note: string; statedValue?: string }): Promise<RecordAppliedResult>;
+  /** Runs the approved test orchestration live on the customer's AIS. */
+  runDeliveryTest(changeId: string): Promise<DeliveryTestResult>;
+  /** Records a test result against the acceptance criteria, with evidence. */
+  recordTestResult(changeId: string, input: { passed: boolean; note: string; evidenceReference: string }): Promise<DeliveryTestResult>;
   /**
    * Settle an unknown write outcome from the ACTUAL target value. Jade reads
    * it itself where it can; otherwise observedValue is what a person read

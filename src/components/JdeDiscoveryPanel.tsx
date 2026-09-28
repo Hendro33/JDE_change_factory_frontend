@@ -272,7 +272,7 @@ function SampleRead({ view, busy, run }: { view: JdeProfileView; busy: boolean; 
   const input = () => ({ capabilityId: capId, target, maxRecords: max, filters: fField ? [{ field: fField, op: fOp, value: fValue }] : [] });
   return (
     <div className="callout" style={{ marginTop: 6 }}>
-      <strong>3. Run Approved Sample Read</strong>
+      <strong>4. Run Approved Sample Read</strong>
       <div className="hint">One read of one approved target, exactly the approved columns, at most the record limit. The server builds the AIS
         request from the approved read; the browser never supplies an endpoint or query body. Requires a successful Test Connection for this
         revision with a verified dedicated role (never *ALL). Run it only when the read has been explicitly approved. The path code is
@@ -331,6 +331,7 @@ export function JdeDiscoveryPanel() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [activity, setActivity] = useState<ActivityRow[] | null>(null);
+  const [activityError, setActivityError] = useState<string | null>(null);
   const [documents, setDocuments] = useState<ArtifactView[]>([]);
   const [company, setCompany] = useState("");
 
@@ -340,7 +341,8 @@ export function JdeDiscoveryPanel() {
       setLoadError(null);
       setForm(v.config ?? blankConfig());
     }).catch((e) => setLoadError(saveErrorMessage(e, "Could not load the JDE connection.")));
-    discoveryApi.activity().then(setActivity).catch(() => setActivity(null));
+    discoveryApi.activity().then((a) => { setActivity(a); setActivityError(null); })
+      .catch((e) => { setActivity(null); setActivityError(saveErrorMessage(e, "Could not load the discovery activity.")); });
     discoveryApi.listArtifacts().then((a) => setDocuments(a.filter((x) => x.kind === "reference_document" && x.latest))).catch(() => setDocuments([]));
   };
   useEffect(() => {
@@ -348,7 +350,7 @@ export function JdeDiscoveryPanel() {
     api.getSession().then((s) => {
       const c = s.customers.find((x) => x.id === s.activeCustomerId);
       setCompany(c?.name ?? s.activeCustomerId);
-    });
+    }).catch(() => undefined);
   }, []);
 
   async function run(label: string, fn: () => Promise<unknown>) {
@@ -376,14 +378,14 @@ export function JdeDiscoveryPanel() {
   if (loadError) {
     return (
       <section className="panel">
-        <h2>JDE connection</h2>
-        <div className="callout">{loadError}</div>
+        <h2>JD Edwards connection</h2>
+        <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}><strong>Could not load</strong>{loadError}</div>
+        <button className="btn" style={{ marginTop: 8 }} onClick={() => { setLoadError(null); load(); }}>Try again</button>
       </section>
     );
   }
   if (!view) return <Loading what="the JDE connection" />;
   const cfg = view.config;
-  const live = cfg?.connectionMode === "live";
 
   return (
     <section className="panel">
@@ -392,21 +394,23 @@ export function JdeDiscoveryPanel() {
         {!editing && <button className="btn" onClick={() => setEditing(true)}>{view.configured ? "Edit settings" : "Set up"}</button>}
       </div>
       <div className="sub" style={{ margin: "6px 0 12px" }}>
-        Read-only access JADE uses to research <strong>{company}</strong>'s JD Edwards environment. Writes to JD Edwards stay disabled.
+        The access JADE uses to research <strong>{company}</strong>'s JD Edwards environment and to verify delivered changes live (reading the value back, running an approved test orchestration). JADE never writes changes to JD Edwards.
         Requests go from the machine running JADE's backend, so any VPN or network route must exist from there; the customer's JDE role and
         network controls must still restrict the account.
       </div>
 
-      {view.configured && cfg && !live && (
-        <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}>
-          <strong>This connection is set to Simulation, which is not available.</strong> Choose Edit settings, select Live and
-          enter the customer's AIS address.
+      {message && !editing && <div className="callout" role="status" style={{ marginBottom: 12, borderColor: message.tone === "stop" ? "var(--stop)" : undefined }}>{message.text}</div>}
+      {!view.configured && !editing && (
+        <div className="callout">
+          <strong>No connection saved yet</strong>
+          Choose Set up and save the connection settings (step 1). The credential form, Test Connection, the sample read and
+          Enable follow straight after.
         </div>
       )}
       {view.configured && cfg && (
         <div className="stack">
           <div style={{ fontSize: 15 }}>
-            <span className={`badge ${live ? "stop" : "warn"}`} style={{ fontSize: 13 }}>{live ? "LIVE -- customer AIS endpoint" : view.modeLabel}</span>{" "}
+            <span className="badge info" style={{ fontSize: 13 }}>{view.modeLabel || "LIVE customer AIS endpoint"}</span>{" "}
             <span className={`badge ${view.discoveryEnabled ? "ok" : "grey"}`}>
               {view.discoveryEnabled ? "Architect discovery enabled" : view.disabled ? "Connection disabled" : "Architect discovery off"}
             </span>{" "}
@@ -447,7 +451,7 @@ export function JdeDiscoveryPanel() {
             <Readiness groups={view.readiness} ready={view.ready} />
           </Details>
           <details><summary>Prerequisites for Test Connection</summary><Prerequisites items={view.prerequisites} /></details>
-          {live && view.serverPrerequisites.some((p) => !p.satisfied) && (
+          {view.serverPrerequisites.some((p) => !p.satisfied) && (
             <div className="callout" style={{ borderColor: "var(--stop)" }}>
               <strong>This live connection cannot be used yet.</strong> Jade never disables certificate checks and only sends requests to
               the saved AIS address.
@@ -469,7 +473,28 @@ export function JdeDiscoveryPanel() {
 
           <div className="stack">
             <div className="callout">
-              <strong>2. Test Connection</strong>
+              <strong>2. Enter the JD Edwards credential</strong>
+              <div className="hint">Write-only: it is encrypted on the server and never shown again. It is only ever sent to the address and
+                certificate it was entered for.</div>
+              <div style={{ marginTop: 4 }}>{view.credentialConfigured
+                ? <>Saved: user <span className="mono">{view.credentialUsernameMasked}</span> <span className="badge grey">{view.credentialStorage}</span></>
+                : <span className="notstated">No credential saved yet.</span>}</div>
+              {view.credentialConfigured && !view.credentialBound && <div className="callout" role="alert" style={{ borderColor: "var(--stop)", marginTop: 6 }}>The AIS address or certificate changed
+                since the password was entered. Enter the password again for the new address; until then nothing is sent.</div>}
+              <div className="grid halves" style={{ marginTop: 6 }}>
+                <input type="text" autoComplete="off" placeholder="JDE user" value={username} onChange={(e) => setUsername(e.target.value)} aria-label="JDE user" />
+                <input type="password" autoComplete="new-password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label="JDE password" />
+              </div>
+              <button className="btn primary" style={{ marginTop: 6 }} disabled={busy || !username.trim() || !password}
+                onClick={() => run(view.credentialConfigured ? "Replace credential" : "Save credential", async () => {
+                  const r = await discoveryApi.saveCredential(username.trim(), password, view.revision);
+                  setPassword("");
+                  setView(r);
+                  return { outcome: "ok", detail: `stored for user ${r.credentialUsernameMasked ?? username.trim()} (encrypted). Next: Test Connection.` };
+                })}>{view.credentialConfigured ? "Replace credential" : "Save credential"}</button>
+            </div>
+            <div className="callout">
+              <strong>3. Test Connection</strong>
               <div className="hint">From the backend, over verified TLS: sign in with the saved credential for the stated environment and
                 role, read the AIS server identity (defaultconfig), record what the session reports, then sign out. No business data, UBE or
                 batch job. A different environment name or a *ALL role is shown as a mismatch, never corrected; authentication can succeed
@@ -478,14 +503,14 @@ export function JdeDiscoveryPanel() {
             </div>
             <SampleRead view={view} busy={busy} run={run} />
             <div className="callout">
-              <strong>4. Enable Architect Discovery</strong>
+              <strong>5. Enable Architect Discovery</strong>
               <div className="hint">Lets the Architect use the approved, verified reads for this profile revision within the window. Any material change to these settings switches it off again.</div>
               <button className="btn primary" style={{ marginTop: 6 }} disabled={busy || view.enableBlockers.length > 0 || view.discoveryEnabled}
                 onClick={() => run("Enable Architect Discovery", () => discoveryApi.enable(view.revision))}>Enable Architect Discovery</button>
               {view.enableBlockers.length > 0 && !view.discoveryEnabled && <div className="hint">Blocked by: {view.enableBlockers.join("; ")}</div>}
             </div>
             <div className="callout">
-              <strong>5. Disable Connection</strong>
+              <strong>6. Disable Connection</strong>
               <div className="hint">Kill switch: stops every new or queued request immediately and clears the checks; re-enabling needs a fresh Test Connection.</div>
               <button className="btn" style={{ marginTop: 6 }} disabled={busy || view.disabled} onClick={() => run("Disable Connection", discoveryApi.disable)}>Disable Connection</button>
             </div>
@@ -517,22 +542,6 @@ export function JdeDiscoveryPanel() {
             </table>
           </div>
 
-          <div>
-            <strong>Credential</strong> <span className="hint">(write-only: enter it here, it is encrypted on the server and never shown again.
-              It is only ever sent to the address and certificate it was entered for.)</span>
-            {!view.credentialBound && <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}>The AIS address or certificate changed
-              since the password was entered. Enter the password again for the new address; until then nothing is sent.</div>}
-            <div className="grid halves">
-              <input type="text" autoComplete="off" placeholder="JDE user" value={username} onChange={(e) => setUsername(e.target.value)} aria-label="JDE user" />
-              <input type="password" autoComplete="new-password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label="JDE password" />
-            </div>
-            <button className="btn" style={{ marginTop: 6 }} disabled={busy || !username || !password}
-              onClick={() => run(view.credentialConfigured ? "Replace credential" : "Save credential", async () => {
-                const r = await discoveryApi.saveCredential(username, password, view.revision);
-                setPassword("");
-                return r;
-              })}>{view.credentialConfigured ? "Replace credential" : "Save credential"}</button>
-          </div>
         </div>
       )}
 
@@ -546,11 +555,10 @@ export function JdeDiscoveryPanel() {
               <label className="field">Connection name<input aria-label="Connection name" value={form.connectionName} onChange={(e) => set("connectionName", e.target.value)} placeholder="e.g. BicycleWorks PS920 trial" /></label>
               <label className="field">Company<input value={company} disabled /></label>
             </div>
-            <div role="radiogroup" aria-label="Connection mode" style={{ marginTop: 6 }}>
-              <label style={{ display: "block", fontWeight: 400 }}><input type="radio" checked={form.connectionMode === "live"} onChange={() => set("connectionMode", "live")} />{" "}
-                <strong>Live</strong> -- the customer's AIS server, read-only. There is no fallback to simulation.
-                {!view.liveAllowedByDeployment && <span className="badge warn"> live access unavailable -- see Connectivity</span>}</label>
-            </div>
+            <p className="hint" style={{ marginTop: 6 }}>
+              JADE connects to the customer's own AIS server, read-only.
+              {!view.liveAllowedByDeployment && <span className="badge warn"> live access is not available from this server yet -- see the prerequisites after saving</span>}
+            </p>
           </fieldset>
 
           <fieldset><legend>Endpoint and environment</legend>
@@ -582,7 +590,7 @@ export function JdeDiscoveryPanel() {
                 {view.authMethods.map((m) => <option key={m.id} value={m.id} disabled={!m.supported}>{m.label}{m.supported ? "" : " -- not supported"}</option>)}
               </select></label>
             <ul className="hint">{view.authMethods.map((m) => <li key={m.id}><strong>{m.label}</strong>: {m.supported ? "supported. " : "not supported. "}{m.detail}</li>)}</ul>
-            <div className="hint">The JDE user and password are entered separately under Credential, after saving.</div>
+            <div className="hint">The JDE user and password are entered separately (step 2), straight after saving.</div>
           </fieldset>
 
           <fieldset><legend>Contacts and network access</legend>
@@ -669,22 +677,26 @@ export function JdeDiscoveryPanel() {
           </fieldset>
           <div className="btnrow">
             <button className="btn primary" disabled={busy} onClick={() => run("Save", async () => {
-              const r = await discoveryApi.saveProfile(form, view.configured ? view.revision : null);
+              const first = !view.configured;
+              const r = await discoveryApi.saveProfile({ ...form, connectionMode: "live" }, view.configured ? view.revision : null);
+              setView(r);
               setEditing(false);
-              return r;
+              return { outcome: "ok", detail: `saved as profile revision ${r.revision}. ${first || !r.credentialConfigured
+                ? "Next: enter the JD Edwards credential (step 2), then Test Connection."
+                : "Discovery stays off until the connection is tested and enabled again."}` };
             })}>Save</button>
             <button className="btn" onClick={() => { setEditing(false); load(); }}>Cancel</button>
           </div>
         </div>
       )}
 
-      {message && <div className="callout" role="status" style={{ marginTop: 12, borderColor: message.tone === "stop" ? "var(--stop)" : undefined }}>{message.text}</div>}
+      {message && editing && <div className="callout" role="status" style={{ marginTop: 12, borderColor: message.tone === "stop" ? "var(--stop)" : undefined }}>{message.text}</div>}
 
       <TechnicalBaseline />
 
       <div style={{ marginTop: 16 }}>
         <strong>Discovery activity</strong> <span className="hint">(sanitised: time, profile revision, mode, operation, target, outcome and reason -- permitted and blocked requests; never credentials, tokens, filter values or business payloads)</span>
-        {activity === null ? <p className="notstated">Admin only.</p> : activity.length === 0 ? <p className="notstated">No activity yet.</p> : (
+        {activityError ? <p className="notstated">{activityError}</p> : activity === null ? <Loading what="the discovery activity" /> : activity.length === 0 ? <p className="notstated">No activity yet.</p> : (
           <table className="data">
             <thead><tr><th>When</th><th>Who / story / run</th><th>Operation</th><th>Outcome</th><th>Rows</th></tr></thead>
             <tbody>
@@ -726,7 +738,11 @@ function TechnicalBaseline() {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const load = () => { discoveryApi.listArtifacts().then(setItems).catch(() => setItems([])); };
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const load = () => {
+    discoveryApi.listArtifacts().then((a) => { setItems(a); setLoadError(null); })
+      .catch((e) => { setItems([]); setLoadError(saveErrorMessage(e, "Could not load the technical baseline.")); });
+  };
   useEffect(load, []);
   const set = (k: keyof typeof EMPTY_UPLOAD, v: unknown) => setForm({ ...form, [k]: v });
 
@@ -752,6 +768,7 @@ function TechnicalBaseline() {
   return (
     <div style={{ marginTop: 16 }}>
       <strong>Technical baseline and reference documents</strong>
+      {loadError && <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}>{loadError}</div>}
       <div className="hint">For what live discovery cannot provide (source, event rules, object specifications, manuals). Each upload is an immutable revision with its checksum. Only text formats are analysed; others stay listed as unavailable. Whether an export matches the active DEV runtime is the customer's statement, never assumed.</div>
       {items && items.length > 0 && (
         <table className="data">

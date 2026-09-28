@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type { BusinessDomain, CompanyRole, CompanyUsersOut, InvitationOut, MembershipOut } from "../../types/domain";
 import { Loading } from "../../components/ui";
+import { useSessionInfo } from "../../components/design";
+import { saveErrorMessage } from "../../services/saveErrors";
 
 const ALL_ROLES: CompanyRole[] = ["admin", "domain_owner", "product_manager", "dashboard_viewer", "cnc_operator"];
 const ROLE_LABEL: Record<CompanyRole, string> = {
@@ -271,6 +273,7 @@ function InvitationRow({ invitation, onChanged }: { invitation: InvitationOut; o
 }
 
 export function Users() {
+  const isAdmin = useSessionInfo().has("admin");
   const [data, setData] = useState<CompanyUsersOut | null>(null);
   const [domains, setDomains] = useState<BusinessDomain[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -283,7 +286,7 @@ export function Users() {
         setData(d);
         setLoadError(null);
       })
-      .catch((e) => setLoadError(e instanceof Error ? e.message : "Could not load this company's users."));
+      .catch((e) => setLoadError(saveErrorMessage(e, "Could not load this company's users.")));
     api.listBusinessDomains().then(setDomains).catch(() => setDomains([]));
   }
 
@@ -304,10 +307,17 @@ export function Users() {
       </div>
 
       {loadError ? (
-        <div className="callout">
-          <strong>Admin role required</strong>
-          Only company Admins can manage users and invitations. {loadError}
-        </div>
+        isAdmin ? (
+          <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}>
+            <strong>Could not load this company's users</strong>
+            {loadError}
+          </div>
+        ) : (
+          <div className="callout">
+            <strong>Admin role required</strong>
+            Only company Admins can manage users and invitations. {loadError}
+          </div>
+        )
       ) : !data ? (
         <Loading what="company users" />
       ) : (

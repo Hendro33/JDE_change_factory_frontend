@@ -5,7 +5,7 @@ import { processApi, type StoryProcessView } from "../../services/processApi";
 import { technicalApi, type TechnicalWorkView } from "../../services/technicalApi";
 import type { ArchitectureReviewRun, Change, DomainReview, WorkspaceTab } from "../../types/domain";
 import {
-  ErrorState, ImpactIndicator, LifecycleStepper, Loading, HealthIndicator, SimulationBadge, Tabs,
+  ErrorState, ImpactIndicator, LifecycleStepper, Loading, HealthIndicator, Tabs,
   businessNeed, formatDate, sourceLabel, storyTitle, useSessionInfo,
 } from "../../components/design";
 import { Link, storyPath, useLocation } from "../../router";
@@ -115,7 +115,6 @@ export function StoryWorkspace({ storyId, tab }: { storyId: string; tab?: string
           <span className="phase-strong">{lc?.phaseLabel ?? "—"}</span>
           <HealthIndicator lifecycle={lc} />
           <ImpactIndicator change={change} />
-          {lc?.simulated && <SimulationBadge />}
         </div>
         {need && <p className="storyheader-value">{need}</p>}
         <div className="storyheader-meta">

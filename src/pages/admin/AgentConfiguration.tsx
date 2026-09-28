@@ -156,7 +156,7 @@ export function AgentConfiguration({ part = "all" }: { part?: "config" | "operat
                 <td>
                   {p.revisions.map((r) => (
                     <div key={r.revision}>
-                      <button className="linkbtn" onClick={() => aiApi.revision(p.packId, r.revision).then(setEditing)}>
+                      <button className="linkbtn" onClick={() => aiApi.revision(p.packId, r.revision).then(setEditing).catch((e) => setError(saveErrorMessage(e, "Could not load that revision.")))}>
                         r{r.revision}
                       </button>{" "}
                       <span className={`badge ${r.status === "published" ? "ok" : "warn"}`}>{r.status}</span>{" "}

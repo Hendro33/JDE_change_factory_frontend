@@ -6,7 +6,8 @@
 import { api } from "./api";
 import { request } from "./httpApi";
 
-export type ConnectionMode = "simulation" | "live";
+/** JADE only connects to the customer's own AIS server. */
+export type ConnectionMode = "live";
 export type DataSharingPolicy = "metadata_only" | "configuration_and_artifacts" | "full";
 export type CheckState = "ok" | "failed" | "unknown" | "stale";
 

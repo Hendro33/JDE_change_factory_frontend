@@ -1,6 +1,9 @@
 /**
- * Technical work -- the Technical Agent's packages, their exact approval,
- * the governed milestones and the human CNC hand-off.
+ * Technical work -- the Technical Agent's packages (developer-ready
+ * specifications), their exact approval, and the recorded delivery
+ * milestones: check-in through OMW, build, CNC activation and
+ * verification, each performed by a person and recorded here. Jade never
+ * writes to JD Edwards itself.
  *
  * Response bodies keep the backend's snake_case keys.
  */
@@ -20,25 +23,34 @@ export interface Candidate {
 
 export interface PackageContent {
   schema: string; revision: number; company_id: string; story_id: string; domain_id: string | null;
-  target_environment: string; mode: "simulation" | "live" | string;
+  target_environment: string; mode?: string;
   design: { design_revision: number; baseline_id: string; design_approval_id: string; manifest_sha256?: string };
   objects: { object_key: string; object_name: string; object_type: string; system_code: string; format: string }[];
   sources: { evidence_id: string; artifact_id: string; revision: number; sha256: string; classification: string;
              runtime_check: { state?: string; detail?: string }; provenance: Record<string, string | null> }[];
   candidates: Candidate[]; diff: string; dependencies: string[];
   toolchain: { adapter: string; adapter_version: string; formats: string[]; requires_build: boolean;
-               requires_cnc_activation: boolean; live_adapter: { available: boolean; reason?: string } };
+               requires_cnc_activation: boolean };
   explanation: string; requirement_trace: { requirement: string; how: string }[]; test_plan: TestCase[];
   missing_evidence: string[]; unsupported: string[]; lifecycle: string[];
   recovery: { plan: string; constraints: string[] };
   repair_of: null | { revision: number; content_sha256: string; reason: string };
 }
 
-export interface Milestone { milestone: string; at: number; actor?: string; log?: string[]; evidence_entry_hash?: string }
+export interface Milestone {
+  milestone: string; at: number; actor?: string; log?: string[]; evidence_entry_hash?: string;
+  omw_project?: string; build_reference?: string;
+}
 
-export interface TestResult {
-  name: string; kind: string; passed: boolean; expected: Record<string, unknown>;
-  actual?: Record<string, unknown>; error?: string; runtime_sha256: string;
+/** One recorded result per test in the package's test plan. */
+export interface TestResult { name: string; kind: string; passed: boolean; note?: string }
+
+/** A recorded step (execution attempt): who recorded it and with what evidence. */
+export interface RecordedAttempt {
+  attempt_id: string; started_at: number; finished_at: number | null; outcome: string; detail: string;
+  before_value?: string | null;
+  recorded?: { by?: string; user_id?: string; omw_project?: string; evidence_reference?: string; note?: string;
+               build_reference?: string; log?: string[]; after_sha256?: Record<string, string> };
 }
 
 export interface PackageApproval {
@@ -48,10 +60,11 @@ export interface PackageApproval {
   invalidations: { kind: string; detail: string; source: string; at_iso: string }[] | null;
   milestone_states: { apply: string; build: string; verify: string; cnc: string };
   milestones: Milestone[] | null;
+  attempts?: { write: RecordedAttempt[]; build: RecordedAttempt[]; test: RecordedAttempt[] };
   cnc_activation: null | { by: string; user_id: string; package_name: string; evidence_reference: string;
-                           at: number; simulated: boolean };
+                           note?: string; at: number };
   verification: null | { passed: boolean; results: TestResult[]; runtime_is_approved_artifact: boolean;
-                         runtime_sha256: Record<string, string> };
+                         evidence_reference?: string; note?: string; by?: string; at?: number };
 }
 
 export interface PackageView {
@@ -70,7 +83,7 @@ export interface TechnicalRun {
 }
 
 export interface TechnicalWorkView {
-  story_id: string; mode: string; simulation_label: string | null; format_label: string;
+  story_id: string; mode: string; environment: string;
   assignment: null | {
     design_revision: number; route: string; baseline_id: string; manifest_sha256: string;
     baseline_status: string; target_environment: string; domain_id: string | null;
@@ -80,12 +93,9 @@ export interface TechnicalWorkView {
                               approved_at: string };
   };
   assignment_problem: string | null;
-  capability: { capability_id: string; status: string; technical_validation: string };
+  capability: { capability_id: string; status: string | null; technical_validation: string | null };
   runs: TechnicalRun[]; packages: PackageView[];
-  human_actions: { action: string; by: string; at: string | number; detail: string; simulated?: boolean }[];
-  estate: null | { environment: string; revision: number;
-                   objects: Record<string, { active_sha256: string; active_package: string; checked_in_sha256: string | null;
-                                             build: null | { status: string; log: string[] } }> };
+  human_actions: { action: string; by: string; at: string | number; detail: string }[];
 }
 
 async function customer(): Promise<string> {
@@ -103,7 +113,7 @@ export const technicalApi = {
       method: "POST", customerId: await customer(), body: { designRevision, note },
     });
   },
-  async startRun(storyId: string, purpose: "prepare" | "execute" | "verify", note = ""): Promise<TechnicalRun> {
+  async startRun(storyId: string, purpose: "prepare" | "repair", note = ""): Promise<TechnicalRun> {
     return request<TechnicalRun>(`/changes/${enc(storyId)}/technical/runs`, {
       method: "POST", customerId: await customer(), body: { purpose, note },
     });
@@ -118,20 +128,30 @@ export const technicalApi = {
       method: "POST", customerId: await customer(), body: { note },
     });
   },
-  async milestone(storyId: string, revision: number, name: "apply" | "build" | "verify"): Promise<unknown> {
-    return request(`/changes/${enc(storyId)}/technical/packages/${revision}/${name}`, {
-      method: "POST", customerId: await customer(),
+  /** A developer checked the approved candidate in through OMW (not yet active). */
+  async recordApply(storyId: string, revision: number, input: { omwProject: string; evidenceReference: string; note: string }): Promise<unknown> {
+    return request(`/changes/${enc(storyId)}/technical/packages/${revision}/apply`, {
+      method: "POST", customerId: await customer(), body: input,
+    });
+  },
+  async recordBuild(storyId: string, revision: number, input: { succeeded: boolean; buildReference: string; log: string }): Promise<unknown> {
+    return request(`/changes/${enc(storyId)}/technical/packages/${revision}/build`, {
+      method: "POST", customerId: await customer(), body: input,
+    });
+  },
+  /** One result per test in the package's test plan; every test needs a result. */
+  async recordVerification(storyId: string, revision: number, input: {
+    results: { name: string; passed: boolean; note: string }[]; runtimeIsApprovedArtifact: boolean;
+    evidenceReference: string; note: string;
+  }): Promise<unknown> {
+    return request(`/changes/${enc(storyId)}/technical/packages/${revision}/verify`, {
+      method: "POST", customerId: await customer(), body: input,
     });
   },
   async recordCnc(storyId: string, revision: number, packageName: string, evidenceReference: string,
                   note: string): Promise<unknown> {
     return request(`/changes/${enc(storyId)}/technical/packages/${revision}/cnc-activation`, {
       method: "POST", customerId: await customer(), body: { packageName, evidenceReference, note },
-    });
-  },
-  async reconcile(storyId: string, revision: number, milestone: "apply" | "build", note: string): Promise<unknown> {
-    return request(`/changes/${enc(storyId)}/technical/packages/${revision}/reconcile`, {
-      method: "POST", customerId: await customer(), body: { milestone, note },
     });
   },
 };

@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
+import { HttpError } from "../services/httpApi";
 import { saveErrorMessage } from "../services/saveErrors";
-import type { ExecutionState, ExecutionStatus, PreflightResult, Reconciliation } from "../types/domain";
+import { useSessionInfo } from "./design";
+import type {
+  ExactChange, ExecutionState, PreflightResult, Reconciliation, RecordedApplied, RecordedVerification,
+} from "../types/domain";
 
 const STATE_LABEL: Record<ExecutionState, { text: string; tone: string }> = {
-  ready: { text: "Not executed", tone: "grey" },
+  ready: { text: "Not recorded yet", tone: "grey" },
   in_progress: { text: "In progress", tone: "warn" },
-  applied: { text: "Applied in JDE", tone: "ok" },
-  completed: { text: "Test run completed", tone: "ok" },
+  applied: { text: "Applied in DEV (recorded)", tone: "ok" },
+  completed: { text: "Test result recorded", tone: "ok" },
   unknown: { text: "Outcome unknown — reconcile", tone: "stop" },
-  diverged: { text: "Diverged — cannot run", tone: "stop" },
+  diverged: { text: "Diverged — cannot continue", tone: "stop" },
 };
 
 function StateBadge({ state }: { state: ExecutionState }) {
@@ -17,157 +21,335 @@ function StateBadge({ state }: { state: ExecutionState }) {
   return <span className={`badge ${s.tone}`}>{s.text}</span>;
 }
 
+/** A recorded timestamp (seconds since the epoch, or ISO) in the app's date style. */
+export function recordedAt(t?: number | string | null): string {
+  if (t === undefined || t === null || t === "") return "";
+  const d = typeof t === "number" ? new Date(t * 1000) : new Date(t);
+  return isNaN(d.getTime()) ? String(t) : d.toLocaleString("en-GB");
+}
+
+function isLive(source?: string): boolean {
+  return !!source && source.toLowerCase().startsWith("live");
+}
+
+/** What was recorded as applied: the value, who, when, and whether JADE read it live or a person stated it. */
+export function AppliedFacts({ applied }: { applied: RecordedApplied }) {
+  return (
+    <dl className="facts">
+      <dt>Value in DEV</dt><dd className="mono">{applied.observed_value ?? "—"}</dd>
+      <dt>How it was checked</dt>
+      <dd>
+        <span className={`badge ${isLive(applied.source) ? "ok" : "warn"}`}>{isLive(applied.source) ? "Read back live by JADE" : "Stated by a person"}</span>
+        {applied.source && <div className="hint">{applied.source}</div>}
+      </dd>
+      <dt>Recorded by</dt><dd>{applied.by ?? "—"}{applied.at ? `, ${recordedAt(applied.at)}` : ""}</dd>
+      <dt>Evidence</dt><dd>{applied.evidence_reference || <span className="notstated">none stated</span>}</dd>
+      {applied.note && <><dt>Note</dt><dd>{applied.note}</dd></>}
+    </dl>
+  );
+}
+
+/** The recorded test outcome: passed or failed, how (live orchestration or recorded by a person), evidence. */
+export function VerificationFacts({ verification }: { verification: RecordedVerification }) {
+  const live = verification.source === "live orchestration";
+  return (
+    <dl className="facts">
+      <dt>Result</dt><dd><span className={`badge ${verification.passed ? "ok" : "stop"}`}>{verification.passed ? "Passed" : "Failed"}</span></dd>
+      <dt>How</dt>
+      <dd>{live ? <>Approved test orchestration <span className="mono">{verification.orchestration}</span> ran live</> : "Tested in DEV and recorded by a person"}</dd>
+      <dt>Recorded by</dt><dd>{verification.by ?? "—"}{verification.at ? `, ${recordedAt(verification.at)}` : ""}</dd>
+      {!live && <><dt>Evidence</dt><dd>{verification.evidence_reference || <span className="notstated">none stated</span>}</dd></>}
+      {verification.note && <><dt>What was tested</dt><dd>{verification.note}</dd></>}
+    </dl>
+  );
+}
+
+function nonEmpty<T extends object>(o?: T | Record<string, never> | null): T | null {
+  return o && Object.keys(o).length > 0 ? (o as T) : null;
+}
+
 /**
- * Whether an approved exact change actually ran, what the execution gate
- * would decide right now (every check, not just the first refusal), and
- * -- when an earlier attempt may or may not have reached JDE -- the
- * reconciliation that must happen before anything runs again.
+ * Delivering an approved functional change on the recorded route. JADE never
+ * writes to JD Edwards: the Application Manager applies exactly the approved
+ * value in DEV, then records it here and JADE reads it back live through the
+ * customer's JD Edwards connection. Where it cannot, the person states the
+ * value they read in JDE, with evidence. The test is then run live (the
+ * approved orchestration) or recorded against the acceptance criteria.
+ * Unknown outcomes from earlier records are reconciled here too.
  */
 export function ExecutionPanel({
-  changeId, execution, approvalStatus, onChanged, compact = false,
+  changeId, exactChange, approvalStatus, onChanged, compact = false,
 }: {
   changeId: string;
   compact?: boolean;
-  execution?: ExecutionStatus;
+  exactChange?: ExactChange;
   /** Re-asks the gate when the approval changes, not only the execution state. */
   approvalStatus?: string;
   onChanged: () => void;
 }) {
+  const info = useSessionInfo();
+  const execution = exactChange?.execution;
   const [preflight, setPreflight] = useState<PreflightResult | null>(null);
   const [preflightError, setPreflightError] = useState<string | null>(null);
-  const [observedValue, setObservedValue] = useState("");
-  const [note, setNote] = useState("");
-  const [evidenceReference, setEvidenceReference] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Record applied
+  const [appliedEvidence, setAppliedEvidence] = useState("");
+  const [appliedNote, setAppliedNote] = useState("");
+  const [statedValue, setStatedValue] = useState("");
+  const [needsStated, setNeedsStated] = useState(false);
+
+  // Record test result
+  const [testPassed, setTestPassed] = useState<"" | "passed" | "failed">("");
+  const [testNote, setTestNote] = useState("");
+  const [testEvidence, setTestEvidence] = useState("");
+
+  // Reconcile (records whose outcome is unknown)
+  const [observedValue, setObservedValue] = useState("");
+  const [recNote, setRecNote] = useState("");
+  const [recEvidence, setRecEvidence] = useState("");
+
   const loadPreflight = () => {
     api.getExecutionPreflight(changeId)
       .then((p) => { setPreflight(p); setPreflightError(null); })
-      .catch((e) => setPreflightError(saveErrorMessage(e, "Could not ask the execution gate.")));
+      .catch((e) => setPreflightError(saveErrorMessage(e, "Could not ask the delivery gate.")));
   };
   useEffect(loadPreflight, [changeId, approvalStatus, execution?.writeState, execution?.testState]);
 
-  const live = preflight?.mode === "live";
-  const writeUnknown = execution?.writeState === "unknown";
-  const testUnknown = execution?.testState === "unknown";
+  const writeState = execution?.writeState ?? "ready";
+  const testState = execution?.testState ?? "ready";
+  const writeUnknown = writeState === "unknown";
+  const testUnknown = testState === "unknown";
+  const approved = approvalStatus === "approved";
+  const deliverable = exactChange?.capabilityExecutable !== false;
+  const canRecord = info.has("product_manager");
+  const applied = nonEmpty<RecordedApplied>(execution?.applied);
+  const verification = nonEmpty<RecordedVerification>(execution?.verification);
+  const orchestration = exactChange?.testOrchestration?.trim();
 
-  async function reconcileWrite() {
+  async function act(fn: () => Promise<string>, fallback: string) {
     setBusy(true); setError(null); setMessage(null);
     try {
-      const r = await api.reconcileExecution(changeId, live ? { observedValue, note, evidenceReference } : { note });
-      setMessage(
-        `Write reconciled: ${r.outcome.replace("_", " ")} (target value ${r.observedValue}, ${r.source}). ` +
-        "Recorded with the exact target and your name, and added to the evidence chain." +
-        (r.outcome === "not_applied" ? " A retry still needs a current, unexpired approval and passes every gate check again." : "")
-      );
+      setMessage(await fn());
       onChanged();
     } catch (e) {
-      setError(saveErrorMessage(e, "Could not reconcile."));
+      setError(saveErrorMessage(e, fallback));
     } finally {
       setBusy(false);
     }
   }
 
-  async function reconcileTest(ran: boolean) {
+  async function recordApplied() {
     setBusy(true); setError(null); setMessage(null);
     try {
-      const r = await api.reconcileTestRun(changeId, { ran, note, evidenceReference });
-      setMessage(`Test run reconciled as ${r.outcome.replace("_", " ")}; recorded and added to the evidence chain.`);
+      const r = await api.recordApplied(changeId, {
+        evidenceReference: appliedEvidence.trim(), note: appliedNote.trim(),
+        ...(needsStated ? { statedValue: statedValue.trim() } : {}),
+      });
+      setMessage(`Recorded as applied in DEV: ${r.observedValue} (${r.source}). Evidence: ${r.evidenceReference}. ` +
+        "Added to the story's evidence chain.");
+      setAppliedEvidence(""); setAppliedNote(""); setStatedValue(""); setNeedsStated(false);
       onChanged();
     } catch (e) {
-      setError(saveErrorMessage(e, "Could not reconcile the test run."));
+      const detail = e instanceof HttpError ? e.detail : "";
+      if (/cannot read the value back live/i.test(detail)) setNeedsStated(true);
+      setError(saveErrorMessage(e, "Nothing was recorded."));
     } finally {
       setBusy(false);
     }
   }
+
+  const statedMissing = needsStated && (!statedValue.trim() || !appliedEvidence.trim());
 
   return (
     <div style={{ marginTop: 16 }}>
-      <h3 style={{ margin: "0 0 8px" }}>Execution</h3>
+      <h3 style={{ margin: "0 0 8px" }}>Delivery in DEV</h3>
+      <p className="hint" style={{ marginTop: 0 }}>
+        JADE never writes to JD Edwards. Apply exactly the approved value in DEV yourself, then record it here: JADE reads
+        it back live through the customer's JD Edwards connection and records it only if it is the approved value.
+      </p>
       <dl className="facts">
-        <dt>Write</dt><dd><StateBadge state={execution?.writeState ?? "ready"} /></dd>
-        <dt>Test run</dt><dd><StateBadge state={execution?.testState ?? "ready"} /></dd>
-        {execution && execution.attempts > 0 && (
-          <>
-            <dt>Attempts</dt>
-            <dd>
-              {execution.attempts}
-              {execution.lastAttemptAt && `, last ${new Date(execution.lastAttemptAt).toLocaleString("en-GB")}`}
-              {execution.lastDetail && <div className="hint">{execution.lastDetail}</div>}
-            </dd>
-          </>
-        )}
+        <dt>Change applied</dt><dd><StateBadge state={writeState} /></dd>
+        <dt>Test</dt><dd><StateBadge state={testState} />{verification && <> <span className={`badge ${verification.passed ? "ok" : "stop"}`}>{verification.passed ? "passed" : "failed"}</span></>}</dd>
         {execution?.beforeValue != null && (<><dt>Value before</dt><dd className="mono">{execution.beforeValue}</dd></>)}
+        {exactChange && (<><dt>Approved value</dt><dd className="mono">{exactChange.application} / {exactChange.version} / option {exactChange.option} = <strong>{exactChange.proposedValue}</strong></dd></>)}
       </dl>
 
+      {applied && (
+        <div style={{ marginTop: 12 }}>
+          <strong>Recorded as applied</strong>
+          <AppliedFacts applied={applied} />
+        </div>
+      )}
+      {verification && (
+        <div style={{ marginTop: 12 }}>
+          <strong>Recorded test</strong>
+          <VerificationFacts verification={verification} />
+        </div>
+      )}
+
+      {approved && !deliverable && (
+        <div className="callout" style={{ marginTop: 12, borderColor: "var(--warn)" }}>
+          <strong>Not deliverable</strong>
+          This kind of change is Restricted or Suspended in the capability catalogue, so it is not delivered.
+        </div>
+      )}
+
+      {/* ------------ Record applied in DEV ------------ */}
+      {approved && deliverable && writeState === "ready" && (
+        canRecord ? (
+          <div className="callout" style={{ marginTop: 12 }}>
+            <strong>Record the change as applied in DEV</strong>
+            After you have set {exactChange ? <><span className="mono">{exactChange.option}</span> to <span className="mono">{exactChange.proposedValue}</span> in {exactChange.application} version {exactChange.version}</> : "the approved value"}{" "}
+            in DEV, record it. JADE re-checks the approval and scope and reads the value back live.
+            <div className="stack" style={{ marginTop: 8 }}>
+              {needsStated && (
+                <div className="field">
+                  <label htmlFor={`stated-${changeId}`}>Value you read in JDE after applying it</label>
+                  <input id={`stated-${changeId}`} type="text" value={statedValue} onChange={(e) => setStatedValue(e.target.value)} />
+                  <span className="hint">JADE cannot read it live right now, so it is recorded as stated by you — never as a live read.</span>
+                </div>
+              )}
+              <div className="field">
+                <label htmlFor={`applied-evidence-${changeId}`}>
+                  Evidence reference <span className="hint">({needsStated ? "required: " : "optional when JADE can read it live: "}screenshot, ticket or export)</span>
+                </label>
+                <input id={`applied-evidence-${changeId}`} type="text" value={appliedEvidence} onChange={(e) => setAppliedEvidence(e.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor={`applied-note-${changeId}`}>Note <span className="hint">(optional)</span></label>
+                <textarea id={`applied-note-${changeId}`} value={appliedNote} onChange={(e) => setAppliedNote(e.target.value)} />
+              </div>
+              <div className="btnrow">
+                <button className="btn primary" disabled={busy || statedMissing} onClick={recordApplied}>
+                  {busy ? "Recording…" : needsStated ? "Record the value I read" : "Record applied in DEV"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : <p className="hint">Waiting for the Application Manager to apply the change in DEV and record it.</p>
+      )}
+
+      {/* ------------ Test ------------ */}
+      {approved && writeState === "applied" && testState === "ready" && (
+        canRecord ? (
+          <div className="callout" style={{ marginTop: 12 }}>
+            <strong>Test the change in DEV</strong>
+            {orchestration
+              ? <>Run the approved test orchestration <span className="mono">{orchestration}</span> live, or test it yourself and record the result.</>
+              : "No test orchestration is approved for this change: test it in DEV against the acceptance criteria and record the result."}
+            {orchestration && (
+              <div className="btnrow" style={{ marginTop: 8 }}>
+                <button className="btn primary" disabled={busy} onClick={() => act(async () => {
+                  const r = await api.runDeliveryTest(changeId);
+                  return `Test orchestration ${r.orchestration ?? orchestration} ran live and answered; recorded as ${r.passed ? "passed" : "failed"} and added to the evidence chain.`;
+                }, "The test could not be run.")}>{busy ? "Running…" : "Run approved test"}</button>
+              </div>
+            )}
+            <div className="stack" style={{ marginTop: 12 }}>
+              <div className="field">
+                <span style={{ display: "block", fontWeight: 700, marginBottom: 6, fontSize: 14 }}>Result</span>
+                <label style={{ display: "inline", fontWeight: 400, marginRight: 16 }}>
+                  <input type="radio" name={`test-${changeId}`} checked={testPassed === "passed"} onChange={() => setTestPassed("passed")} /> Passed
+                </label>
+                <label style={{ display: "inline", fontWeight: 400 }}>
+                  <input type="radio" name={`test-${changeId}`} checked={testPassed === "failed"} onChange={() => setTestPassed("failed")} /> Failed
+                </label>
+              </div>
+              <div className="field">
+                <label htmlFor={`test-note-${changeId}`}>What was tested, against which acceptance criteria</label>
+                <textarea id={`test-note-${changeId}`} value={testNote} onChange={(e) => setTestNote(e.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor={`test-evidence-${changeId}`}>Evidence reference <span className="hint">(screenshot, ticket or export)</span></label>
+                <input id={`test-evidence-${changeId}`} type="text" value={testEvidence} onChange={(e) => setTestEvidence(e.target.value)} />
+              </div>
+              <div className="btnrow">
+                <button className="btn" disabled={busy || !testPassed || !testNote.trim() || !testEvidence.trim()}
+                  onClick={() => act(async () => {
+                    const r = await api.recordTestResult(changeId, { passed: testPassed === "passed", note: testNote.trim(), evidenceReference: testEvidence.trim() });
+                    setTestPassed(""); setTestNote(""); setTestEvidence("");
+                    return `Test result recorded: ${r.passed ? "passed" : "failed"}. Added to the evidence chain.`;
+                  }, "The test result was not recorded.")}>Record test result</button>
+              </div>
+            </div>
+          </div>
+        ) : <p className="hint">Waiting for the Application Manager to test the change and record the result.</p>
+      )}
+
+      {/* ------------ Reconcile an unknown outcome ------------ */}
       {(writeUnknown || testUnknown) && (
         <div className="callout" style={{ borderColor: "var(--stop)", marginTop: 12 }}>
-          <strong>{writeUnknown ? "The write may or may not have reached JDE" : "The test run may or may not have run"}</strong>
-          Nothing more runs for this change until someone with approval authority checks the actual state in JDE.
-          {writeUnknown && (live
-            ? " Read the processing option in JDE and enter the value you see."
-            : " Jade reads the value itself (mock JDE).")}
+          <strong>{writeUnknown ? "It is not known whether the change is in DEV" : "It is not known whether the test ran"}</strong>
+          Nothing more is recorded for this change until someone with approval authority checks the actual state in JDE.
+          {writeUnknown && " JADE reads the value live where it can; otherwise enter the value you read in JDE."}
           <div className="stack" style={{ marginTop: 8 }}>
-            {writeUnknown && live && (
+            {writeUnknown && (
               <div className="field">
-                <label htmlFor={`observed-${changeId}`}>Value in JDE now</label>
+                <label htmlFor={`observed-${changeId}`}>Value in JDE now <span className="hint">(needed when JADE cannot read it live)</span></label>
                 <input id={`observed-${changeId}`} type="text" value={observedValue} onChange={(e) => setObservedValue(e.target.value)} />
               </div>
             )}
             <div className="field">
-              <label htmlFor={`recnote-${changeId}`}>What you checked{testUnknown || live ? "" : " (optional)"}</label>
-              <textarea id={`recnote-${changeId}`} value={note} onChange={(e) => setNote(e.target.value)} />
+              <label htmlFor={`recnote-${changeId}`}>What you checked</label>
+              <textarea id={`recnote-${changeId}`} value={recNote} onChange={(e) => setRecNote(e.target.value)} />
             </div>
-            {(live || (!writeUnknown && testUnknown)) && (
-              <div className="field">
-                <label htmlFor={`recevidence-${changeId}`}>
-                  Evidence reference <span className="hint">(where this can be checked: screenshot, ticket or export)</span>
-                </label>
-                <input id={`recevidence-${changeId}`} type="text" value={evidenceReference} onChange={(e) => setEvidenceReference(e.target.value)} />
-              </div>
-            )}
+            <div className="field">
+              <label htmlFor={`recevidence-${changeId}`}>
+                Evidence reference <span className="hint">(where this can be checked: screenshot, ticket or export)</span>
+              </label>
+              <input id={`recevidence-${changeId}`} type="text" value={recEvidence} onChange={(e) => setRecEvidence(e.target.value)} />
+            </div>
             <div className="btnrow">
               {writeUnknown && (
-                <button className="btn primary" disabled={busy || (live && (!observedValue.trim() || !note.trim() || !evidenceReference.trim()))} onClick={reconcileWrite}>
-                  {live ? "Record the value I read" : "Check the target now"}
-                </button>
+                <button className="btn primary" disabled={busy || !recNote.trim() || !recEvidence.trim()} onClick={() => act(async () => {
+                  const r = await api.reconcileExecution(changeId, {
+                    ...(observedValue.trim() ? { observedValue: observedValue.trim() } : {}), note: recNote.trim(), evidenceReference: recEvidence.trim(),
+                  });
+                  return `Reconciled: ${r.outcome.replace("_", " ")} (value ${r.observedValue}, ${r.source}). Recorded with your name and added to the evidence chain.`;
+                }, "Could not reconcile.")}>Reconcile</button>
               )}
               {!writeUnknown && testUnknown && (
                 <>
-                  <button className="btn" disabled={busy || !note.trim() || !evidenceReference.trim()} onClick={() => reconcileTest(true)}>It ran</button>
-                  <button className="btn" disabled={busy || !note.trim() || !evidenceReference.trim()} onClick={() => reconcileTest(false)}>It did not run</button>
+                  <button className="btn" disabled={busy || !recNote.trim() || !recEvidence.trim()} onClick={() => act(async () => {
+                    const r = await api.reconcileTestRun(changeId, { ran: true, note: recNote.trim(), evidenceReference: recEvidence.trim() });
+                    return `Test run reconciled as ${r.outcome.replace("_", " ")}; recorded and added to the evidence chain.`;
+                  }, "Could not reconcile the test run.")}>It ran</button>
+                  <button className="btn" disabled={busy || !recNote.trim() || !recEvidence.trim()} onClick={() => act(async () => {
+                    const r = await api.reconcileTestRun(changeId, { ran: false, note: recNote.trim(), evidenceReference: recEvidence.trim() });
+                    return `Test run reconciled as ${r.outcome.replace("_", " ")}; recorded and added to the evidence chain.`;
+                  }, "Could not reconcile the test run.")}>It did not run</button>
                 </>
               )}
             </div>
           </div>
         </div>
       )}
-      {execution?.writeState === "diverged" && (
+      {writeState === "diverged" && (
         <div className="callout" style={{ borderColor: "var(--stop)", marginTop: 12 }}>
-          <strong>This change can no longer run</strong>
-          The target was in neither the value before the change nor the approved value. Investigate in JDE, then propose a new change.
+          <strong>This change cannot continue</strong>
+          The value in DEV is neither the value before the change nor the approved value. Investigate in JDE, then propose a new change.
         </div>
       )}
-      {message && <div className="callout" style={{ marginTop: 12 }}>{message}</div>}
+      {message && <div className="callout" role="status" style={{ marginTop: 12 }}><strong>Recorded</strong>{message}</div>}
       {error && (
-        <div className="callout" style={{ borderColor: "var(--stop)", marginTop: 12 }}>
+        <div className="callout" role="alert" style={{ borderColor: "var(--stop)", marginTop: 12 }}>
           <strong>Not recorded</strong>{error}
         </div>
       )}
 
-      <ReconciliationLog title="Write reconciliations" rows={execution?.writeReconciliations ?? []} write />
-      <ReconciliationLog title="Test-run reconciliations" rows={execution?.testReconciliations ?? []} write={false} />
+      <ReconciliationLog title="Reconciliations of the change" rows={execution?.writeReconciliations ?? []} write />
+      <ReconciliationLog title="Reconciliations of the test run" rows={execution?.testReconciliations ?? []} write={false} />
 
       <div style={{ marginTop: 12 }}>
-        <strong>Would the execution gate allow this write now?</strong>{" "}
+        <strong>Would the delivery gate accept this change being recorded now?</strong>{" "}
         {preflight && (
           <span className={`badge ${preflight.executable ? "ok" : "stop"}`}>
             {preflight.executable ? "Yes" : "No"}
           </span>
         )}
-        {preflight?.mode === "mock" && <span className="hint"> — mock JDE: nothing real would be written</span>}
         {preflightError && <div className="notstated">{preflightError}</div>}
         {preflight && (
           <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13.5 }}>
@@ -181,7 +363,7 @@ export function ExecutionPanel({
         )}
         {compact && preflight && <details className="vr-detail"><summary>{preflight.checks.filter((c) => c.ok).length} checks passed · view details</summary><ul>{preflight.checks.filter((c) => c.ok).map((c) => <li key={c.check}>✓ {c.check}</li>)}</ul></details>}
         <div className="hint" style={{ marginTop: 6 }}>
-          Jade itself never starts the write: an agent or operator does, and the gate re-runs every check above at that moment.
+          The gate re-runs every check above at the moment a step is recorded.
         </div>
       </div>
     </div>

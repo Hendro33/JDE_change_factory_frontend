@@ -19,6 +19,8 @@ import type {
   PasswordResetLinkOut,
   PreflightResult,
   ReconcileResult,
+  RecordAppliedResult,
+  DeliveryTestResult,
   ErpLandscape,
   FactoryMetrics,
   ForgotPasswordResult,
@@ -549,6 +551,25 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
   async getExecutionPreflight(changeId: string): Promise<PreflightResult> {
     const customerId = await this.activeCustomerId();
     return request<PreflightResult>(`/changes/${encodeURIComponent(changeId)}/execution/preflight`, { customerId });
+  }
+
+  async recordApplied(changeId: string, input: { evidenceReference: string; note: string; statedValue?: string }) {
+    const customerId = await this.activeCustomerId();
+    return request<RecordAppliedResult>(`/changes/${encodeURIComponent(changeId)}/delivery/applied`, {
+      method: "POST", customerId, body: input,
+    });
+  }
+
+  async runDeliveryTest(changeId: string) {
+    const customerId = await this.activeCustomerId();
+    return request<DeliveryTestResult>(`/changes/${encodeURIComponent(changeId)}/delivery/run-test`, { method: "POST", customerId });
+  }
+
+  async recordTestResult(changeId: string, input: { passed: boolean; note: string; evidenceReference: string }) {
+    const customerId = await this.activeCustomerId();
+    return request<DeliveryTestResult>(`/changes/${encodeURIComponent(changeId)}/delivery/test-result`, {
+      method: "POST", customerId, body: input,
+    });
   }
 
   async reconcileExecution(changeId: string, input: { observedValue?: string; note: string; evidenceReference?: string }) {
