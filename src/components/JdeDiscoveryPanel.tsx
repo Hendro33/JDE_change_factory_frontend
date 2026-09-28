@@ -343,6 +343,11 @@ export function JdeDiscoveryPanel() {
     }).catch((e) => setLoadError(saveErrorMessage(e, "Could not load the JDE connection.")));
     discoveryApi.activity().then((a) => { setActivity(a); setActivityError(null); })
       .catch((e) => { setActivity(null); setActivityError(saveErrorMessage(e, "Could not load the discovery activity.")); });
+    loadDocuments();
+  };
+  // Reference documents that can be linked as evidence; refreshed after every import so a new
+  // document can be chosen straight away (without discarding unsaved settings).
+  const loadDocuments = () => {
     discoveryApi.listArtifacts().then((a) => setDocuments(a.filter((x) => x.kind === "reference_document" && x.latest))).catch(() => setDocuments([]));
   };
   useEffect(() => {
@@ -692,7 +697,7 @@ export function JdeDiscoveryPanel() {
 
       {message && editing && <div className="callout" role="status" style={{ marginTop: 12, borderColor: message.tone === "stop" ? "var(--stop)" : undefined }}>{message.text}</div>}
 
-      <TechnicalBaseline />
+      <TechnicalBaseline onImported={loadDocuments} />
 
       <div style={{ marginTop: 16 }}>
         <strong>Discovery activity</strong> <span className="hint">(sanitised: time, profile revision, mode, operation, target, outcome and reason -- permitted and blocked requests; never credentials, tokens, filter values or business payloads)</span>
@@ -731,7 +736,7 @@ const EMPTY_UPLOAD: Omit<ArtifactUploadInput, "fileName" | "contentBase64"> = {
 };
 
 /** Approved technical exports and reference documents, with provenance. */
-function TechnicalBaseline() {
+function TechnicalBaseline({ onImported }: { onImported?: () => void }) {
   const [items, setItems] = useState<ArtifactView[] | null>(null);
   const [form, setForm] = useState(EMPTY_UPLOAD);
   const [releases, setReleases] = useState("");
@@ -758,6 +763,7 @@ function TechnicalBaseline() {
       setForm(EMPTY_UPLOAD);
       setFile(null);
       load();
+      onImported?.();
     } catch (e) {
       setError(saveErrorMessage(e, "Upload refused."));
     } finally {

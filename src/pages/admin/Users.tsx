@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
-import type { BusinessDomain, CompanyRole, CompanyUsersOut, InvitationOut, MembershipOut } from "../../types/domain";
+import type { BusinessDomain, CompanyRole, CompanyUsersOut, InvitationOut, MembershipOut, PasswordResetLinkOut } from "../../types/domain";
 import { Loading } from "../../components/ui";
 import { useSessionInfo } from "../../components/design";
 import { saveErrorMessage } from "../../services/saveErrors";
@@ -64,24 +64,40 @@ function RoleAndDomainPicker({
   );
 }
 
+/** What happened to an invitation or reset link: e-mailed, or -- when it
+ * could not be -- the link for the Administrator to hand over personally. */
+function DeliveryNote({ email, emailSent, detail, link, what }: {
+  email: string; emailSent: boolean; detail?: string; link?: string | null; what: string;
+}) {
+  if (emailSent) {
+    return <div className="callout" role="status">The {what} was e-mailed to {email}.</div>;
+  }
+  return (
+    <div className="callout" role="status" style={{ wordBreak: "break-all" }}>
+      <strong>Not e-mailed</strong>{detail ? ` (${detail})` : ""}. Give this {what} to {email} yourself -- it is
+      personal and works once: <span className="mono">{link}</span>
+    </div>
+  );
+}
+
 function InviteForm({ domains, onInvited }: { domains: BusinessDomain[]; onInvited: () => void }) {
   const [email, setEmail] = useState("");
   const [roles, setRoles] = useState<CompanyRole[]>([]);
   const [domainIds, setDomainIds] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [sent, setSent] = useState<InvitationOut | null>(null);
 
   async function submit() {
     setSending(true);
     setError(null);
-    setPreviewUrl(null);
+    setSent(null);
     try {
       const invitation = await api.inviteUser({ email: email.trim(), roles, domainIds });
       setEmail("");
       setRoles([]);
       setDomainIds([]);
-      setPreviewUrl(invitation.previewUrl ?? null);
+      setSent(invitation);
       onInvited();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not send the invitation.");
@@ -98,12 +114,8 @@ function InviteForm({ domains, onInvited }: { domains: BusinessDomain[]; onInvit
       </div>
       <RoleAndDomainPicker roles={roles} domainIds={domainIds} domains={domains} onChangeRoles={setRoles} onChangeDomainIds={setDomainIds} />
       {error && <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div>}
-      {previewUrl && (
-        <div className="callout">
-          <strong>Dev preview</strong> — no email service is configured yet, so nothing was actually sent. Share
-          this link with the invited person yourself: <span className="mono">{previewUrl}</span>
-        </div>
-      )}
+      {sent && <DeliveryNote email={sent.email} emailSent={!!sent.emailSent} detail={sent.emailDetail}
+                             link={sent.previewUrl} what="invitation" />}
       <div className="btnrow">
         <button className="btn primary" disabled={sending || !email.trim() || roles.length === 0} onClick={submit}>
           {sending ? "Sending…" : "Send invitation"}
@@ -125,15 +137,14 @@ function MemberRow({
   const [domainIds, setDomainIds] = useState<string[]>(member.domainIds);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [resetLink, setResetLink] = useState<string | null>(null);
+  const [reset, setReset] = useState<PasswordResetLinkOut | null>(null);
 
   async function issueResetLink() {
     setBusy(true);
     setError(null);
-    setResetLink(null);
+    setReset(null);
     try {
-      const r = await api.issuePasswordResetLink(member.membershipId);
-      setResetLink(r.previewUrl ?? "Sent to their email address.");
+      setReset(await api.issuePasswordResetLink(member.membershipId));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create a reset link.");
     } finally {
@@ -183,11 +194,8 @@ function MemberRow({
           </>
         )}
         {error && <div className="hint" style={{ color: "var(--stop)" }}>{error}</div>}
-        {resetLink && (
-          <div className="hint" style={{ wordBreak: "break-all" }}>
-            Reset link (no email service is configured, so hand it over yourself; valid once): {resetLink}
-          </div>
-        )}
+        {reset && <DeliveryNote email={member.email} emailSent={reset.sent} detail={reset.detail}
+                                link={reset.previewUrl} what="password reset link" />}
       </td>
       <td>
         <div className="btnrow">
@@ -216,14 +224,14 @@ function MemberRow({
 function InvitationRow({ invitation, onChanged }: { invitation: InvitationOut; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [resent, setResent] = useState<InvitationOut | null>(null);
 
   async function resend() {
     setBusy(true);
     setError(null);
     try {
       const updated = await api.resendInvitation(invitation.id);
-      setPreviewUrl(updated.previewUrl ?? null);
+      setResent(updated);
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not resend the invitation.");
@@ -262,11 +270,8 @@ function InvitationRow({ invitation, onChanged }: { invitation: InvitationOut; o
           </div>
         )}
         {error && <div className="hint" style={{ color: "var(--stop)" }}>{error}</div>}
-        {previewUrl && (
-          <div className="hint">
-            Dev preview link: <span className="mono">{previewUrl}</span>
-          </div>
-        )}
+        {resent && <DeliveryNote email={resent.email} emailSent={!!resent.emailSent} detail={resent.emailDetail}
+                                 link={resent.previewUrl} what="invitation" />}
       </td>
     </tr>
   );

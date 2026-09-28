@@ -52,7 +52,7 @@ export function TechnicalTab({ ctx }: { ctx: StoryCtx }) {
           <dl className="facts">
             <dt>Operation</dt><dd className="mono">{ec.tool}</dd>
             <dt>Target</dt><dd className="mono">{ec.application} / {ec.version} / option {ec.option}</dd>
-            <dt>Value</dt><dd className="mono">{ec.currentValue || "?"} → <strong>{ec.proposedValue}</strong></dd>
+            <dt>Value</dt><dd className="mono">{ec.currentValue || <span className="muted">not read yet</span>} → <strong>{ec.proposedValue}</strong></dd>
             <dt>Environment</dt><dd className="mono">{ec.environment}</dd>
             <dt>Test orchestration</dt><dd className="mono">{ec.testOrchestration || "—"}</dd>
             {ec.capabilityId && <><dt>Capability</dt><dd><span className="mono">{ec.capabilityId}</span> {ec.capabilityStatus && <CapabilityStatusBadge status={ec.capabilityStatus} />}</dd></>}

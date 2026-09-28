@@ -28,7 +28,7 @@ const APPROVER_ROLES: { role: ApproverRole; label: string }[] = [
 ];
 
 const MECHANISMS: { mechanism: Mechanism; label: string }[] = [
-  { mechanism: "ais_form_service_request", label: "AIS form service request (processing-option write)" },
+  { mechanism: "ais_form_service_request", label: "Processing-option change (applied in DEV by a person, read back through AIS)" },
   { mechanism: "ais_orchestration", label: "AIS orchestration (post-change test)" },
 ];
 

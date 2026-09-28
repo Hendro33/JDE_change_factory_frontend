@@ -121,7 +121,7 @@ export function AiConnections() {
                 {lastTest.detail}
                 <div className="hint">
                   {new Date(lastTest.at).toLocaleString()} · configuration r{lastTest.connectionRevision}, key r{lastTest.credentialRevision}
-                  {!view.tested && " — settings or key changed since; test again"}
+                  {(lastTest.connectionRevision !== view.revision || lastTest.credentialRevision !== view.credentialRevision) && " — settings or key changed since; test again"}
                 </div>
               </>
             ) : "never"}

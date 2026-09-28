@@ -28,11 +28,12 @@ export function Login({ onSignedIn, notice }: { onSignedIn: () => void; notice?:
     setError(null);
     setForgotSent(null);
     try {
-      await authApi.forgotPassword(email.trim());
+      const r = await authApi.forgotPassword(email.trim());
       setForgotSent(
-        "If that email is registered and email delivery is set up, a reset link is on its way. " +
-          "No email service is configured on this server yet, so in practice: ask your company's Admin " +
-          "to create a reset link for you under Administration › Organisation › Users & roles."
+        r.emailDelivery
+          ? "If that e-mail address has an account, a reset link is on its way. Check your inbox."
+          : "Password reset by e-mail is not set up on this server. Ask your company's Administrator for a " +
+            "reset link (Administration › Organisation › Users & roles)."
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not request a password reset.");
@@ -87,7 +88,7 @@ export function Login({ onSignedIn, notice }: { onSignedIn: () => void; notice?:
               Forgot password?
             </button>
             <span className="hint">
-              New here? You need an invitation from your company's Admin — this is an invite-only prototype.
+              New here? You need an invitation from your company's Administrator.
             </span>
           </form>
         ) : (

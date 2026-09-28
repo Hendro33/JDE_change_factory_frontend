@@ -218,7 +218,7 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
               <p style={{ fontSize: 13.5, color: "var(--ink-soft)" }}>{open.userStory?.statement ?? open.originalRequest}</p>
             </>
           }
-          whatHappensNext="It's admitted to the Delivery Queue — the set of work Jade is authorised to deliver. The Architect then analyses it and proposes an exact change, which you approve separately on Architecture Review before anything is written to JD Edwards."
+          whatHappensNext="It's admitted to the Delivery Queue — the set of work Jade is authorised to deliver. The Architect then analyses it and proposes an exact change, which you approve separately on Architecture Review before anyone applies it in JD Edwards."
           confirmLabel="Approve for Delivery"
           tone="primary"
           requireNote={false}

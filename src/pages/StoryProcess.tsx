@@ -45,9 +45,11 @@ export function MappingSection({ view, nodes, onChanged }: { view: StoryProcessV
   ];
 
   async function decide(status: "confirmed" | "no_mapping") {
-    if (!fw) return;
+    // Confirming processes needs the active framework; recording that no
+    // mapping applies does not (a new customer may not have loaded one yet).
+    if (!fw && status === "confirmed") return;
     setBusy(true); setError(null);
-    const refs = [
+    const refs = !fw ? [] : [
       ...suggestions.filter((s) => chosen[s.node_key]).map((s) => ({ framework_id: s.framework_id, version: s.version, node_key: s.node_key, rationale: s.rationale })),
       ...extra.split(/[,\s]+/).filter(Boolean).map((k) => ({ framework_id: fw.framework_id, version: fw.version, node_key: k, rationale: "added by the reviewer" })),
     ];
@@ -103,17 +105,19 @@ export function MappingSection({ view, nodes, onChanged }: { view: StoryProcessV
             <div key={k} className="hint">{k.replace(/_/g, " ")}: {v.join("; ")}</div>))}
         </div>
       ) : <p className="notstated">Not decided yet.</p>}
-      {view.can_review && fw ? (
+      {view.can_review ? (
         <div className="stack">
-          <label>Add processes by node id (from {fw.name} v{fw.version}):
-            <input aria-label="Add process node ids" list="pf-nodes" value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="e.g. SYN-5.1.2" />
-            <datalist id="pf-nodes">{nodes.map((n) => <option key={n.node_key} value={n.node_key}>{n.name}</option>)}</datalist>
-          </label>
-          <label>Note <input aria-label="Decision note" value={note} onChange={(e) => setNote(e.target.value)} /></label>
-          <div className="btnrow">
-            <button className="btn primary" disabled={busy} onClick={() => decide("confirmed")}>Confirm selected processes</button>
-          </div>
-          <label>Or record why no mapping applies:
+          {fw && <>
+            <label>Add processes by node id (from {fw.name} v{fw.version}):
+              <input aria-label="Add process node ids" list="pf-nodes" value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="e.g. SYN-5.1.2" />
+              <datalist id="pf-nodes">{nodes.map((n) => <option key={n.node_key} value={n.node_key}>{n.name}</option>)}</datalist>
+            </label>
+            <label>Note <input aria-label="Decision note" value={note} onChange={(e) => setNote(e.target.value)} /></label>
+            <div className="btnrow">
+              <button className="btn primary" disabled={busy} onClick={() => decide("confirmed")}>Confirm selected processes</button>
+            </div>
+          </>}
+          <label>{fw ? "Or record why no mapping applies:" : "Record why no process mapping applies:"}
             <input aria-label="No mapping reason" value={reason} onChange={(e) => setReason(e.target.value)} /></label>
           <div className="btnrow"><button className="btn small" disabled={busy || reason.trim().length < 10} onClick={() => decide("no_mapping")}>Record no mapping</button></div>
         </div>

@@ -238,6 +238,8 @@ export interface ExactChange {
   version: string;
   option: string;
   currentValue: string;
+  /** Where the current value came from, or why it is not known yet. */
+  currentValueNote?: string;
   proposedValue: string;
   environment: string;
   testOrchestration: string;
@@ -831,10 +833,10 @@ export interface MeOut {
 
 export interface ForgotPasswordResult {
   ok: boolean;
-  /** Only ever populated in dev-preview mode (no real email provider
-   * configured yet) and only when the account exists. Never populated
-   * once real email delivery is wired up. */
+  /** Always null: an anonymous caller never receives a reset link. */
   previewUrl?: string | null;
+  /** Whether this server can e-mail reset links at all (not whether the address exists). */
+  emailDelivery?: boolean;
 }
 
 export type MembershipStatus = "active" | "inactive";
@@ -861,9 +863,11 @@ export interface InvitationOut {
   createdAt: string;
   expiresAt: string;
   invitedByDisplayName: string;
-  /** Only present immediately after creation/resend, and only in
-   * dev-preview mode — see ForgotPasswordResult's own comment. */
+  /** Only right after creation/resend, and only when it could NOT be
+   * e-mailed: the link for the Admin to hand over personally. */
   previewUrl?: string | null;
+  emailSent?: boolean;
+  emailDetail?: string;
 }
 
 export interface CompanyUsersOut {
@@ -1248,9 +1252,10 @@ export interface JiraConnectionStatus {
 }
 
 export interface PasswordResetLinkOut {
-  /** True once an email provider delivers it; false means previewUrl is for the Admin to hand over. */
+  /** True only when it was e-mailed; otherwise previewUrl is for the Admin to hand over. */
   sent: boolean;
   previewUrl?: string | null;
+  detail?: string;
 }
 
 export interface JiraSyncError {

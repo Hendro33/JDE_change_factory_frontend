@@ -273,14 +273,14 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
               <h2>The exact change</h2>
               <Provenance
                 kind={decided ? "executed" : "proposed"}
-                label={decided ? `Decision recorded — ${open.changeApproval!.status}` : "Proposed only — nothing has been written to JD Edwards"}
+                label={decided ? `Decision recorded — ${open.changeApproval!.status}` : "Proposed only — not approved for anyone to apply in JD Edwards"}
               >
                 <dl className="facts">
                   <dt>Operation</dt><dd className="mono">{ec.tool}</dd>
                   <dt>Application</dt><dd className="mono">{ec.application}</dd>
                   <dt>Version</dt><dd className="mono">{ec.version}</dd>
                   <dt>Processing option</dt><dd className="mono">{ec.option}</dd>
-                  <dt>Current value</dt><dd className="mono">{ec.currentValue}</dd>
+                  <dt>Current value</dt><dd><span className="mono">{ec.currentValue || "—"}</span>{ec.currentValueNote && <span className="hint"> ({ec.currentValueNote})</span>}</dd>
                   <dt>Proposed value</dt><dd className="mono"><strong>{ec.proposedValue}</strong></dd>
                   <dt>Environment</dt><dd className="mono">{ec.environment}</dd>
                   <dt>Verified by</dt><dd className="mono">{ec.testOrchestration}</dd>
@@ -336,14 +336,14 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
                 <dt>Application</dt><dd className="mono">{ec.application}</dd>
                 <dt>Version</dt><dd className="mono">{ec.version}</dd>
                 <dt>Option</dt><dd className="mono">{ec.option}</dd>
-                <dt>Change</dt><dd className="mono">{ec.currentValue} → <strong>{ec.proposedValue}</strong></dd>
+                <dt>Change</dt><dd className="mono">{ec.currentValue || "current value read at approval"} → <strong>{ec.proposedValue}</strong></dd>
               </dl>
             </>
           }
           whatHappensNext={
             dialog === "approve"
               ? "The Functional or Technical Agent may apply exactly this operation in DEV, then run the named test. If anything about the operation differs from what you see here, it will be refused."
-              : "This exact operation is refused. Nothing is written to JD Edwards."
+              : "This exact operation is refused. It cannot be approved or recorded as delivered."
           }
           confirmLabel={dialog === "approve" ? "Approve exact change" : "Reject exact change"}
           tone={dialog === "approve" ? "primary" : "danger"}

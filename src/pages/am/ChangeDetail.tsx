@@ -274,7 +274,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                   <dt>Application</dt><dd className="mono">{ec.application}</dd>
                   <dt>Version</dt><dd className="mono">{ec.version}</dd>
                   <dt>Processing option</dt><dd className="mono">{ec.option}</dd>
-                  <dt>Current value</dt><dd className="mono">{ec.currentValue}</dd>
+                  <dt>Current value</dt><dd><span className="mono">{ec.currentValue || "—"}</span>{ec.currentValueNote && <span className="hint"> ({ec.currentValueNote})</span>}</dd>
                   <dt>Proposed value</dt><dd className="mono"><strong>{ec.proposedValue}</strong></dd>
                   <dt>Environment</dt><dd className="mono">{ec.environment}</dd>
                   <dt>Tested by</dt><dd className="mono">{ec.testOrchestration || "a recorded test result"}</dd>
@@ -421,7 +421,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                 <dt>Application</dt><dd className="mono">{ec.application}</dd>
                 <dt>Version</dt><dd className="mono">{ec.version}</dd>
                 <dt>Option</dt><dd className="mono">{ec.option}</dd>
-                <dt>Change</dt><dd className="mono">{ec.currentValue} → <strong>{ec.proposedValue}</strong></dd>
+                <dt>Change</dt><dd className="mono">{ec.currentValue || "current value read at approval"} → <strong>{ec.proposedValue}</strong></dd>
                 <dt>Environment</dt><dd className="mono">{ec.environment}</dd>
               </dl>
             </>
@@ -429,7 +429,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
           whatHappensNext={
             dialog === "approve"
               ? "The Functional Agent may apply exactly this operation in DEV, then run the named test. If anything about the operation differs from what you see here, it will be refused."
-              : "This exact operation is refused. Nothing is written to JD Edwards."
+              : "This exact operation is refused. It cannot be approved or recorded as delivered."
           }
           confirmLabel={dialog === "approve" ? "Approve this exact change" : "Reject this exact change"}
           tone={dialog === "approve" ? "primary" : "danger"}

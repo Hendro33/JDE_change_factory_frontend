@@ -183,4 +183,4 @@ The eight dashboard queues are read-only projections of canonical lifecycle/next
 
 Insights remains at `/reports`, for all signed-in roles. Past week/month/year select stories created in the last 7/30/365 days; Lifetime includes all stories. Metrics describe the current status of that cohort, not historical event throughput. The API accepts the same optional `period` and defaults to lifetime for existing clients.
 
-Local checks: `npm run build`; `node --test tests/workflow.test.mjs`; real-backend browser walkthroughs under `e2e/` using temporary data and simulated JDE. The realapp walkthrough tests a live AIS connection and is excluded from the no-live-JDE run.
+Local checks: `npm run build`; `node --test tests/workflow.test.mjs`; `e2e/journeys/run.sh` drives the Administrator, Domain Owner and Application Manager journeys in a browser against the real backend, on a fresh installation, with a local HTTPS stand-in for the customer's AIS server (see `e2e/journeys/README.md`).
