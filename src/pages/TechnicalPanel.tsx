@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { saveErrorMessage } from "../services/saveErrors";
 import { technicalApi, type PackageView, type TechnicalWorkView } from "../services/technicalApi";
 import type { CompanyRole } from "../types/domain";
+import { DocumentCitations } from "../components/RequestDocuments";
 import { Loading } from "../components/design";
 import { recordedAt } from "../components/ExecutionPanel";
 
@@ -314,6 +315,7 @@ export function PackageCard({ storyId, p, roles, onChanged }: { storyId: string;
       <strong>How it satisfies the design</strong>
       <p>{c.explanation}</p>
       {c.requirement_trace.length > 0 && <ul>{c.requirement_trace.map((t, i) => <li key={i}><strong style={{ display: "inline" }}>{t.requirement}</strong>: {t.how}</li>)}</ul>}
+      <DocumentCitations citations={c.document_citations} />
 
       <strong>Exact diff</strong>
       <DiffView diff={c.diff} />
@@ -432,7 +434,7 @@ export function TechnicalWorkPanel({ storyId, roles, onChanged, designOnly = fal
             <tbody>{view.runs.map((r) => (
               <tr key={r.run_id}><td className="mono">{r.run_id}</td><td>{r.purpose}</td>
                 <td><span className={`badge ${r.status === "completed" ? "ok" : r.status === "failed" ? "stop" : "warn"}`}>{r.status}</span>{r.error && <div className="hint">{r.error}</div>}</td>
-                <td>{r.outcome.kind?.replace(/_/g, " ") ?? "—"}{r.outcome.questions?.map((q) => <div key={q} className="hint">Q: {q}</div>)}</td>
+                <td>{r.outcome.kind?.replace(/_/g, " ") ?? "—"}{r.outcome.questions?.map((q) => <div key={q} className="hint">Q: {q}</div>)}<DocumentCitations citations={r.outcome.document_citations} /></td>
                 <td className="hint">{r.model ?? "—"}{r.usage.total_cost_usd != null ? ` · USD ${r.usage.total_cost_usd.toFixed(3)}` : ""}</td>
                 <td className="hint">{new Date(r.started_at).toLocaleString("en-GB")}</td></tr>
             ))}</tbody></table>

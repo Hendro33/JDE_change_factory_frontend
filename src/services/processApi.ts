@@ -1,3 +1,4 @@
+import type { DocumentCitation } from "../types/domain";
 /**
  * Process frameworks, a story's process mapping and maps, and its as-built
  * record. Response bodies keep the backend's snake_case keys.
@@ -53,7 +54,8 @@ export interface AnalysisRun {
   run_id: string; status: string; framework_id: string; framework_version: number; started_at: string;
   finished_at: string | null; error: string | null; model: string | null; scripted: boolean;
   result: { suggested_processes?: PinnedRef[]; rejected_suggestions?: string[]; missing_requirements?: string[];
-            missing_controls?: string[]; missing_acceptance_criteria?: string[]; no_mapping_reason?: string; summary?: string };
+            missing_controls?: string[]; missing_acceptance_criteria?: string[]; no_mapping_reason?: string; summary?: string;
+            document_citations?: DocumentCitation[] };
 }
 
 export interface Mapping {

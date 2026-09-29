@@ -1,3 +1,4 @@
+import type { DocumentCitation } from "../types/domain";
 /**
  * Technical work -- the Technical Agent's packages (developer-ready
  * specifications), their exact approval, and the recorded delivery
@@ -33,6 +34,8 @@ export interface PackageContent {
                requires_cnc_activation: boolean };
   explanation: string; requirement_trace: { requirement: string; how: string }[]; test_plan: TestCase[];
   missing_evidence: string[]; unsupported: string[]; lifecycle: string[];
+  /** Statements resting on a customer document; verified = the run's document tools returned that section. */
+  document_citations?: DocumentCitation[];
   recovery: { plan: string; constraints: string[] };
   repair_of: null | { revision: number; content_sha256: string; reason: string };
 }
@@ -78,7 +81,8 @@ export interface TechnicalRun {
   design_revision: number; baseline_id: string; started_at: string; finished_at: string | null;
   error: string | null; model: string | null;
   usage: { total_cost_usd?: number; num_turns?: number; models?: string[] };
-  outcome: { kind?: string; explanation?: string; questions?: string[]; revision?: number; summary?: string };
+  outcome: { kind?: string; explanation?: string; questions?: string[]; revision?: number; summary?: string;
+             document_citations?: DocumentCitation[] };
   events: { at: string; event: string; detail: string }[];
 }
 

@@ -1,3 +1,4 @@
+import { DocumentCitations } from "../components/RequestDocuments";
 import { useEffect, useState } from "react";
 import { saveErrorMessage } from "../services/saveErrors";
 import {
@@ -75,6 +76,7 @@ export function MappingSection({ view, nodes, onChanged }: { view: StoryProcessV
             {" "}<span className="hint">{run.status} · framework version {run.framework_version}</span></div>
           {run.error && <p style={{ color: "var(--stop)" }}>{run.error}</p>}
           {run.result.summary && <p>{cleanAgentText(run.result.summary).text}</p>}
+          <DocumentCitations citations={run.result.document_citations} />
           {suggestions.map((s) => (
             <label key={s.node_key} style={{ display: "block" }}>
               <input type="checkbox" disabled={!view.can_review} checked={!!chosen[s.node_key]}

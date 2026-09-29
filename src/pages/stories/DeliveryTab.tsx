@@ -1,4 +1,5 @@
 import { ReviewDetail, DeliveryRouteIndicator } from "../../components/visualReview";
+import { DocumentCitations } from "../../components/RequestDocuments";
 import { EvidenceChain, ValidationSummary } from "../../components/workspaceVisuals";
 import { EmptyState, Section, formatDateTime, useSessionInfo } from "../../components/design";
 import { ExecutionPanel } from "../../components/ExecutionPanel";
@@ -68,6 +69,9 @@ export function DeliveryTab({ ctx }: { ctx: StoryCtx }) {
             <ReviewDetail title="Implementation explanation"><p>{explanation.text || "JADE prepared the implementation package."}</p></ReviewDetail>
             {pkg.content.requirement_trace.length > 0 && (
               <ReviewDetail title="Requirement trace"><ul className="checklist">{pkg.content.requirement_trace.map((t, i) => <li key={i}><strong>{t.requirement}</strong> — {t.how}</li>)}</ul></ReviewDetail>
+            )}
+            {(pkg.content.document_citations?.length ?? 0) > 0 && (
+              <ReviewDetail title="Based on documents"><DocumentCitations citations={pkg.content.document_citations} /></ReviewDetail>
             )}
             <p className="muted">Package revision {pkg.revision}{pkg.approval?.status === "approved" ? `, approved by ${pkg.approval.approved_by}` : pkg.approval?.status === "rejected" ? ", rejected" : ", awaiting approval"}
               {cnc && <> · activated in DEV by {cnc.by} ({cnc.package_name}) on {formatDateTime(isoOf(cnc.at))}</>}.</p>
