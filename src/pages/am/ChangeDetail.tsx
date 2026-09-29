@@ -18,6 +18,7 @@ import {
   Timeline,
   type TimelineItem,
 } from "../../components/ui";
+import { ExactChangeFacts, isChangeSet } from "../../components/ConfigurationItems";
 
 /** The lifecycle, in order, as the business reads it. */
 const LIFECYCLE: { key: string; title: string; reached: (c: Change) => boolean; detail: (c: Change) => string | undefined }[] = [
@@ -269,17 +270,8 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                   ? "Applied in JD Edwards DEV by a person (recorded)"
                   : "Not applied yet — JADE never writes to JD Edwards"}
               >
-                <dl className="facts">
-                  <dt>Operation</dt><dd className="mono">{ec.tool}</dd>
-                  <dt>Application</dt><dd className="mono">{ec.application}</dd>
-                  <dt>Version</dt><dd className="mono">{ec.version}</dd>
-                  <dt>Processing option</dt><dd className="mono">{ec.option}</dd>
-                  <dt>Current value</dt><dd><span className="mono">{ec.currentValue || "—"}</span>{ec.currentValueNote && <span className="hint"> ({ec.currentValueNote})</span>}</dd>
-                  <dt>Proposed value</dt><dd className="mono"><strong>{ec.proposedValue}</strong></dd>
-                  <dt>Environment</dt><dd className="mono">{ec.environment}</dd>
-                  <dt>Tested by</dt><dd className="mono">{ec.testOrchestration || "a recorded test result"}</dd>
-                  {ec.capabilityId && <><dt>Capability</dt><dd className="mono">{ec.capabilityId}</dd></>}
-                </dl>
+                <ExactChangeFacts ec={ec} />
+                {ec.capabilityId && !isChangeSet(ec) && <dl className="facts"><dt>Capability</dt><dd className="mono">{ec.capabilityId}</dd></dl>}
               </Provenance>
 
               {ec.capabilityId && ec.capabilityExecutable === false && (
@@ -414,9 +406,12 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
             <>
               <p style={{ marginTop: 0 }}>
                 {dialog === "approve"
-                  ? "You are approving one specific operation, not the change in general."
+                  ? (isChangeSet(ec) ? `You are approving exactly these ${ec.items?.length} configuration items, not the change in general.` : "You are approving one specific operation, not the change in general.")
                   : "The Architect will need to propose a different operation, or this may need Human Implementation."}
               </p>
+              {isChangeSet(ec) ? (
+                <ExactChangeFacts ec={ec} showDelivery={false} />
+              ) : (
               <dl className="facts">
                 <dt>Application</dt><dd className="mono">{ec.application}</dd>
                 <dt>Version</dt><dd className="mono">{ec.version}</dd>
@@ -424,6 +419,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
                 <dt>Change</dt><dd className="mono">{ec.currentValue || "current value read at approval"} → <strong>{ec.proposedValue}</strong></dd>
                 <dt>Environment</dt><dd className="mono">{ec.environment}</dd>
               </dl>
+              )}
             </>
           }
           whatHappensNext={

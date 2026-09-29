@@ -3,8 +3,9 @@ import { api } from "../services/api";
 import { HttpError } from "../services/httpApi";
 import { saveErrorMessage } from "../services/saveErrors";
 import { useSessionInfo } from "./design";
+import { approvedLine, ConfigurationItemsTable, isChangeSet, kindLabel } from "./ConfigurationItems";
 import type {
-  ExactChange, ExecutionState, PreflightResult, Reconciliation, RecordedApplied, RecordedVerification,
+  ConfigurationItem, ExactChange, ExecutionState, PreflightResult, Reconciliation, RecordedApplied, RecordedVerification,
 } from "../types/domain";
 
 const STATE_LABEL: Record<ExecutionState, { text: string; tone: string }> = {
@@ -78,10 +79,12 @@ function nonEmpty<T extends object>(o?: T | Record<string, never> | null): T | n
  * Unknown outcomes from earlier records are reconciled here too.
  */
 export function ExecutionPanel({
-  changeId, exactChange, approvalStatus, onChanged, compact = false,
+  changeId, exactChange, approvalStatus, onChanged, compact = false, showItems = false,
 }: {
   changeId: string;
   compact?: boolean;
+  /** Show every item of a configuration change set with its recorded state (where the page does not already). */
+  showItems?: boolean;
   exactChange?: ExactChange;
   /** Re-asks the gate when the approval changes, not only the execution state. */
   approvalStatus?: string;
@@ -163,21 +166,64 @@ export function ExecutionPanel({
 
   const statedMissing = needsStated && (!statedValue.trim() || !appliedEvidence.trim());
 
+  // A configuration change set is recorded item by item.
+  const changeSet = isChangeSet(exactChange);
+  const items = exactChange?.items ?? [];
+  const pending = items.filter((i) => !i.applied);
+  const [itemId, setItemId] = useState<string>("");
+  const current: ConfigurationItem | undefined = items.find((i) => i.id === itemId && !i.applied) ?? pending[0];
+  const [statedValues, setStatedValues] = useState<Record<string, string>>({});
+  const [confirmed, setConfirmed] = useState(false);
+  const versionItem = !!current && current.kind.startsWith("version_data_");
+  const rowItem = !!current && (current.kind === "udc_value" || current.kind === "setup_row");
+  const itemStatedMissing = !!current && (
+    (versionItem && (!confirmed || !appliedEvidence.trim())) ||
+    (needsStated && rowItem && (!appliedEvidence.trim() || Object.keys(current.values).some((f) => !(statedValues[f] ?? "").trim()))) ||
+    (needsStated && current.kind === "processing_option" && (!statedValue.trim() || !appliedEvidence.trim())));
+
+  async function recordItem() {
+    if (!current) return;
+    setBusy(true); setError(null); setMessage(null);
+    try {
+      const r = await api.recordApplied(changeId, {
+        itemId: current.id, evidenceReference: appliedEvidence.trim(), note: appliedNote.trim(),
+        ...(needsStated && rowItem ? { statedValues } : {}),
+        ...(needsStated && current.kind === "processing_option" ? { statedValue: statedValue.trim() } : {}),
+        ...(versionItem ? { confirmedAsSpecified: confirmed } : {}),
+      });
+      setMessage(`${r.itemId ?? current.id} recorded as applied in DEV (${r.source}). ` +
+        (r.outcome === "applied" ? "Every item is now recorded: the change is applied." : `${r.remaining ?? ""} item(s) remain.`) +
+        " Added to the story's evidence chain.");
+      setAppliedEvidence(""); setAppliedNote(""); setStatedValue(""); setStatedValues({}); setConfirmed(false);
+      setNeedsStated(false); setItemId("");
+      onChanged();
+    } catch (e) {
+      const detail = e instanceof HttpError ? e.detail : "";
+      if (/cannot read .* back live/i.test(detail)) setNeedsStated(true);
+      setError(saveErrorMessage(e, "Nothing was recorded."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div style={{ marginTop: 16 }}>
       <h3 style={{ margin: "0 0 8px" }}>Delivery in DEV</h3>
       <p className="hint" style={{ marginTop: 0 }}>
-        JADE never writes to JD Edwards. Apply exactly the approved value in DEV yourself, then record it here: JADE reads
-        it back live through the customer's JD Edwards connection and records it only if it is the approved value.
+        JADE never writes to JD Edwards. Apply exactly the approved {changeSet ? "configuration" : "value"} in DEV yourself, then record it here{changeSet ? ", item by item" : ""}: JADE reads
+        it back live through the customer's JD Edwards connection and records it only if it is exactly what was approved.
       </p>
       <dl className="facts">
         <dt>Change applied</dt><dd><StateBadge state={writeState} /></dd>
         <dt>Test</dt><dd><StateBadge state={testState} />{verification && <> <span className={`badge ${verification.passed ? "ok" : "stop"}`}>{verification.passed ? "passed" : "failed"}</span></>}</dd>
         {execution?.beforeValue != null && (<><dt>Value before</dt><dd className="mono">{execution.beforeValue}</dd></>)}
-        {exactChange && (<><dt>Approved value</dt><dd className="mono">{exactChange.application} / {exactChange.version} / option {exactChange.option} = <strong>{exactChange.proposedValue}</strong></dd></>)}
+        {changeSet && (<><dt>Items recorded</dt><dd>{items.length - pending.length} of {items.length}</dd></>)}
+        {exactChange && !changeSet && (<><dt>Approved value</dt><dd className="mono">{exactChange.application} / {exactChange.version} / option {exactChange.option} = <strong>{exactChange.proposedValue}</strong></dd></>)}
       </dl>
 
-      {applied && (
+      {changeSet && showItems && <ConfigurationItemsTable items={items} />}
+
+      {applied && !changeSet && (
         <div style={{ marginTop: 12 }}>
           <strong>Recorded as applied</strong>
           <AppliedFacts applied={applied} />
@@ -198,7 +244,62 @@ export function ExecutionPanel({
       )}
 
       {/* ------------ Record applied in DEV ------------ */}
-      {approved && deliverable && writeState === "ready" && (
+      {approved && deliverable && changeSet && writeState !== "applied" && !writeUnknown && current && (
+        canRecord ? (
+          <div className="callout" style={{ marginTop: 12 }}>
+            <strong>Record the next item as applied in DEV</strong>
+            Apply the items in order. After you have applied an item in DEV, record it: JADE re-checks the approval and
+            scope and reads it back live where the customer's approved reads allow.
+            <div className="stack" style={{ marginTop: 8 }}>
+              <div className="field">
+                <label htmlFor={`item-${changeId}`}>Item</label>
+                <select id={`item-${changeId}`} value={current.id} onChange={(e) => { setItemId(e.target.value); setNeedsStated(false); setStatedValues({}); setConfirmed(false); }}>
+                  {pending.map((i) => <option key={i.id} value={i.id}>{i.id} — {i.label}</option>)}
+                </select>
+                <span className="hint">{kindLabel(current.kind)}: <span className="mono">{approvedLine(current)}</span>{current.purpose ? ` — ${current.purpose}` : ""}</span>
+              </div>
+              {needsStated && rowItem && Object.keys(current.values).map((f) => (
+                <div className="field" key={f}>
+                  <label htmlFor={`stated-${changeId}-${f}`}>Value of <span className="mono">{f}</span> you read in JDE</label>
+                  <input id={`stated-${changeId}-${f}`} type="text" value={statedValues[f] ?? ""}
+                    onChange={(e) => setStatedValues({ ...statedValues, [f]: e.target.value })} />
+                </div>
+              ))}
+              {needsStated && current.kind === "processing_option" && (
+                <div className="field">
+                  <label htmlFor={`stated-${changeId}`}>Value you read in JDE after applying it</label>
+                  <input id={`stated-${changeId}`} type="text" value={statedValue} onChange={(e) => setStatedValue(e.target.value)} />
+                </div>
+              )}
+              {needsStated && <span className="hint">JADE cannot read this item live right now, so it is recorded as stated by you — never as a live read.</span>}
+              {versionItem && (
+                <label style={{ fontWeight: 400 }}>
+                  <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />{" "}
+                  I entered the {current.kind === "version_data_selection" ? "data selection" : "data sequencing"} of{" "}
+                  {current.application} version {current.version} exactly as specified. (JD Edwards does not expose it through AIS, so it is recorded as stated.)
+                </label>
+              )}
+              <div className="field">
+                <label htmlFor={`applied-evidence-${changeId}`}>
+                  Evidence reference <span className="hint">({needsStated || versionItem ? "required: " : "optional when JADE can read it live: "}screenshot, ticket or export)</span>
+                </label>
+                <input id={`applied-evidence-${changeId}`} type="text" value={appliedEvidence} onChange={(e) => setAppliedEvidence(e.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor={`applied-note-${changeId}`}>Note <span className="hint">(optional)</span></label>
+                <textarea id={`applied-note-${changeId}`} value={appliedNote} onChange={(e) => setAppliedNote(e.target.value)} />
+              </div>
+              <div className="btnrow">
+                <button className="btn primary" disabled={busy || itemStatedMissing} onClick={recordItem}>
+                  {busy ? "Recording…" : `Record ${current.id} applied in DEV`}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : <p className="hint">Waiting for the Application Manager to apply the configuration in DEV and record each item.</p>
+      )}
+
+      {approved && deliverable && !changeSet && writeState === "ready" && (
         canRecord ? (
           <div className="callout" style={{ marginTop: 12 }}>
             <strong>Record the change as applied in DEV</strong>

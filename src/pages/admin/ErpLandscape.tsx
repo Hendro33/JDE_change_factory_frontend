@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type {
+  ApprovedConfiguration,
   ApprovedVersion,
   ApproverRole,
   EngagementScope,
@@ -28,7 +29,7 @@ const APPROVER_ROLES: { role: ApproverRole; label: string }[] = [
 ];
 
 const MECHANISMS: { mechanism: Mechanism; label: string }[] = [
-  { mechanism: "ais_form_service_request", label: "Processing-option change (applied in DEV by a person, read back through AIS)" },
+  { mechanism: "ais_form_service_request", label: "Configuration change (applied in DEV by a person, item by item, read back through AIS)" },
   { mechanism: "ais_orchestration", label: "AIS orchestration (post-change test)" },
 ];
 
@@ -80,6 +81,40 @@ function approvedVersionsFromText(text: string, previous: ApprovedVersion[]): Ap
       options: options.split(",").map((s) => s.trim()).filter(Boolean),
       allowedValues: allowedValues.split(",").map((s) => s.trim()).filter(Boolean),
       notes: notes.trim(),
+    };
+  });
+}
+
+function configurationToText(v: ApprovedConfiguration[]): string {
+  return v
+    .map((c) => `${c.capabilityId}|${c.category}|${c.target}|${c.fields.join(",")}|${c.actions.join(",")}|` +
+      `${Object.entries(c.allowedValues).map(([f, vs]) => `${f}=${vs.join(",")}`).join(";")}|${c.notes}`)
+    .join("\n");
+}
+
+/**
+ * One line per entry: capability|category|target|fields,comma|actions,comma|FIELD=v1,v2;FIELD2=v|notes.
+ * The target may itself contain "|" (a batch version "R42565|CIQ0001", key
+ * values "F40039:DCTO=SW|SX"): it is everything between the category and the
+ * last four fields.
+ */
+function configurationFromText(text: string): ApprovedConfiguration[] {
+  return lines(text).map((line) => {
+    const parts = line.split("|");
+    const [capabilityId = "", category = ""] = parts;
+    const tail = parts.length >= 7 ? parts.slice(-4) : ["", "", "", ""];
+    const target = parts.length >= 7 ? parts.slice(2, -4).join("|") : (parts[2] ?? "");
+    const [fields, actions, allowed, notes] = tail;
+    const allowedValues: Record<string, string[]> = {};
+    for (const pair of allowed.split(";").map((x) => x.trim()).filter(Boolean)) {
+      const [f, vs = ""] = pair.split("=");
+      allowedValues[f.trim().toUpperCase()] = vs.split(",").map((x) => x.trim()).filter(Boolean);
+    }
+    return {
+      capabilityId: capabilityId.trim(), category: category.trim(), target: target.trim(),
+      fields: fields.split(",").map((x) => x.trim().toUpperCase()).filter(Boolean),
+      actions: actions.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean) as ("add" | "update")[],
+      allowedValues, notes: notes.trim(),
     };
   });
 }
@@ -139,6 +174,7 @@ export function ErpLandscape() {
   // Form state, only meaningful while editing.
   const [toolsRelease, setToolsRelease] = useState("");
   const [approvedVersionsText, setApprovedVersionsText] = useState("");
+  const [configurationText, setConfigurationText] = useState("");
   const [neverTouch, setNeverTouch] = useState<string[]>([]);
   const [neverTouchNotesText, setNeverTouchNotesText] = useState("");
   const [mechanisms, setMechanisms] = useState<Mechanism[]>([]);
@@ -161,6 +197,7 @@ export function ErpLandscape() {
       setScope(s);
       setToolsRelease(s.toolsRelease);
       setApprovedVersionsText(approvedVersionsToText(s.functionalAgent.approvedVersions));
+      setConfigurationText(configurationToText(s.functionalAgent.approvedConfiguration ?? []));
       setNeverTouch(s.functionalAgent.neverTouchCategories);
       setNeverTouchNotesText((s.functionalAgent.neverTouchNotes ?? []).join("\n"));
       setMechanisms(s.mechanismsAllowed ?? []);
@@ -189,6 +226,7 @@ export function ErpLandscape() {
         environment,
         functionalAgent: {
           approvedVersions: approvedVersionsFromText(approvedVersionsText, scope.functionalAgent.approvedVersions),
+          approvedConfiguration: configurationFromText(configurationText),
           spikeExperiments: spikesFromText(spikesText),
           neverTouchCategories: neverTouch,
           neverTouchNotes: lines(neverTouchNotesText),
@@ -357,6 +395,29 @@ export function ErpLandscape() {
                   )}
                 </div>
                 <div>
+                  <strong>Functional Agent — approved configuration</strong>
+                  {(scope.functionalAgent.approvedConfiguration ?? []).length === 0 ? (
+                    <p className="notstated">None configured — only the approved processing-option versions above can be proposed</p>
+                  ) : (
+                    <table className="data">
+                      <thead><tr><th>Capability</th><th>Category</th><th>Target</th><th>Fields</th><th>Actions</th><th>Allowed values</th><th>Notes</th></tr></thead>
+                      <tbody>
+                        {(scope.functionalAgent.approvedConfiguration ?? []).map((c, i) => (
+                          <tr key={i}>
+                            <td className="mono">{c.capabilityId}</td>
+                            <td><CategoryBadge category={c.category} neverTouch={scope.functionalAgent.neverTouchCategories} /></td>
+                            <td className="mono">{c.target}</td>
+                            <td className="mono">{c.fields.join(", ") || <span className="notstated">—</span>}</td>
+                            <td>{c.actions.join(", ") || <span className="notstated">—</span>}</td>
+                            <td className="mono">{Object.entries(c.allowedValues).map(([f, vs]) => `${f}: ${vs.join(", ")}`).join("; ") || <span className="notstated">any</span>}</td>
+                            <td>{c.notes}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+                <div>
                   <strong>Mechanisms allowed</strong>
                   <p style={{ margin: "4px 0 0" }}>
                     {(scope.mechanismsAllowed ?? []).length === 0 ? (
@@ -503,6 +564,13 @@ export function ErpLandscape() {
                     Functional Agent — approved versions <span className="hint">(one per line: capability|category|application|version|options,comma|allowedValues,comma|notes — category is one of: {OPTION_CATEGORIES.filter((c) => !c.protected).map((c) => c.category).join(", ")}; protected categories are refused)</span>
                   </label>
                   <textarea id="approvedVersions" value={approvedVersionsText} onChange={(e) => setApprovedVersionsText(e.target.value)} placeholder="processing_option_update|document_and_order_types|P4210|CIQ0001|PDOCTYPE|SO,SV|Default document type on a named sales order version" />
+                </div>
+                <div className="field">
+                  <label htmlFor="approvedConfiguration">
+                    Functional Agent — approved configuration <span className="hint">(enforced; one per line: capability|category|target|fields,comma|actions,comma|FIELD=value,value;FIELD=value|notes — target is a UDC type 00/DT, a table with optional key values F40039:DCTO=SW|SX, or a batch version R42565|CIQ0001; actions are add and/or update, never delete; UDC fields: DRDL01, DRDL02, DRSPHD)</span>
+                  </label>
+                  <textarea id="approvedConfiguration" value={configurationText} onChange={(e) => setConfigurationText(e.target.value)}
+                    placeholder={"udc_value_maintenance|document_and_order_types|00/DT|DRDL01,DRSPHD|add,update||Order types\ndocument_type_definition|document_and_order_types|F40039:DCTO=SW|SX|DCT4,DCDL01|add|DCT4=SO|New sales order types"} />
                 </div>
                 <div className="field">
                   <label htmlFor="approvedTests">

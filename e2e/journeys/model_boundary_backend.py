@@ -40,18 +40,30 @@ async def fake_query(prompt, options):
     story = m.group(1) if m else None
     if "Use the architect subagent" in prompt:
         t = _tools["t"]
+        # The Architect reads what exists today ...
         obs = t.read("processing_option_values", "P4210|CIQ0001")
-        approval.propose_change(story, {"tool": "set_processing_option", "story_id": story, "application": "P4210",
-                                        "version": "CIQ0001", "option": "PDOCTYPE", "value": "SO",
-                                        "test_orchestration": "ORCH_SO"}, "processing_option_update")
+        t.read("udc_values", "00/DT")
+        # ... and the Functional Agent proposes the configuration change set.
+        approval.propose_change(story, {
+            "tool": "configuration_change_set", "test_orchestration": "ORCH_SO",
+            "summary": "Webshop orders get their own order type SW, set up like SO",
+            "items": [
+                {"capability_id": "udc_value_maintenance", "product_code": "00", "udc_type": "DT", "code": "SW",
+                 "action": "add", "values": {"DRDL01": "Sales Order - Webshop"}, "purpose": "the new order type code"},
+                {"capability_id": "document_type_definition", "table": "F40039", "key": {"DCTO": "SW"}, "action": "add",
+                 "values": {"DCT4": "SO", "DCDL01": "Sales Order - Webshop"}, "purpose": "document type master, category SO"},
+                {"capability_id": "processing_option_update", "application": "P4210", "version": "CIQ0001",
+                 "option": "PDOCTYPE", "value": "SW", "purpose": "webshop order entry defaults to SW"},
+            ]}, "configuration_change_set")
         summary = {
             "architect_decision": {"recommended_route": "Functional Agent", "confidence": 0.85,
-                                   "existing_functionality_found": "P4210 version CIQ0001 (webshop order entry) defaults document type S3",
-                                   "alternatives_considered": ["a new version of P4210"], "objects_affected": ["P4210|CIQ0001"],
-                                   "dependencies_and_conflicts": [], "rollback_strategy": "set PDOCTYPE back to S3"},
-            "implementation_spec": {"sequence": ["set processing option PDOCTYPE of P4210|CIQ0001 to SO"],
-                                    "required_mcp_operations": ["set_processing_option"], "human_actions_required": [],
-                                    "validation_approach": "create a DEV webshop order and check it is type SO"},
+                                   "existing_functionality_found": "P4210 version CIQ0001 (webshop order entry) defaults document type S3; no webshop order type exists in 00/DT",
+                                   "alternatives_considered": ["reuse SO for webshop orders"], "objects_affected": ["00/DT", "F40039", "P4210|CIQ0001"],
+                                   "dependencies_and_conflicts": [], "rollback_strategy": "set PDOCTYPE back to S3; SW stays unused"},
+            "implementation_spec": {"sequence": ["add order type SW to UDC 00/DT", "add document type SW (category SO) to F40039",
+                                                 "set processing option PDOCTYPE of P4210|CIQ0001 to SW"],
+                                    "required_mcp_operations": ["configuration_change_set"], "human_actions_required": [],
+                                    "validation_approach": "create a DEV webshop order and check it is type SW"},
             "evidence": {"observations": [obs.get("observation_id")] if isinstance(obs, dict) else []},
         }
         yield _result("```json\n" + json.dumps(summary) + "\n```")
@@ -62,10 +74,10 @@ async def fake_query(prompt, options):
         summary = {
             "story_id": story,
             "user_story": {
-                "statement": "As a webshop order clerk, I want new webshop orders to default to order type SO, so that they follow the standard sales order flow.",
+                "statement": "As a webshop order clerk, I want webshop orders to get their own order type SW that behaves like SO, so that the warehouse picks them and we can report on webshop sales.",
                 "business_context": "Webshop orders are entered with P4210 version CIQ0001, which defaults to S3 (direct ship).",
-                "acceptance_criteria": [{"id": "AC1", "text": "A new webshop order defaults to order type SO.", "verified_by": "T1"}],
-                "test_script": [{"id": "T1", "action": "Enter a webshop order in DEV", "expected": "Order type is SO"}],
+                "acceptance_criteria": [{"id": "AC1", "text": "A new webshop order defaults to order type SW and follows the SO flow.", "verified_by": "T1"}],
+                "test_script": [{"id": "T1", "action": "Enter a webshop order in DEV", "expected": "Order type is SW"}],
                 "open_questions": [], "quality_status": "passed", "revision_count": 0,
             },
             "business_impact": {"financial_impact": "", "operational_reach": "Webshop order desk", "risk_compliance": "",

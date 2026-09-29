@@ -91,7 +91,7 @@ export function TechnicalWorkbench({ design = false }: { design?: boolean }) {
       empty={design ? "No story has a design routed to the Technical Agent." : "No story has an approved solution to deliver yet."}
       render={(id, c, reload) => TECHNICAL_ROUTES.has(c.architectDecision?.recommendedRoute ?? "")
         ? <TechnicalWorkPanel storyId={id} roles={info.roles} designOnly={design} onChanged={reload} />
-        : <section className="panel"><ExecutionPanel changeId={id} exactChange={c.exactChange} approvalStatus={c.changeApproval?.status} onChanged={reload} /></section>} />
+        : <section className="panel"><ExecutionPanel showItems changeId={id} exactChange={c.exactChange} approvalStatus={c.changeApproval?.status} onChanged={reload} /></section>} />
   );
 }
 

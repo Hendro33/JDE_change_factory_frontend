@@ -19,6 +19,7 @@ import type {
   PasswordResetLinkOut,
   PreflightResult,
   ReconcileResult,
+  RecordAppliedInput,
   RecordAppliedResult,
   DeliveryTestResult,
   ErpLandscape,
@@ -553,7 +554,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<PreflightResult>(`/changes/${encodeURIComponent(changeId)}/execution/preflight`, { customerId });
   }
 
-  async recordApplied(changeId: string, input: { evidenceReference: string; note: string; statedValue?: string }) {
+  async recordApplied(changeId: string, input: RecordAppliedInput) {
     const customerId = await this.activeCustomerId();
     return request<RecordAppliedResult>(`/changes/${encodeURIComponent(changeId)}/delivery/applied`, {
       method: "POST", customerId, body: input,

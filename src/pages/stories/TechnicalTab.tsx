@@ -4,6 +4,7 @@ import { CAPABILITY_STATUS_LABEL, CapabilityStatusBadge } from "../../components
 import { Details, EmptyState, Section, formatDateTime, useSessionInfo } from "../../components/design";
 import { TechnicalWorkPanel } from "../TechnicalPanel";
 import type { StoryCtx } from "./storyContext";
+import { ExactChangeFacts } from "../../components/ConfigurationItems";
 
 /**
  * Technical: for people who build and operate. JD Edwards objects and
@@ -49,12 +50,8 @@ export function TechnicalTab({ ctx }: { ctx: StoryCtx }) {
 
       {ec && (
         <Section title="Exact change and delivery">
+          <ExactChangeFacts ec={ec} testLabel="Test orchestration" />
           <dl className="facts">
-            <dt>Operation</dt><dd className="mono">{ec.tool}</dd>
-            <dt>Target</dt><dd className="mono">{ec.application} / {ec.version} / option {ec.option}</dd>
-            <dt>Value</dt><dd className="mono">{ec.currentValue || <span className="muted">not read yet</span>} → <strong>{ec.proposedValue}</strong></dd>
-            <dt>Environment</dt><dd className="mono">{ec.environment}</dd>
-            <dt>Test orchestration</dt><dd className="mono">{ec.testOrchestration || "—"}</dd>
             {ec.capabilityId && <><dt>Capability</dt><dd><span className="mono">{ec.capabilityId}</span> {ec.capabilityStatus && <CapabilityStatusBadge status={ec.capabilityStatus} />}</dd></>}
             {change.changeApproval?.changeHash && <><dt>Approval bound to</dt><dd className="mono">{change.changeApproval.changeHash}</dd></>}
           </dl>

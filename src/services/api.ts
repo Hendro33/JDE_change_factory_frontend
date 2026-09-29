@@ -27,6 +27,7 @@ import type {
   PasswordResetLinkOut,
   PreflightResult,
   ReconcileResult,
+  RecordAppliedInput,
   RecordAppliedResult,
   DeliveryTestResult,
   ErpLandscape,
@@ -328,7 +329,7 @@ export interface ChangeFactoryApi {
    * the person read in JDE, with an evidence reference) count. 409 = refused,
    * nothing recorded.
    */
-  recordApplied(changeId: string, input: { evidenceReference: string; note: string; statedValue?: string }): Promise<RecordAppliedResult>;
+  recordApplied(changeId: string, input: RecordAppliedInput): Promise<RecordAppliedResult>;
   /** Runs the approved test orchestration live on the customer's AIS. */
   runDeliveryTest(changeId: string): Promise<DeliveryTestResult>;
   /** Records a test result against the acceptance criteria, with evidence. */

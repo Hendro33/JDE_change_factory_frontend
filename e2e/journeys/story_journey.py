@@ -8,12 +8,12 @@ import sys
 
 from lib import HERE, act, browser, check, done, go, login, new_page, next_step, save, shot, sync_playwright
 
-TITLE = os.environ.get("JADE_E2E_STORY_TITLE", "Webshop orders should be normal sales orders")
+TITLE = os.environ.get("JADE_E2E_STORY_TITLE", "Webshop orders need their own order type")
 
 
-def dev_apply(value):
-    """A person sets the processing option in JD Edwards DEV."""
-    subprocess.run([sys.executable, os.path.join(HERE, "dev_apply.py"), "P4210", "CIQ0001", "PDOCTYPE", value], check=True)
+def dev_apply(*args):
+    """A person changes JD Edwards DEV (a processing option, or a configuration row)."""
+    subprocess.run([sys.executable, os.path.join(HERE, "dev_apply.py"), *args], check=True)
 
 
 def as_(b, who, path, *actions):
@@ -28,7 +28,7 @@ def as_(b, who, path, *actions):
 
 with sync_playwright() as p:
     b = browser(p)
-    dev_apply("S3")  # DEV holds the value before the change
+    dev_apply("P4210", "CIQ0001", "PDOCTYPE", "S3")  # DEV holds the value before the change
 
     # Domain Owner raises the request; the agents write the story.
     page = new_page(b)
@@ -37,8 +37,9 @@ with sync_playwright() as p:
     page.fill("#nr-title", TITLE)
     page.select_option("#nr-source", "Support / Topdesk")
     page.fill("#nr-ref", "Topdesk #4521")
-    page.fill("#nr-req", "Orders from the webshop come in as S3 direct ship. They should be normal SO orders so the "
-                         "warehouse picks them. Version CIQ0001 of sales order entry is the webshop one.")
+    page.fill("#nr-req", "Orders from the webshop come in as S3 direct ship. They need their own order type that works "
+                         "like SO, so the warehouse picks them and we can report webshop sales separately. Version "
+                         "CIQ0001 of sales order entry is the webshop one.")
     page.click("button:has-text('Create request')")
     page.wait_for_url("**/stories/**", timeout=30000)
     page.wait_for_timeout(6000)
@@ -62,24 +63,44 @@ with sync_playwright() as p:
 
     pg, step, _ = as_(b, "am", path, ("link", "Open in Backlog Review"), ("click", "Approve for Delivery"),
                       ("confirm", "Approve for Delivery"), ("wait", 6000), ("goto", path), ("wait", 1500))
-    check("after approval for delivery the Architect proposes a solution with its exact change",
+    check("after approval for delivery the Architect designs and the Functional Agent proposes the exact change",
           "Review JADE's proposed solution" in step)
     pg.context.close()
 
     pg, step, full = as_(b, "am", path, ("link", "Open in Architecture Review"))
-    check("before approval, the current value is announced as read at approval (never shown as empty)",
+    check("the exact change is a configuration change set of three items, in the order they are applied",
+          "Configuration change set of 3 items" in full and "UDC 00/DT code 'SW'" in full and "F40039" in full
+          and "PDOCTYPE = SW" in full)
+    check("before approval, the current values are announced as read at approval (never shown as empty)",
           "read live from JD Edwards when the change is approved" in full)
     act(pg, ("click", "Approve exact change"), ("confirm", "Approve exact change"), ("wait", 3000))
     full = pg.inner_text("main")
-    check("approving reads the current value live and shows it", "S3" in full and "read when approved: live AIS read" in full)
+    check("approving reads the current values live and shows them",
+          "S3" in full and "does not exist yet" in full and "read when approved: live AIS read" in full)
     pg.context.close()
 
-    dev_apply("SO")  # a person applies exactly the approved value in DEV
-
-    pg, step, full = as_(b, "am", path, ("link", "Open in Delivery"),
-                         ("fill", "Note", "Set PDOCTYPE to SO in P4210 processing options, version CIQ0001 (DEV)"),
-                         ("click", "Record applied in DEV"), ("wait", 3000))
-    check("recording the change reads the applied value back live", "Read back live by JADE" in full and "SO" in full)
+    # A person applies the items in DEV, in order, and records each; Jade reads each back live.
+    pg, step, full = as_(b, "am", path, ("link", "Open in Delivery"))
+    story_page, next_text, _ = as_(b, "am", path)
+    check("the next action names the progress and the next item", "0 of 3 recorded; next I1" in next_text)
+    story_page.context.close()
+    act(pg, ("click", "Record I1 applied in DEV"), ("wait", 2500))
+    full = pg.inner_text("main")
+    check("an item not yet applied in DEV is refused, and nothing is recorded",
+          "still shows the state before the change" in full and "0 of 3" in full)
+    dev_apply("row", "F0005", "DRSY=00,DRRT=DT,DRKY=SW", "DRDL01=Sales Order - Webshop")
+    act(pg, ("click", "Record I1 applied in DEV"), ("wait", 2500))
+    dev_apply("row", "F40039", "DCTO=SW", "DCT4=SO,DCDL01=Sales Order - Webshop")
+    act(pg, ("click", "Record I2 applied in DEV"), ("wait", 2500))
+    dev_apply("P4210", "CIQ0001", "PDOCTYPE", "SW")
+    act(pg, ("fill", "Note", "Set PDOCTYPE to SW in P4210 processing options, version CIQ0001 (DEV)"),
+        ("click", "Record I3 applied in DEV"), ("wait", 3000))
+    pg.reload(); pg.wait_for_timeout(2500)
+    full = pg.inner_text("main")
+    ok = full.count("Read back live") >= 3 and "Applied in DEV (recorded)" in full
+    if not ok:
+        print(full[:3000])
+    check("every item is read back live and the change is recorded as applied", ok)
     act(pg, ("click", "Run approved test"), ("wait", 4000))
     full = pg.inner_text("main")
     check("the approved test Orchestration runs live and passes", "ran live" in full and "Passed" in full)

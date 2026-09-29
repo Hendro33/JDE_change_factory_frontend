@@ -84,7 +84,7 @@ export function DeliveryTab({ ctx }: { ctx: StoryCtx }) {
 
       {functionalApproved && info.appManagement && (
         <Section id="record" title="Delivery in DEV" description="Apply the approved value in JD Edwards DEV, record it here, then test it and record the result.">
-          <ExecutionPanel compact changeId={change.id} exactChange={change.exactChange} approvalStatus={change.changeApproval?.status} onChanged={ctx.reload} />
+          <ExecutionPanel compact showItems changeId={change.id} exactChange={change.exactChange} approvalStatus={change.changeApproval?.status} onChanged={ctx.reload} />
         </Section>
       )}
 

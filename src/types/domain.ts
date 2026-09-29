@@ -232,8 +232,57 @@ export interface ArchitectureReviewRun {
  * is bound to this exact content by hash, and any difference at
  * execution time is refused.
  */
+/** What a person recorded for one configuration item applied in DEV. */
+export interface RecordedItem {
+  by?: string;
+  observed?: unknown;
+  before?: unknown;
+  source?: string;
+  evidence_reference?: string;
+  note?: string;
+  at?: number | string;
+  live?: boolean;
+  /** A single processing-option change records its value here. */
+  observed_value?: string;
+}
+
+/**
+ * One item of an exact change: a configuration change set has one per
+ * setting (UDC value, set-up table row, document type, order activity rule,
+ * processing option, batch version data selection or sequencing), in the
+ * order a person applies them in DEV; a single processing-option change is
+ * one item.
+ */
+export interface ConfigurationItem {
+  id: string;
+  capabilityId?: string | null;
+  kind: "processing_option" | "udc_value" | "setup_row" | "version_data_selection" | "version_data_sequencing" | string;
+  label: string;
+  target: string;
+  action?: "add" | "update" | null;
+  table?: string | null;
+  key: Record<string, string>;
+  values: Record<string, string>;
+  application?: string | null;
+  version?: string | null;
+  option?: string | null;
+  value?: string | null;
+  specification?: string | null;
+  purpose: string;
+  /** What JD Edwards held when the approval was bound (read live), when known. */
+  before?: unknown;
+  beforeKnown: boolean;
+  beforeNote: string;
+  /** The recorded delivery of this item, or null while it is not recorded. */
+  applied?: RecordedItem | null;
+}
+
 export interface ExactChange {
   tool: string;
+  /** Every item of the change, in the order they are applied (one for a single processing option). */
+  items?: ConfigurationItem[];
+  /** What the change set achieves, in one line. */
+  summary?: string;
   application: string;
   version: string;
   option: string;
@@ -336,9 +385,27 @@ export interface RecordedVerification {
 }
 
 /** POST /changes/{id}/delivery/applied */
+/** POST /changes/{id}/delivery/applied -- one item of a change set, or the single change. */
+export interface RecordAppliedInput {
+  evidenceReference: string;
+  note: string;
+  /** A processing option JADE cannot read live: the value the person read in JDE. */
+  statedValue?: string;
+  /** The item to record (the next unrecorded item when omitted). */
+  itemId?: string;
+  /** A table row JADE cannot read live: the field values the person read in JDE. */
+  statedValues?: Record<string, string>;
+  /** A batch version's data selection or sequencing: entered exactly as specified. */
+  confirmedAsSpecified?: boolean;
+}
+
 export interface RecordAppliedResult {
-  outcome: "applied";
-  observedValue: string;
+  /** item_applied: one item of a change set recorded, others remain; applied: the whole change is recorded. */
+  outcome: "applied" | "item_applied";
+  itemId?: string;
+  observed?: unknown;
+  remaining?: number;
+  observedValue: string | null;
   beforeValue?: string | null;
   source: string;
   evidenceReference: string;
@@ -1010,8 +1077,27 @@ export interface SpikeExperiment {
   approvedAt?: string;
 }
 
+/**
+ * What the company allows Jade to propose under one configuration capability
+ * other than processing options: a UDC type ("00/DT"), a set-up table with
+ * optional key values ("F40039:DCTO=SW|SX") or a batch version
+ * ("R42565|CIQ0001"), the fields (data dictionary aliases) that may be set,
+ * the actions (add / update; never delete) and, per field, the allowed values.
+ */
+export interface ApprovedConfiguration {
+  capabilityId: string;
+  category: string;
+  target: string;
+  fields: string[];
+  actions: ("add" | "update")[];
+  allowedValues: Record<string, string[]>;
+  notes: string;
+}
+
 export interface FunctionalAgentScope {
   approvedVersions: ApprovedVersion[];
+  /** Enforced: UDC types, set-up tables, document and line types, order activity rules and batch versions. */
+  approvedConfiguration?: ApprovedConfiguration[];
   spikeExperiments?: SpikeExperiment[];
   /** Enforced: option categories (closed list) this company never lets Jade write. */
   neverTouchCategories: string[];

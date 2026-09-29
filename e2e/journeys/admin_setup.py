@@ -76,7 +76,7 @@ def ai_connection(page):
           FAKE_AI_KEY not in page.content() and "…xxxx" in page.inner_text("main"))
     go(page, "/admin/agents/configuration")
     for agent in ("Receive Agent", "Improve Agent", "Requirements (Check) Agent", "Architect Agent",
-                  "Technical Agent", "Process Analyst"):
+                  "Functional Agent", "Technical Agent", "Process Analyst"):
         sel = page.locator(f"select[aria-label='Pack for {agent}']")
         if sel.count() == 0:
             continue
@@ -140,9 +140,9 @@ def jde_connection(page):
                 "Rejects prohibited operations", "Restricted to source"):
         page.get_by_label(box, exact=True).check()
     page.get_by_label("Verification method", exact=True).select_option(index=1)
-    reads = [("udc_values", "00/DT", "DRSY, DRRT, DRKY, DRDL01", ""),
+    reads = [("udc_values", "00/DT", "DRSY, DRRT, DRKY, DRDL01, DRSPHD", "DRKY"),
              ("processing_option_values", "P4210|CIQ0001", "", ""),
-             ("table_browse", "F00941", "EMENHV, EMPATHCD", "EMENHV")]
+             ("table_browse", "F00941, F40039", "EMENHV, EMPATHCD, DCTO, DCT4, DCDL01", "EMENHV, DCTO")]
     for i, (cap, target, fields, filt) in enumerate(reads, start=1):
         page.click("button:has-text('Add approved read')")
         page.wait_for_timeout(400)
@@ -226,10 +226,13 @@ def governance(page):
     page.fill("#aisDataSourceName", "Business Data - DEV")
     page.locator("label:has-text('OCM mappings') input[type=checkbox]").check()
     page.fill("#isolationEvidence", "CNC checked OCM for JDV920: business data maps to the DEV data source only (CNC-118)")
-    page.locator("label:has-text('Processing-option change') input").check()
+    page.locator("label:has-text('Configuration change') input").check()
     page.locator("label:has-text('AIS orchestration') input").check()
     page.fill("#approvedVersions",
-              "processing_option_update|document_and_order_types|P4210|CIQ0001|PDOCTYPE|SO|Webshop order entry")
+              "processing_option_update|document_and_order_types|P4210|CIQ0001|PDOCTYPE|SO,SW|Webshop order entry")
+    page.fill("#approvedConfiguration",
+              "udc_value_maintenance|document_and_order_types|00/DT|DRDL01,DRSPHD|add,update||Order types\n"
+              "document_type_definition|document_and_order_types|F40039:DCTO=SW|DCT4,DCDL01|add|DCT4=SO|Webshop order type")
     page.fill("#approvedTests", "ORCH_SO|creates_dev_transaction|Creates one DEV sales order and reads it back")
     page.fill("#functionalApprovers", "Sanne (Application Manager)")
     page.fill("#objectTypes", "BSFN\nER")
@@ -238,8 +241,9 @@ def governance(page):
     page.click("button:has-text('Save engagement scope')")
     page.wait_for_timeout(2500)
     main = page.inner_text("main")
-    check("the engagement scope is saved with its approved version, test and DEV binding",
-          "never configured" not in main and "P4210" in main and "ORCH_SO" in main and "JDV920" in main)
+    check("the engagement scope is saved with its approved version, configuration, test and DEV binding",
+          "never configured" not in main and "P4210" in main and "ORCH_SO" in main and "JDV920" in main
+          and "F40039:DCTO=SW" in main and "00/DT" in main)
     check("the JD Edwards connection is shown as this customer's own", "deployment-wide" not in main)
 
 

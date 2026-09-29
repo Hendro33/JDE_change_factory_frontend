@@ -15,6 +15,7 @@ import { ChangeGrid, FilterBar, useChangeListControls, type GridColumn } from ".
 import { ConfirmDialog, Loading, PriorityBadge, Provenance } from "../../components/ui";
 import type { Navigate, NavTarget } from "../../types/nav";
 import { JourneyBar } from "./JourneyBar";
+import { ExactChangeFacts, isChangeSet } from "../../components/ConfigurationItems";
 
 /**
  * Architecture Review — Gate 2. The Architect has already analysed the
@@ -275,16 +276,7 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
                 kind={decided ? "executed" : "proposed"}
                 label={decided ? `Decision recorded — ${open.changeApproval!.status}` : "Proposed only — not approved for anyone to apply in JD Edwards"}
               >
-                <dl className="facts">
-                  <dt>Operation</dt><dd className="mono">{ec.tool}</dd>
-                  <dt>Application</dt><dd className="mono">{ec.application}</dd>
-                  <dt>Version</dt><dd className="mono">{ec.version}</dd>
-                  <dt>Processing option</dt><dd className="mono">{ec.option}</dd>
-                  <dt>Current value</dt><dd><span className="mono">{ec.currentValue || "—"}</span>{ec.currentValueNote && <span className="hint"> ({ec.currentValueNote})</span>}</dd>
-                  <dt>Proposed value</dt><dd className="mono"><strong>{ec.proposedValue}</strong></dd>
-                  <dt>Environment</dt><dd className="mono">{ec.environment}</dd>
-                  <dt>Verified by</dt><dd className="mono">{ec.testOrchestration}</dd>
-                </dl>
+                <ExactChangeFacts ec={ec} testLabel="Verified by" />
               </Provenance>
 
               {open.changeApproval ? (
@@ -329,15 +321,19 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
             <>
               <p style={{ marginTop: 0 }}>
                 {dialog === "approve"
-                  ? "You are approving one specific operation, not the change in general."
+                  ? (isChangeSet(ec) ? `You are approving exactly these ${ec.items?.length} configuration items, not the change in general.` : "You are approving one specific operation, not the change in general.")
                   : "The Architect will need to propose a different operation, or this may need Human Implementation."}
               </p>
+              {isChangeSet(ec) ? (
+                <ExactChangeFacts ec={ec} showDelivery={false} />
+              ) : (
               <dl className="facts">
                 <dt>Application</dt><dd className="mono">{ec.application}</dd>
                 <dt>Version</dt><dd className="mono">{ec.version}</dd>
                 <dt>Option</dt><dd className="mono">{ec.option}</dd>
                 <dt>Change</dt><dd className="mono">{ec.currentValue || "current value read at approval"} → <strong>{ec.proposedValue}</strong></dd>
               </dl>
+              )}
             </>
           }
           whatHappensNext={
