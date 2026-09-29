@@ -166,8 +166,8 @@ const hostOf = (url: string) => { try { return new URL(url).hostname.toLowerCase
  * The AIS server certificate (or its CA) for this connection. Uploading only
  * adds trust for this one address; Jade never switches verification off.
  */
-function CertificateEditor({ selected, initial, aisUrl, onSelect }: {
-  selected: string; initial?: CertificateSummary | null; aisUrl: string; onSelect: (sha: string) => void;
+export function CertificateEditor({ selected, initial, aisUrl, onSelect, label = "AIS server certificate" }: {
+  selected: string; initial?: CertificateSummary | null; aisUrl: string; onSelect: (sha: string) => void; label?: string;
 }) {
   const [summary, setSummary] = useState<CertificateSummary | null>(initial && initial.sha256 === selected ? initial : null);
   const [error, setError] = useState<string | null>(null);
@@ -185,10 +185,10 @@ function CertificateEditor({ selected, initial, aisUrl, onSelect }: {
   const covers = !!summary && summary.certificates.some((c) => c.names.some((n) => n.toLowerCase() === host));
   const hasCa = !!summary && summary.certificates.some((c) => c.is_ca);
   return (
-    <div className="field">AIS server certificate <span className="hint">(needed when the AIS certificate is self-signed or from a
+    <div className="field">{label} <span className="hint">(needed when the certificate is self-signed or from a
       private CA. Upload the server's certificate or its CA as .pem/.crt -- never a private key. It is trusted only for this
       connection; certificate and host-name/IP checks always stay on.)</span>
-      <input type="file" aria-label="AIS certificate file" accept=".pem,.crt,.cer,.txt" disabled={busy} onChange={(e) => pick(e.target.files?.[0])} />
+      <input type="file" aria-label={label === "AIS server certificate" ? "AIS certificate file" : `${label} file`} accept=".pem,.crt,.cer,.txt" disabled={busy} onChange={(e) => pick(e.target.files?.[0])} />
       {selected && !summary && <div className="hint">Certificate selected (sha256 <span className="mono">{selected.slice(0, 16)}…</span>).</div>}
       {summary && (
         <div aria-label="Uploaded certificate" style={{ marginTop: 4 }}>
@@ -198,7 +198,7 @@ function CertificateEditor({ selected, initial, aisUrl, onSelect }: {
               until {new Date(c.not_after).toLocaleDateString("en-GB")} · fingerprint <span className="mono">{c.fingerprint_sha256.slice(0, 16)}…</span>
             </div>))}
           {host && !covers && !hasCa && <div className="hint" style={{ color: "var(--stop)" }}>This certificate does not name {host}; the connection will be refused
-            unless the AIS address matches a name in it.</div>}
+            unless the address matches a name in it.</div>}
         </div>)}
       {selected && <button className="btn small" onClick={() => { setSummary(null); onSelect(""); }}>Remove certificate (use public CAs)</button>}
       {error && <div className="hint" role="alert" style={{ color: "var(--stop)" }}>{error}</div>}
@@ -399,7 +399,7 @@ export function JdeDiscoveryPanel() {
         {!editing && <button className="btn" onClick={() => setEditing(true)}>{view.configured ? "Edit settings" : "Set up"}</button>}
       </div>
       <div className="sub" style={{ margin: "6px 0 12px" }}>
-        The access JADE uses to research <strong>{company}</strong>'s JD Edwards environment and to verify delivered changes live (reading the value back, running an approved test orchestration). JADE never writes changes to JD Edwards.
+        The read-only access JADE uses to research <strong>{company}</strong>'s JD Edwards environment and to verify every delivered change live (reading it before and after, running an approved test orchestration). This connection never writes: the agents make approved changes with the separate DEV write user under Agent execution, below.
         Requests go from the machine running JADE's backend, so any VPN or network route must exist from there; the customer's JDE role and
         network controls must still restrict the account.
       </div>

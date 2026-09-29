@@ -267,8 +267,10 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
               <Provenance
                 kind={applied || ec.execution?.writeState === "applied" ? "executed" : "proposed"}
                 label={applied || ec.execution?.writeState === "applied"
-                  ? "Applied in JD Edwards DEV by a person (recorded)"
-                  : "Not applied yet — JADE never writes to JD Edwards"}
+                  ? (isChangeSet(ec) && (ec.items ?? []).some((i) => i.applied?.executor === "agent")
+                    ? "Applied in JD Edwards DEV (by the agents, read back live)"
+                    : "Applied in JD Edwards DEV by a person (recorded)")
+                  : "Not applied yet"}
               >
                 <ExactChangeFacts ec={ec} />
                 {ec.capabilityId && !isChangeSet(ec) && <dl className="facts"><dt>Capability</dt><dd className="mono">{ec.capabilityId}</dd></dl>}

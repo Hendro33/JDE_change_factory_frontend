@@ -306,8 +306,8 @@ export function ErpLandscape() {
                 <span className={`badge ${landscape.ais.liveVerification ? "ok" : "warn"}`}>{landscape.ais.liveVerification ? "Live verification on" : "Live verification not available yet"}</span>
                 <div className="hint">
                   {landscape.ais.liveVerification
-                    ? <>Changes are applied in DEV by a person and verified live through the JD Edwards connection{landscape.ais.environment ? <> (environment <span className="mono">{landscape.ais.environment}</span>{landscape.ais.role ? <>, role <span className="mono">{landscape.ais.role}</span></> : null})</> : null}. JADE never writes to JD Edwards.</>
-                    : <>Changes are applied in DEV by a person and recorded; JADE never writes to JD Edwards. Live read-back starts once the JD Edwards
+                    ? <>Approved changes are applied in DEV by JADE's agents with the customer's DEV write user (a person only where JD Edwards cannot accommodate an item otherwise) and verified live through the JD Edwards connection{landscape.ais.environment ? <> (environment <span className="mono">{landscape.ais.environment}</span>{landscape.ais.role ? <>, role <span className="mono">{landscape.ais.role}</span></> : null})</> : null}.</>
+                    : <>Until the JD Edwards connection and agent execution are set up, changes are applied in DEV by a person and recorded. Live read-back starts once the JD Edwards
                       connection is tested and enabled (Systems &amp; Connections → JD Edwards). Until then, the person recording a step states the value they read in JDE, with evidence.</>}
                 </div>
               </dd>

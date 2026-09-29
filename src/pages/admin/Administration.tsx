@@ -1,3 +1,4 @@
+import { AgentExecutionSwitches } from "../../components/AgentExecution";
 import { ConnectionHealthCard } from "../../components/visualReview";
 import { KnowledgePage } from "../knowledge/Knowledge";
 import { useEffect, useState } from "react";
@@ -51,6 +52,7 @@ const SECTIONS: AdminSection[] = [
   ] },
   { key: "governance", label: "Governance", what: "What JADE may change, where, and who approves.", tabs: [
     { key: "scope", label: "Scope, approvals & environments", render: () => <ErpLandscape /> },
+    { key: "agent-execution", label: "Agent execution", render: () => <AgentExecutionSwitches /> },
   ] },
   { key: "operations", label: "Operations", what: "Agent health, runs and cost -- the engine at work.", tabs: [
     { key: "agents", label: "Agent health & runs", render: () => <AgentConfiguration part="operations" /> },

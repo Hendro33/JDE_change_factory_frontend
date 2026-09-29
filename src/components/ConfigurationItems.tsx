@@ -40,10 +40,38 @@ export function approvedLine(it: ConfigurationItem): string {
   return Object.entries(it.values).map(([k, v]) => `${k} = ${v}`).join(", ");
 }
 
+const ROUTE_LABEL: Record<string, string> = { ais: "Agent · AIS", browser: "Agent · web client", person: "Person" };
+
+/** Who applies the item: the agents (through AIS or the web client) or a person. */
+export function ExecutorBadge({ it }: { it: ConfigurationItem }) {
+  const route = it.route ?? (it.executor === "agent" ? "ais" : "person");
+  return <span className={`badge ${it.executor === "agent" ? "info" : "grey"}`} title={it.routeReason || undefined}>{ROUTE_LABEL[route] ?? route}</span>;
+}
+
+const STATE: Record<string, { text: string; tone: string }> = {
+  waiting_for_agent: { text: "Waiting for the agent", tone: "grey" },
+  in_progress: { text: "Agent applying it", tone: "warn" },
+  waiting_for_person: { text: "Waiting for a person", tone: "grey" },
+  agent_unavailable: { text: "No agent can apply it now", tone: "warn" },
+  agent_could_not_apply: { text: "Agent stopped — nothing saved", tone: "warn" },
+  unknown: { text: "Stopped — reconcile", tone: "stop" },
+  diverged: { text: "Diverged — cannot continue", tone: "stop" },
+};
+
+function appliedBadge(it: ConfigurationItem) {
+  const a = it.applied!;
+  const live = a.live || (a.source ?? "").toLowerCase().startsWith("live");
+  if (a.executor === "agent") {
+    return <span className={`badge ${live ? "ok" : "warn"}`}>{live ? "Applied by the agent · read back live" : "Applied by the agent · seen in the web client"}</span>;
+  }
+  return <span className={`badge ${live ? "ok" : "warn"}`}>{live ? "Read back live" : "Stated by a person"}</span>;
+}
+
 /**
- * Every item of an exact change, in the order a person applies them in DEV:
- * what it changes, why, what JD Edwards held when the change was approved,
- * and whether it is recorded as applied (read back live, or stated).
+ * Every item of an exact change, in the order it is applied in DEV: what it
+ * changes, why, who applies it (the agents or a person), what JD Edwards held
+ * when the change was approved, and where it stands (applied and read back
+ * live, or stated; waiting; stopped for reconciliation).
  */
 export function ConfigurationItemsTable({ items, showDelivery = true }: { items: ConfigurationItem[]; showDelivery?: boolean }) {
   return (
@@ -60,7 +88,7 @@ export function ConfigurationItemsTable({ items, showDelivery = true }: { items:
             <tr key={it.id}>
               <td className="mono">{it.id}</td>
               <td>
-                <div><span className="badge grey">{kindLabel(it.kind)}</span>{it.action && <> <span className="badge">{it.action}</span></>}</div>
+                <div><span className="badge grey">{kindLabel(it.kind)}</span>{it.action && <> <span className="badge">{it.action}</span></>} <ExecutorBadge it={it} /></div>
                 <div className="mono" style={{ marginTop: 4 }}>{it.label}</div>
                 {it.purpose && <div className="hint">{it.purpose}</div>}
               </td>
@@ -73,10 +101,14 @@ export function ConfigurationItemsTable({ items, showDelivery = true }: { items:
                 <td>
                   {it.applied ? (
                     <>
-                      <span className={`badge ${it.applied.live || (it.applied.source ?? "").toLowerCase().startsWith("live") ? "ok" : "warn"}`}>
-                        {it.applied.live || (it.applied.source ?? "").toLowerCase().startsWith("live") ? "Read back live" : "Stated by a person"}
-                      </span>
+                      {appliedBadge(it)}
                       <div className="hint">{it.applied.by}{it.applied.evidence_reference ? ` · ${it.applied.evidence_reference}` : ""}</div>
+                      {it.applied.handover && <div className="hint">{it.applied.handover}</div>}
+                    </>
+                  ) : it.deliveryState && STATE[it.deliveryState] ? (
+                    <>
+                      <span className={`badge ${STATE[it.deliveryState].tone}`}>{STATE[it.deliveryState].text}</span>
+                      {it.deliveryDetail && <div className="hint">{it.deliveryDetail}</div>}
                     </>
                   ) : <span className="badge grey">Not recorded</span>}
                 </td>

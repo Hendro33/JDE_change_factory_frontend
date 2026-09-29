@@ -7,7 +7,7 @@ on:
   pull_request:
   push:
     # Also the working branches, so a branch shows its status before a PR exists.
-    branches: [main, "claude/**"]
+    branches: [main, production-ready, "claude/**"]
   workflow_dispatch:
 
 permissions:

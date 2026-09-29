@@ -3,7 +3,8 @@ import { api } from "../services/api";
 import { HttpError } from "../services/httpApi";
 import { saveErrorMessage } from "../services/saveErrors";
 import { useSessionInfo } from "./design";
-import { approvedLine, ConfigurationItemsTable, isChangeSet, kindLabel } from "./ConfigurationItems";
+import { approvedLine, ConfigurationItemsTable, ExecutorBadge, isChangeSet, kindLabel, showValue } from "./ConfigurationItems";
+import { executionApi } from "../services/executionApi";
 import type {
   ConfigurationItem, ExactChange, ExecutionState, PreflightResult, Reconciliation, RecordedApplied, RecordedVerification,
 } from "../types/domain";
@@ -70,13 +71,15 @@ function nonEmpty<T extends object>(o?: T | Record<string, never> | null): T | n
 }
 
 /**
- * Delivering an approved functional change on the recorded route. JADE never
- * writes to JD Edwards: the Application Manager applies exactly the approved
- * value in DEV, then records it here and JADE reads it back live through the
- * customer's JD Edwards connection. Where it cannot, the person states the
- * value they read in JDE, with evidence. The test is then run live (the
- * approved orchestration) or recorded against the acceptance criteria.
- * Unknown outcomes from earlier records are reconciled here too.
+ * Delivering an approved functional change in DEV. For a configuration change
+ * set, JADE's agents apply every item marked for them (through AIS or the web
+ * client) with a live read before and after; the Application Manager records
+ * only the items marked for a person, or an agent item no agent can apply now,
+ * and reconciles any item an agent stopped on. A single processing-option
+ * change from before change sets is applied and recorded by a person. JADE
+ * reads every item back live; where it cannot, the person states what they read
+ * in JDE, with evidence. The test is then run live (the approved orchestration)
+ * or recorded against the acceptance criteria.
  */
 export function ExecutionPanel({
   changeId, exactChange, approvalStatus, onChanged, compact = false, showItems = false,
@@ -166,10 +169,34 @@ export function ExecutionPanel({
 
   const statedMissing = needsStated && (!statedValue.trim() || !appliedEvidence.trim());
 
-  // A configuration change set is recorded item by item.
+  // A configuration change set is delivered item by item: the agents apply the
+  // items marked for them; a person records only the items they may record.
   const changeSet = isChangeSet(exactChange);
   const items = exactChange?.items ?? [];
-  const pending = items.filter((i) => !i.applied);
+  const notApplied = items.filter((i) => !i.applied);
+  const stopped = notApplied.filter((i) => i.deliveryState === "unknown");
+  const diverged = notApplied.filter((i) => i.deliveryState === "diverged");
+  const agentPending = notApplied.filter((i) => i.executor === "agent" && !["unknown", "diverged"].includes(i.deliveryState ?? ""));
+  const agentsBusy = notApplied.some((i) => i.deliveryState === "in_progress");
+  const pending = notApplied.filter((i) => (i.executor !== "agent" || i.handoverAllowed)
+    && !["unknown", "diverged", "in_progress"].includes(i.deliveryState ?? ""));
+  const [polling, setPolling] = useState(0);
+  useEffect(() => {
+    // While the agents work, refresh the change every few seconds (at most two minutes).
+    if (!(agentsBusy || polling > 0) || polling > 40) return;
+    const t = setTimeout(() => { onChanged(); setPolling((n) => (agentsBusy || n < 3 ? n + 1 : 0)); }, 3000);
+    return () => clearTimeout(t);
+  }, [agentsBusy, polling]);
+  async function runAgents() {
+    await act(async () => {
+      await executionApi.runAgents(changeId);
+      setPolling(1);
+      return "The agents are applying the approved items in DEV. Each item is read before and after the change; the table shows each result.";
+    }, "The agents could not start.");
+  }
+  const [recItem, setRecItem] = useState<string>("");
+  const reconciling = stopped.find((i) => i.id === recItem) ?? stopped[0];
+  const [recStated, setRecStated] = useState<Record<string, string>>({});
   const [itemId, setItemId] = useState<string>("");
   const current: ConfigurationItem | undefined = items.find((i) => i.id === itemId && !i.applied) ?? pending[0];
   const [statedValues, setStatedValues] = useState<Record<string, string>>({});
@@ -192,8 +219,10 @@ export function ExecutionPanel({
         ...(versionItem ? { confirmedAsSpecified: confirmed } : {}),
       });
       setMessage(`${r.itemId ?? current.id} recorded as applied in DEV (${r.source}). ` +
-        (r.outcome === "applied" ? "Every item is now recorded: the change is applied." : `${r.remaining ?? ""} item(s) remain.`) +
+        (r.handover ? `${r.handover}. ` : "") +
+        (r.outcome === "applied" ? "Every item is now recorded: the change is applied." : `${r.remaining ?? ""} item(s) remain; the agents continue with theirs.`) +
         " Added to the story's evidence chain.");
+      if (r.outcome !== "applied") setPolling(1);
       setAppliedEvidence(""); setAppliedNote(""); setStatedValue(""); setStatedValues({}); setConfirmed(false);
       setNeedsStated(false); setItemId("");
       onChanged();
@@ -209,19 +238,106 @@ export function ExecutionPanel({
   return (
     <div style={{ marginTop: 16 }}>
       <h3 style={{ margin: "0 0 8px" }}>Delivery in DEV</h3>
-      <p className="hint" style={{ marginTop: 0 }}>
-        JADE never writes to JD Edwards. Apply exactly the approved {changeSet ? "configuration" : "value"} in DEV yourself, then record it here{changeSet ? ", item by item" : ""}: JADE reads
-        it back live through the customer's JD Edwards connection and records it only if it is exactly what was approved.
-      </p>
+      {changeSet ? (
+        <p className="hint" style={{ marginTop: 0 }}>
+          JADE's agents apply the approved items in DEV, in order — through AIS or in the JD Edwards web client — and read each one
+          back live: only exactly the approved values count. You apply and record only the items marked for a person (or an agent
+          item no agent can apply right now), and reconcile any item an agent stopped on.
+        </p>
+      ) : (
+        <p className="hint" style={{ marginTop: 0 }}>
+          Apply exactly the approved value in DEV yourself, then record it here: JADE reads it back live through the customer's
+          JD Edwards connection and records it only if it is exactly what was approved.
+        </p>
+      )}
       <dl className="facts">
         <dt>Change applied</dt><dd><StateBadge state={writeState} /></dd>
         <dt>Test</dt><dd><StateBadge state={testState} />{verification && <> <span className={`badge ${verification.passed ? "ok" : "stop"}`}>{verification.passed ? "passed" : "failed"}</span></>}</dd>
         {execution?.beforeValue != null && (<><dt>Value before</dt><dd className="mono">{execution.beforeValue}</dd></>)}
-        {changeSet && (<><dt>Items recorded</dt><dd>{items.length - pending.length} of {items.length}</dd></>)}
+        {changeSet && (<><dt>Items applied</dt><dd>{items.length - notApplied.length} of {items.length}{agentsBusy ? " — the agents are working" : ""}</dd></>)}
         {exactChange && !changeSet && (<><dt>Approved value</dt><dd className="mono">{exactChange.application} / {exactChange.version} / option {exactChange.option} = <strong>{exactChange.proposedValue}</strong></dd></>)}
       </dl>
 
       {changeSet && showItems && <ConfigurationItemsTable items={items} />}
+      {changeSet && <AgentScreenshots changeId={changeId} items={items} />}
+
+      {/* ------------ The agents ------------ */}
+      {approved && deliverable && changeSet && writeState !== "applied" && agentPending.length > 0 && stopped.length === 0 && diverged.length === 0 && (
+        canRecord ? (
+          <div className="callout" style={{ marginTop: 12 }}>
+            <strong>{agentsBusy ? "The agents are applying the approved items" : "Agents"}</strong>
+            {agentPending.length} item(s) are applied by the agents: {agentPending.map((i) => i.id).join(", ")}.
+            {agentPending[0]?.deliveryDetail && <div className="hint">{agentPending[0].id}: {agentPending[0].deliveryDetail}</div>}
+            <div className="btnrow" style={{ marginTop: 8 }}>
+              <button className="btn primary" disabled={busy || agentsBusy} onClick={runAgents}>
+                {agentsBusy ? "Working…" : "Run the agents"}
+              </button>
+            </div>
+            <span className="hint">The agents start by themselves after approval and after you record an item; run them again after fixing what held them.</span>
+          </div>
+        ) : <p className="hint">The agents apply the approved items in DEV.</p>
+      )}
+
+      {/* ------------ Reconcile an item the agent stopped on ------------ */}
+      {changeSet && reconciling && canRecord && (
+        <div className="callout" style={{ borderColor: "var(--stop)", marginTop: 12 }}>
+          <strong>The agent stopped at {reconciling.id}: check it in DEV and reconcile</strong>
+          <span className="mono">{reconciling.label}</span>
+          {reconciling.deliveryDetail && <div className="hint">{reconciling.deliveryDetail}</div>}
+          Nothing more happens on this change until the item's actual state in DEV is established. JADE reads it live where it can;
+          otherwise state what JDE shows. It is never retried blindly: if DEV still shows the state before the change, the agents may run it again.
+          <div className="stack" style={{ marginTop: 8 }}>
+            {stopped.length > 1 && (
+              <div className="field">
+                <label htmlFor={`rec-item-${changeId}`}>Item</label>
+                <select id={`rec-item-${changeId}`} value={reconciling.id} onChange={(e) => { setRecItem(e.target.value); setRecStated({}); }}>
+                  {stopped.map((i) => <option key={i.id} value={i.id}>{i.id} — {i.label}</option>)}
+                </select>
+              </div>
+            )}
+            {(reconciling.kind === "udc_value" || reconciling.kind === "setup_row") && Object.keys(reconciling.values).map((f) => (
+              <div className="field" key={f}>
+                <label htmlFor={`rec-${changeId}-${f}`}>Value of <span className="mono">{f}</span> in JDE now <span className="hint">(needed when JADE cannot read it live)</span></label>
+                <input id={`rec-${changeId}-${f}`} type="text" value={recStated[f] ?? ""} onChange={(e) => setRecStated({ ...recStated, [f]: e.target.value })} />
+              </div>
+            ))}
+            {(reconciling.kind === "processing_option" || reconciling.kind.startsWith("version_data_")) && (
+              <div className="field">
+                <label htmlFor={`rec-${changeId}-value`}>{reconciling.kind === "processing_option" ? "Value in JDE now" : "Specification in JDE now"} <span className="hint">(needed when JADE cannot read it live)</span></label>
+                <input id={`rec-${changeId}-value`} type="text" value={recStated["_"] ?? ""} onChange={(e) => setRecStated({ ...recStated, _: e.target.value })} />
+              </div>
+            )}
+            <div className="field">
+              <label htmlFor={`rec-item-note-${changeId}`}>What you checked</label>
+              <textarea id={`rec-item-note-${changeId}`} value={recNote} onChange={(e) => setRecNote(e.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor={`rec-item-evidence-${changeId}`}>Evidence reference <span className="hint">(needed when JADE cannot read it live)</span></label>
+              <input id={`rec-item-evidence-${changeId}`} type="text" value={recEvidence} onChange={(e) => setRecEvidence(e.target.value)} />
+            </div>
+            <div className="btnrow">
+              <button className="btn primary" disabled={busy} onClick={() => act(async () => {
+                const stated = recStated["_"]?.trim();
+                const values = Object.fromEntries(Object.entries(recStated).filter(([k, v]) => k !== "_" && v.trim()));
+                const r = await executionApi.reconcileItem(changeId, reconciling.id, {
+                  note: recNote.trim(), evidenceReference: recEvidence.trim(),
+                  ...(reconciling.kind === "processing_option" && stated ? { statedValue: stated } : {}),
+                  ...(reconciling.kind.startsWith("version_data_") && stated ? { statedSpecification: stated } : {}),
+                  ...(Object.keys(values).length ? { statedValues: values } : {}),
+                });
+                setRecNote(""); setRecEvidence(""); setRecStated({});
+                return `${reconciling.id} reconciled: ${r.outcome.replace("_", " ")} (${showValue(r.observed)}; ${r.source}). Recorded with your name and added to the evidence chain.`;
+              }, "Could not reconcile.")}>Reconcile {reconciling.id}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {changeSet && diverged.length > 0 && (
+        <div className="callout" style={{ borderColor: "var(--stop)", marginTop: 12 }}>
+          <strong>This change cannot continue</strong>
+          {diverged.map((i) => i.id).join(", ")} in DEV is neither the state before the change nor the approved state. Investigate in JDE, then propose a new change.
+        </div>
+      )}
 
       {applied && !changeSet && (
         <div style={{ marginTop: 12 }}>
@@ -247,16 +363,17 @@ export function ExecutionPanel({
       {approved && deliverable && changeSet && writeState !== "applied" && !writeUnknown && current && (
         canRecord ? (
           <div className="callout" style={{ marginTop: 12 }}>
-            <strong>Record the next item as applied in DEV</strong>
-            Apply the items in order. After you have applied an item in DEV, record it: JADE re-checks the approval and
-            scope and reads it back live where the customer's approved reads allow.
+            <strong>Record an item you applied in DEV</strong>
+            {current.executor === "agent"
+              ? <>No agent can apply <span className="mono">{current.id}</span> now{current.deliveryDetail ? ` (${current.deliveryDetail})` : ""}. You may apply it in DEV yourself and record it; the hand-over is recorded.</>
+              : <>Apply the items marked for a person, in order. After you have applied one in DEV, record it: JADE re-checks the approval and scope and reads it back live where the customer's approved reads allow.</>}
             <div className="stack" style={{ marginTop: 8 }}>
               <div className="field">
                 <label htmlFor={`item-${changeId}`}>Item</label>
                 <select id={`item-${changeId}`} value={current.id} onChange={(e) => { setItemId(e.target.value); setNeedsStated(false); setStatedValues({}); setConfirmed(false); }}>
                   {pending.map((i) => <option key={i.id} value={i.id}>{i.id} — {i.label}</option>)}
                 </select>
-                <span className="hint">{kindLabel(current.kind)}: <span className="mono">{approvedLine(current)}</span>{current.purpose ? ` — ${current.purpose}` : ""}</span>
+                <span className="hint"><ExecutorBadge it={current} /> {kindLabel(current.kind)}: <span className="mono">{approvedLine(current)}</span>{current.purpose ? ` — ${current.purpose}` : ""}</span>
               </div>
               {needsStated && rowItem && Object.keys(current.values).map((f) => (
                 <div className="field" key={f}>
@@ -296,7 +413,7 @@ export function ExecutionPanel({
               </div>
             </div>
           </div>
-        ) : <p className="hint">Waiting for the Application Manager to apply the configuration in DEV and record each item.</p>
+        ) : <p className="hint">Waiting for the Application Manager to apply the items marked for a person in DEV and record them.</p>
       )}
 
       {approved && deliverable && !changeSet && writeState === "ready" && (
@@ -502,6 +619,47 @@ function ReconciliationLog({ title, rows, write }: { title: string; rows: Reconc
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** The screenshots the browser executor took of every step, per item (loaded on request). */
+function AgentScreenshots({ changeId, items }: { changeId: string; items: ConfigurationItem[] }) {
+  const withShots = items.filter((i) => (i.applied?.screenshots?.length ?? 0) > 0
+    || (i.attempts ?? []).some((a) => (a.screenshots?.length ?? 0) > 0));
+  const [open, setOpen] = useState<string | null>(null);
+  const [urls, setUrls] = useState<{ key: string; url: string; step: string }[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  if (withShots.length === 0) return null;
+  async function show(it: ConfigurationItem) {
+    setOpen(it.id); setUrls([]); setError(null);
+    const last = [...(it.attempts ?? [])].reverse().find((a) => (a.screenshots?.length ?? 0) > 0);
+    const shots = last?.screenshots ?? (it.applied?.screenshots ?? []).map((k, n) => ({ n: n + 1, step: "", storage_key: k }));
+    try {
+      const out = [];
+      for (const s of shots) out.push({ key: s.storage_key, step: s.step, url: await executionApi.screenshot(changeId, s.storage_key) });
+      setUrls(out);
+    } catch (e) {
+      setError(saveErrorMessage(e, "The screenshots could not be loaded."));
+    }
+  }
+  return (
+    <div style={{ marginTop: 12 }}>
+      <strong>Screenshots of the agent's steps in the web client</strong>
+      <div className="btnrow" style={{ marginTop: 6 }}>
+        {withShots.map((i) => <button key={i.id} className="btn small" onClick={() => show(i)}>{i.id}</button>)}
+      </div>
+      {error && <div className="hint" role="alert" style={{ color: "var(--stop)" }}>{error}</div>}
+      {open && urls.length > 0 && (
+        <div aria-label={`Screenshots of ${open}`} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 8, marginTop: 8 }}>
+          {urls.map((u, n) => (
+            <figure key={u.key} style={{ margin: 0 }}>
+              <a href={u.url} target="_blank" rel="noreferrer"><img src={u.url} alt={`Step ${n + 1}: ${u.step}`} style={{ width: "100%", border: "1px solid var(--line, #ddd)" }} /></a>
+              <figcaption className="hint">{n + 1}. {u.step}</figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

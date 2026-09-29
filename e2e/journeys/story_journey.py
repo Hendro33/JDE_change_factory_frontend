@@ -1,7 +1,8 @@
 """Journeys 2 and 3 -- a Domain Owner's request taken through to a verified change and a final as-built record,
-with the Application Manager's decisions and recorded delivery in between. Runs against the model-boundary backend
-(model_boundary_backend.py) so the agents' answers are scripted; everything else is the real application, and the
-Architect's reads, the before-value, the read-back and the test Orchestration go over TLS to the AIS stand-in."""
+with the Application Manager's decisions in between and the agents applying the approved change set in DEV.
+Runs against the model-boundary backend (model_boundary_backend.py) so the agents' answers are scripted;
+everything else is the real application: the Architect's reads, the before-values, the agents' AIS form
+requests, the agents' browser in the web client stand-in, the read-backs and the test Orchestration."""
 import os
 import subprocess
 import sys
@@ -12,7 +13,7 @@ TITLE = os.environ.get("JADE_E2E_STORY_TITLE", "Webshop orders need their own or
 
 
 def dev_apply(*args):
-    """A person changes JD Edwards DEV (a processing option, or a configuration row)."""
+    """Set up JD Edwards DEV as it is before the change (a processing option, or a configuration row)."""
     subprocess.run([sys.executable, os.path.join(HERE, "dev_apply.py"), *args], check=True)
 
 
@@ -79,28 +80,27 @@ with sync_playwright() as p:
           "S3" in full and "does not exist yet" in full and "read when approved: live AIS read" in full)
     pg.context.close()
 
-    # A person applies the items in DEV, in order, and records each; Jade reads each back live.
+    # The agents apply the items in DEV themselves, in order -- I1 and I2 through AIS form requests, I3 in the
+    # web client (the agents' browser) -- each read before and after; the person applies nothing.
     pg, step, full = as_(b, "am", path, ("link", "Open in Delivery"))
-    story_page, next_text, _ = as_(b, "am", path)
-    check("the next action names the progress and the next item", "0 of 3 recorded; next I1" in next_text)
-    story_page.context.close()
-    act(pg, ("click", "Record I1 applied in DEV"), ("wait", 2500))
-    full = pg.inner_text("main")
-    check("an item not yet applied in DEV is refused, and nothing is recorded",
-          "still shows the state before the change" in full and "0 of 3" in full)
-    dev_apply("row", "F0005", "DRSY=00,DRRT=DT,DRKY=SW", "DRDL01=Sales Order - Webshop")
-    act(pg, ("click", "Record I1 applied in DEV"), ("wait", 2500))
-    dev_apply("row", "F40039", "DCTO=SW", "DCT4=SO,DCDL01=Sales Order - Webshop")
-    act(pg, ("click", "Record I2 applied in DEV"), ("wait", 2500))
-    dev_apply("P4210", "CIQ0001", "PDOCTYPE", "SW")
-    act(pg, ("fill", "Note", "Set PDOCTYPE to SW in P4210 processing options, version CIQ0001 (DEV)"),
-        ("click", "Record I3 applied in DEV"), ("wait", 3000))
-    pg.reload(); pg.wait_for_timeout(2500)
-    full = pg.inner_text("main")
-    ok = full.count("Read back live") >= 3 and "Applied in DEV (recorded)" in full
+    for _ in range(40):
+        full = pg.inner_text("main")
+        if "Applied in DEV (recorded)" in full:
+            break
+        pg.wait_for_timeout(3000)
+        pg.reload(); pg.wait_for_timeout(1500)
+    check("each item shows who applies it: the agent through AIS, or in the web client",
+          full.count("Agent · AIS") >= 2 and "Agent · web client" in full)
+    ok = full.count("Applied by the agent · read back live") >= 3 and "Applied in DEV (recorded)" in full
     if not ok:
         print(full[:3000])
-    check("every item is read back live and the change is recorded as applied", ok)
+    check("the agents applied every item in DEV and each was read back live", ok)
+    check("no item was left for a person to record", "Record I1 applied in DEV" not in full)
+    act(pg, ("click", "I3"), ("wait", 2500))
+    shots = pg.locator("[aria-label='Screenshots of I3'] img").count()
+    check("a screenshot of every step the agent took in the web client is kept", shots >= 5)
+    shot(pg, "delivery-agents")
+    pg.reload(); pg.wait_for_timeout(2000)
     act(pg, ("click", "Run approved test"), ("wait", 4000))
     full = pg.inner_text("main")
     check("the approved test Orchestration runs live and passes", "ran live" in full and "Passed" in full)

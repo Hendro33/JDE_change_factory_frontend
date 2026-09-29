@@ -82,8 +82,9 @@ export function TechnicalWorkbench({ design = false }: { design?: boolean }) {
   const info = useSessionInfo();
   return (
     <Workbench title={design ? "Technical design" : "Technical Work"} at={design ? "design" : "implementation"}
-      intro={<>From an approved solution to a verified change in the DEV environment. JADE never writes to JD Edwards: for a configuration
-        change, the Application Manager applies the approved value in DEV and records it, JADE reads it back live, and the test is run or recorded.
+      intro={<>From an approved solution to a verified change in the DEV environment. For a configuration change, JADE's agents apply
+        each approved item in DEV (through AIS or the web client) and read it back live; the Application Manager applies only what JD Edwards
+        cannot accommodate that way, and the test is run or recorded.
         For custom objects, the Technical Agent prepares the package; people approve it, check it in through OMW, build it, a CNC activates it and
         the test plan is recorded -- JADE re-checks the approval before recording each step.</>}
       filter={(c) => TECHNICAL_ROUTES.has(c.architectDecision?.recommendedRoute ?? "")

@@ -1,6 +1,7 @@
 """Journey 1 -- the Jade Administrator sets up a customer from an empty installation, entirely in the browser:
 own account, customer, people, AI key and agent packs, Jira, the JD Edwards connection (certificate, credential,
-evidence, Test Connection, approved reads, Enable), engagement scope and approval policy, business domain,
+evidence, Test Connection, approved reads, Enable), agent execution (web client, DEV write user, Test, switches),
+engagement scope and approval policy, business domain,
 invitations accepted, Domain Owner assigned."""
 import os
 import re
@@ -214,6 +215,46 @@ def jde_connection(page):
     shot(page, "admin-jde")
 
 
+def agent_execution(page):
+    """The agents' access to DEV: the web client, its certificate, the DEV write user (separate from the read-only
+    discovery user), Test -- and the switches under Governance."""
+    go(page, "/admin/connections/jde")
+    panel = page.locator("section[aria-label='Agent execution']")
+    panel.locator("button:has-text('Set up')").click()
+    page.wait_for_timeout(500)
+    page.fill("#exec-web", open(os.path.join(WORK, "web_url.txt")).read().strip())
+    page.set_input_files("input[aria-label='Web client certificate file']", os.path.join(WORK, "web_cert.pem"))
+    page.wait_for_timeout(800)
+    page.fill("#exec-role", "JADEWRITE")
+    panel.locator("button:has-text('Save settings')").click()
+    page.wait_for_timeout(1500)
+    page.fill("#exec-user", "JADEWRITE")
+    page.fill("#exec-password", os.environ["JADE_E2E_WRITE_PW"])
+    panel.locator("button:has-text('Save write user')").click()
+    page.wait_for_timeout(1500)
+    check("the DEV write user is stored encrypted and never shown",
+          os.environ["JADE_E2E_WRITE_PW"] not in page.content() and "encrypted" in panel.inner_text())
+    panel.locator("button:text-is('Test')").click()
+    page.wait_for_selector("text=/Test: /", timeout=90000)
+    status = panel.locator("[role=status]").first.inner_text()
+    check("Test signs the write user in to AIS and to the web client (in the agents' browser)",
+          "signs in to AIS: ok" in status and "signs in to the web client: ok" in status)
+    routes = page.locator("table[aria-label='Agent routes']").inner_text()
+    check("both agent routes are ready", routes.count("Ready") >= 2 and "Not ready" not in routes)
+    shot(page, "admin-agent-execution")
+    go(page, "/admin/governance/agent-execution")
+    page.fill("#switch-reason", "walkthrough: switch test")
+    page.locator("tr:has-text('document_type_definition') button:has-text('Switch off')").click()
+    page.wait_for_timeout(1200)
+    page.locator("tr:has-text('document_type_definition') button:has-text('Switch on')").click()
+    page.wait_for_timeout(1200)
+    page.click("summary:has-text('Change log')")
+    log = page.inner_text("main")
+    check("switching agent execution off and on is recorded with name and reason",
+          "switched off for document_type_definition (walkthrough: switch test)" in log
+          and "switched on for document_type_definition" in log)
+
+
 def governance(page):
     go(page, "/admin/governance")
     page.click("button:has-text('Edit')")
@@ -295,6 +336,7 @@ with sync_playwright() as p:
     ai_connection(page)
     jira(page)
     jde_connection(page)
+    agent_execution(page)
     governance(page)
     domain_and_people(b, page)
     b.close()

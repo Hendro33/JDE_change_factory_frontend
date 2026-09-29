@@ -53,7 +53,7 @@ export function DeliveryTab({ ctx }: { ctx: StoryCtx }) {
             </li>
           ))}
         </ol>
-        <p className="muted">JADE never writes to JD Edwards: people apply the approved change in DEV and record each step, and JADE checks what it can live.</p>
+        <p className="muted">JADE's agents apply an approved configuration change in DEV and read every item back live; people apply only what the agents cannot, and the technical steps (OMW, build, CNC), and record them.</p>
       </Section>
 
       <EvidenceChain items={[

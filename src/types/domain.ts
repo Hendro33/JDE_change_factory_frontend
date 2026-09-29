@@ -244,14 +244,44 @@ export interface RecordedItem {
   live?: boolean;
   /** A single processing-option change records its value here. */
   observed_value?: string;
+  /** "agent" or "person": who applied the item in DEV. */
+  executor?: "agent" | "person";
+  /** The agent's route: "ais" or "browser". */
+  route?: string;
+  /** Why a person applied an item marked for the agents. */
+  handover?: string;
+  /** Stored screenshots of the agent's browser steps (storage keys). */
+  screenshots?: string[];
+  attempt_id?: string;
+  initiated_by?: string;
 }
+
+/** One attempt by an agent at one item (recorded before anything was sent). */
+export interface ItemAttempt {
+  attempt_id: string;
+  route?: string;
+  agent?: string;
+  started_at?: number;
+  finished_at?: number | null;
+  outcome?: "applied" | "not_sent" | "unknown" | null;
+  detail?: string;
+  screenshots?: { n: number; step: string; storage_key: string }[];
+}
+
+/**
+ * Where an item stands: applied · waiting_for_agent · waiting_for_person ·
+ * agent_unavailable · agent_could_not_apply · in_progress · unknown · diverged.
+ */
+export type ItemDeliveryState = "" | "applied" | "waiting_for_agent" | "waiting_for_person" | "agent_unavailable"
+  | "agent_could_not_apply" | "in_progress" | "unknown" | "diverged";
 
 /**
  * One item of an exact change: a configuration change set has one per
  * setting (UDC value, set-up table row, document type, order activity rule,
  * processing option, batch version data selection or sequencing), in the
- * order a person applies them in DEV; a single processing-option change is
- * one item.
+ * order they are applied in DEV -- by the agents, or by a person where JD
+ * Edwards cannot accommodate the item otherwise; a single processing-option
+ * change is one item.
  */
 export interface ConfigurationItem {
   id: string;
@@ -275,6 +305,16 @@ export interface ConfigurationItem {
   beforeNote: string;
   /** The recorded delivery of this item, or null while it is not recorded. */
   applied?: RecordedItem | null;
+  /** Who applies it, decided by JADE when proposed and approved with the change set. */
+  executor?: "agent" | "person";
+  route?: "ais" | "browser" | "person" | null;
+  routeReason?: string;
+  deliveryState?: ItemDeliveryState;
+  deliveryDetail?: string;
+  /** A person may record this agent item now (no agent can apply it). */
+  handoverAllowed?: boolean;
+  attempts?: ItemAttempt[];
+  reconciliations?: Record<string, unknown>[];
 }
 
 export interface ExactChange {
@@ -410,6 +450,8 @@ export interface RecordAppliedResult {
   source: string;
   evidenceReference: string;
   evidenceEntryHash: string;
+  /** Set when a person recorded an item marked for the agents: why. */
+  handover?: string | null;
 }
 
 /** POST /changes/{id}/delivery/run-test and /delivery/test-result */
@@ -424,7 +466,7 @@ export interface DeliveryTestResult {
 /** What the execution gate would decide right now, check by check. Nothing is executed. */
 export interface PreflightResult {
   changeId: string;
-  /** "recorded": a person applies the change in DEV and records it; Jade never writes to JDE. */
+  /** "recorded": every step is recorded through the delivery gate (by the agents, or a person for their items). */
   mode: string;
   executable: boolean;
   writeState: ExecutionState;

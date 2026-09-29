@@ -206,6 +206,18 @@ export async function request<T>(
   return res.json() as Promise<T>;
 }
 
+/** Fetches a file through the authenticated API (the session cookie is sent) as a Blob. */
+export async function fetchBlob(path: string, customerId: string): Promise<Blob> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, { headers: { "X-Customer-Id": customerId }, credentials: "include" });
+  } catch {
+    throw new Error(unreachableMessage());
+  }
+  if (!res.ok) throw new HttpError(res.status, await res.text().catch(() => ""));
+  return res.blob();
+}
+
 /** Downloads a file through the authenticated API (the session cookie is sent) and saves it. */
 export async function downloadFile(path: string, customerId: string, filename: string): Promise<void> {
   let res: Response;

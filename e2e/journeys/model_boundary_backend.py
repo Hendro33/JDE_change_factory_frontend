@@ -1,5 +1,6 @@
 """The REAL Jade backend with only the language model replaced, at the Agent
-SDK boundary, by scripted answers -- for running the journeys without an
+SDK boundary, by scripted answers (including the Functional Agent that applies
+an item in the web client through the browser executor's own tools) -- for running the journeys without an
 Anthropic key or model cost. Everything else -- API, database, gates, the
 Architect's live reads through the customer's AIS connection, delivery,
 evidence -- is the production code path.
@@ -25,6 +26,39 @@ def _spy(*a, **k):
 
 architecture_driver.build_discovery_tools = _spy
 
+# The browser executor's tools, for the scripted Functional Agent that applies an item in the web client.
+from jde_api_service.executors import browser as _browser  # noqa: E402
+
+
+def _keep_browser_tools(tools):
+    _tools["browser"] = tools
+    return tools
+
+
+_browser.BUILD_TOOLS = _keep_browser_tools
+
+
+async def _call(tools, name, **args):
+    result = await tools.call(name, getattr(tools, name), args)
+    return json.loads(result["content"][0]["text"])
+
+
+async def _apply_in_web_client(tools):
+    """What the Functional Agent does in the web client for a processing option: open the version's
+    processing options, set exactly the approved value, OK, reopen, report what is shown."""
+    item = tools.item
+    path = f"po?app={item['application']}&ver={item['version']}"
+    await _call(tools, "browser_open", path=path)
+    look = await _call(tools, "browser_look")
+    field = next(c["ref"] for c in look["controls"] if c.get("id") == f"po_{item['option']}")
+    ok = next(c["ref"] for c in look["controls"] if c.get("id") == "ok")
+    await _call(tools, "browser_fill", ref=field, value=item["value"])
+    await _call(tools, "browser_click", ref=ok)
+    await _call(tools, "browser_open", path=path)
+    look = await _call(tools, "browser_look")
+    shown = next(c.get("value") for c in look["controls"] if c.get("id") == f"po_{item['option']}")
+    await _call(tools, "report_outcome", applied=True, observed=shown, note="set, saved with OK, reopened")
+
 
 def _result(text):
     return sdk.ResultMessage(subtype="success", duration_ms=1, duration_api_ms=1, is_error=False, num_turns=3,
@@ -36,6 +70,10 @@ def _sys(t):
 
 
 async def fake_query(prompt, options):
+    if "applying ONE approved configuration item" in prompt:
+        await _apply_in_web_client(_tools["browser"])
+        yield _result("Applied the approved item in the web client and read it back.")
+        return
     m = re.search(r"story_id to use throughout, in every tool call: (\S+)", prompt)
     story = m.group(1) if m else None
     if "Use the architect subagent" in prompt:
