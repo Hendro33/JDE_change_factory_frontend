@@ -1280,7 +1280,9 @@ function PlanCard({
     [env, setEnv] = useState(""),
     [assignee, setAssignee] = useState(""),
     [approval, setApproval] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>(() =>
+    v.scenarios.map((s: D) => s.scenario_id),
+  );
   const deps = data.deployments
     .filter(
       (d: D) =>
@@ -1416,7 +1418,10 @@ function PlanCard({
                     }))}
                 />
               )}
-              <button className="btn primary" disabled={busy || !env || !dep}>
+              <button
+                className="btn primary"
+                disabled={busy || !env || !dep || !selected.length}
+              >
                 Start validation
               </button>
             </form>
