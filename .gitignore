@@ -13,3 +13,13 @@ e2e/process/shots/
 e2e/workspaces/shots/
 e2e/ai/shots/
 e2e/journeys/.work/
+
+# Local secrets and hand-over material: never committed.
+wt/
+.preview-data*/
+.jade-data/
+credentials.env
+*.env
+!.env.example
+*.bundle
+_claude_tmp/
