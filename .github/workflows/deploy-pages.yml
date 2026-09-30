@@ -1,8 +1,8 @@
 name: Deploy to GitHub Pages
 
+# Automatic deployment from main is switched off: Jade's frontend moves to Azure (DEV first).
+# This workflow runs only when started by hand.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
