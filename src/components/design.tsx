@@ -42,6 +42,7 @@ export function useSessionInfo(): SessionInfo {
 }
 
 export const ROLE_LABEL: Record<string, string> = {
+  test_manager: "Test Manager",
   domain_owner: "Domain Owner", product_manager: "Application Manager", admin: "Administrator",
   dashboard_viewer: "Viewer", cnc_operator: "CNC operator",
 };

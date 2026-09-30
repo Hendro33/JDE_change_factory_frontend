@@ -1,3 +1,4 @@
+import { validationRequest } from "../../services/validationApi";
 import { useEffect, useState } from "react";
 import { recentStories } from "../../services/recent";
 import { api } from "../../services/api";
@@ -56,6 +57,8 @@ function WorkItem({ c }: { c: Change }) {
  */
 export function MyWorkPage() {
   const info = useSessionInfo();
+  const { data: validationTasks, error: validationError } = useAsync(() => validationRequest<any[]>("/tasks"), [info.session.activeCustomerId]);
+  const assignedTests = validationTasks?.flatMap(r => r.attempts.filter((a:any) => a.assignee_id === info.session.userId && !a.submitted_at && a.selected && a.body.route === "manual" && ["awaiting_input", "queued", "preflight", "running"].includes(r.status))).length ?? 0;
   const { data: work, error } = useAsync(() => api.getMyWork(), []);
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
   useEffect(() => {
@@ -80,6 +83,8 @@ export function MyWorkPage() {
         title={count === 0 ? "Nothing needs you right now" : `${count} thing${count === 1 ? "" : "s"} need${count === 1 ? "s" : ""} your attention`}
         subtitle={work.roles.length ? `As ${work.roles.map((r) => ROLE_LABEL[r] ?? r).join(", ")} on this customer.` : "You have no role on this customer yet; ask an administrator."} />
 
+      {assignedTests > 0 && <Section title="Assigned acceptance tests"><p>{assignedTests} test(s) await your observations.</p><Link className="btn" to="/validation/tasks">Open my acceptance tests</Link></Section>}
+      {!!validationError && <p role="alert">Assigned acceptance tests could not be loaded.</p>}
       <div className="mywork-grid">
         <div>
           {count === 0 ? (

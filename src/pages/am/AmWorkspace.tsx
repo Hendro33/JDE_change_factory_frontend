@@ -1,3 +1,4 @@
+import { ValidationWorkspace } from "../validation/Validation";
 import { Link, match, navigate, useLocation } from "../../router";
 import { EmptyState, Tabs, useSessionInfo } from "../../components/design";
 import { Dashboard } from "./Dashboard";
@@ -22,6 +23,7 @@ const GROUPS: { label: string; items: { to: string; label: string; stage?: strin
     { to: "/am/as-built", label: "As-Built" },
   ] },
   { label: "Release", items: [
+    { to: "/am/validation", label: "Validation & release handoff" },
     { to: "/am/changes?stage=release", label: "Ready for Release / CNC", stage: "release" },
   ] },
 ];
@@ -43,6 +45,7 @@ export function AmWorkspace() {
   let m: Record<string, string> | null;
   let page: JSX.Element;
   if (path === "/am") page = <Dashboard onOpenChange={openChange} onNavigate={legacyNavigate} />;
+  else if (match("/am/validation", path)) page = <ValidationWorkspace releaseOnly />;
   else if (match("/am/backlog-review", path)) page = <ApprovalBacklog {...target} />;
   else if (match("/am/architecture-review", path) || path === "/am/process") page = <>
     <Tabs label="Architecture Review sections" active={path === "/am/process" ? "process" : query.get("view") === "design" ? "design" : "review"}

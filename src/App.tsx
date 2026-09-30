@@ -1,3 +1,4 @@
+import { ValidationWorkspace } from "./pages/validation/Validation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./services/api";
 import { authApi } from "./services/httpApi";
@@ -36,6 +37,7 @@ const PRIMARY_NAV: { to: string; label: string; short?: string; section: string;
   { to: "/stories", label: "Business Demand", short: "Demand", section: "stories" },
   { to: "/business", label: "Business Architecture", short: "Architecture", section: "business" },
   { to: "/am", label: "Application Management", short: "App Management", section: "am", show: (i) => i.appManagement },
+  { to: "/validation", label: "Validation", section: "validation", show: (i) => i.has("test_manager", "product_manager", "admin") },
   { to: "/reports", label: "Insights", section: "reports" },
 ];
 
@@ -136,6 +138,7 @@ function Routes() {
   if (match("/knowledge", path)) return <KnowledgePage />;
   if (match("/reports", path)) return <ReportsPage />;
   if (match("/search", path)) return <SearchPage />;
+  if (path === "/validation" || path === "/validation/tasks") return <ValidationWorkspace />;
   if (path === "/am" || path.startsWith("/am/")) return <AmWorkspace />;
   if ((m = match("/admin/:section?/:sub?", path))) return <AdminGate><AdministrationPage section={m.section} sub={m.sub} /></AdminGate>;
   return <NotFoundPage />;

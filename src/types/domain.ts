@@ -54,7 +54,7 @@ export interface Customer {
  *     performed (Technical work). Never granted by default.
  * A user can hold more than one role on the same company.
  */
-export type CompanyRole = "domain_owner" | "product_manager" | "admin" | "dashboard_viewer" | "cnc_operator";
+export type CompanyRole = "domain_owner" | "product_manager" | "admin" | "dashboard_viewer" | "cnc_operator" | "test_manager";
 
 export type UserRole = string;
 

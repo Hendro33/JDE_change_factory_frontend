@@ -1,3 +1,4 @@
+import { ValidationAdmin } from "../validation/ValidationAdmin";
 import { AgentExecutionSwitches } from "../../components/AgentExecution";
 import { ConnectionHealthCard } from "../../components/visualReview";
 import { KnowledgePage } from "../knowledge/Knowledge";
@@ -31,6 +32,7 @@ interface AdminSection {
  * the job; the engine itself is visible under Operations.
  */
 const SECTIONS: AdminSection[] = [
+  { key: "validation", label: "Validation", what: "Test environments, accounts and assurance policy.", tabs: [{ key: "settings", label: "Settings", render: () => <ValidationAdmin /> }] },
   { key: "organisation", label: "Organisation", what: "The customer, its people and their roles.", tabs: [
     { key: "customer", label: "Customer", render: () => <CustomerSetup /> },
     { key: "users", label: "Users & roles", render: () => <Users /> },
