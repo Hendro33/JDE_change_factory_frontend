@@ -76,10 +76,18 @@ a:hover { color: var(--jade-deep); }
 
 .appbar {
   background: var(--panel);
-  border-top: 4px solid var(--brand);
   border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 30;
 }
+/* The ConsultIQ corporate band: the company's yellow and wordmark above Jade's own bar. */
+.corpbar { background: var(--brand); color: var(--brand-ink); }
+.corpbar-row {
+  max-width: 1440px; margin: 0 auto; padding: 0 28px; min-height: 30px;
+  display: flex; align-items: center; gap: 14px;
+}
+.corpbar .logo { font-size: 17px; font-weight: 400; letter-spacing: -0.3px; line-height: 1; text-transform: capitalize; }
+.corpbar .logo b { font-weight: 800; }
+.corpbar-product { font-size: 12.5px; font-weight: 600; padding-left: 14px; border-left: 1px solid rgba(25, 25, 25, .35); line-height: 1.2; }
 .appbar-row {
   max-width: 1440px; margin: 0 auto; padding: 10px 28px;
   display: flex; align-items: center; gap: 28px; min-height: 76px;
@@ -195,6 +203,8 @@ a:hover { color: var(--jade-deep); }
 .authcard { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 36px; max-width: 440px; width: 100%; }
 .authscreen { background: radial-gradient(1200px 500px at 50% -10%, var(--jade-pale), var(--canvas) 70%); }
 .authcard { border-top: 4px solid var(--jade); }
+/* The corporate band spans the top of every sign-in screen, as it does above the app header. */
+.corpbar.authcorp { position: fixed; top: 0; left: 0; right: 0; z-index: 5; }
 .authbrand { display: grid; justify-items: start; gap: 8px; margin-bottom: 28px; }
 .authbrand-mark { height: 64px; width: auto; display: block; }
 .authbrand-tag { font-size: 13.5px; color: var(--muted); }
@@ -662,6 +672,8 @@ dl.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
   body { font-size: 15px; }
   .page { padding: 18px 14px 40px; }
   .brand-mark { height: 38px; }
+  .corpbar-row { padding: 0 14px; }
+  .corpbar-product { display: none; }
   .cscope-label { display: none; }
   .pageheader h1 { font-size: 24px; }
   .storyheader { padding: 18px; }

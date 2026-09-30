@@ -19,7 +19,7 @@ import {
 
 const STAGE_TONE: Record<string, string> = { started: "info", done: "ok", failed: "stop" };
 
-type AgentGroup = "Requirements" | "Solution" | "Delivery";
+type AgentGroup = "Requirements" | "Solution" | "Delivery" | "Validation";
 type AgentStatus = "Active" | "Limited" | "Planned";
 
 /**
@@ -48,13 +48,13 @@ const ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => JSX.Element> = {
 function toRoster(inv: AgentInventoryEntry[]): RosterEntry[] {
   return inv.map((e) => ({
     key: e.key, displayName: e.label, purpose: e.purpose,
-    group: (["Requirements", "Solution", "Delivery"].includes(e.group) ? e.group : "Delivery") as AgentGroup,
+    group: (["Requirements", "Solution", "Delivery", "Validation"].includes(e.group) ? e.group : "Delivery") as AgentGroup,
     icon: ICONS[e.key] ?? RequirementsIcon, internalName: e.definition ?? null, runsInJade: e.runsInJade, note: e.note,
   }));
 }
 
-const GROUPS: AgentGroup[] = ["Requirements", "Solution", "Delivery"];
-const GROUP_TONE: Record<AgentGroup, string> = { Requirements: "info", Solution: "ai", Delivery: "ok" };
+const GROUPS: AgentGroup[] = ["Requirements", "Solution", "Delivery", "Validation"];
+const GROUP_TONE: Record<AgentGroup, string> = { Requirements: "info", Solution: "ai", Delivery: "ok", Validation: "info" };
 
 const STATUS_BADGE: Record<AgentStatus, string> = { Active: "ok", Limited: "warn", Planned: "grey" };
 const STATUS_NOTE: Record<AgentStatus, string> = {

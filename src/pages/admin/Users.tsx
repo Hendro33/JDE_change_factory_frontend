@@ -5,8 +5,9 @@ import { Loading } from "../../components/ui";
 import { useSessionInfo } from "../../components/design";
 import { saveErrorMessage } from "../../services/saveErrors";
 
-const ALL_ROLES: CompanyRole[] = ["admin", "domain_owner", "product_manager", "dashboard_viewer", "cnc_operator"];
+const ALL_ROLES: CompanyRole[] = ["admin", "domain_owner", "product_manager", "dashboard_viewer", "cnc_operator", "test_manager"];
 const ROLE_LABEL: Record<CompanyRole, string> = {
+  test_manager: "Test Manager",
   admin: "Admin",
   domain_owner: "Domain Owner",
   product_manager: "Application Manager",

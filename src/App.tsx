@@ -4,7 +4,7 @@ import { authApi } from "./services/httpApi";
 import type { BusinessDomain, CompanyRole, MyWork, Session } from "./types/domain";
 import { CustomerScope } from "./components/CustomerScope";
 import { SetupHandover } from "./components/SetupHandover";
-import { ROLE_LABEL, SessionContext, type SessionInfo, attentionOf, storyTitle, Loading } from "./components/design";
+import { CorporateBar, ROLE_LABEL, SessionContext, type SessionInfo, attentionOf, storyTitle, Loading } from "./components/design";
 import { GlobalSearch } from "./components/GlobalSearch";
 import { Link, match, navigate, storyPath, useLocation } from "./router";
 import { MyWorkPage } from "./pages/work/MyWork";
@@ -16,6 +16,7 @@ import { KnowledgePage } from "./pages/knowledge/Knowledge";
 import { ReportsPage } from "./pages/reports/Reports";
 import { SearchPage } from "./pages/search/Search";
 import { AdministrationPage } from "./pages/admin/Administration";
+import { ValidationWorkspace } from "./pages/validation/Validation";
 import { NotFoundPage } from "./pages/NotFound";
 import { AmWorkspace } from "./pages/am/AmWorkspace";
 import { gateFor } from "./pages/stories/NextActionCard";
@@ -36,6 +37,7 @@ const PRIMARY_NAV: { to: string; label: string; short?: string; section: string;
   { to: "/stories", label: "Business Demand", short: "Demand", section: "stories" },
   { to: "/business", label: "Business Architecture", short: "Architecture", section: "business" },
   { to: "/am", label: "Application Management", short: "App Management", section: "am", show: (i) => i.appManagement },
+  { to: "/validation", label: "Validation", section: "validation", show: (i) => i.has("test_manager", "product_manager", "admin") },
   { to: "/reports", label: "Insights", section: "reports" },
 ];
 
@@ -136,6 +138,7 @@ function Routes() {
   if (match("/knowledge", path)) return <KnowledgePage />;
   if (match("/reports", path)) return <ReportsPage />;
   if (match("/search", path)) return <SearchPage />;
+  if (path === "/validation" || path === "/validation/tasks") return <ValidationWorkspace key={path} />;
   if (path === "/am" || path.startsWith("/am/")) return <AmWorkspace />;
   if ((m = match("/admin/:section?/:sub?", path))) return <AdminGate><AdministrationPage section={m.section} sub={m.sub} /></AdminGate>;
   return <NotFoundPage />;
@@ -189,8 +192,9 @@ function MainApp({ onSignedOut, onSetupFinished }: { onSignedOut: () => void; on
     <div className="app">
       <a className="skiplink" href="#main">Skip to content</a>
       <header className="appbar">
+        <CorporateBar />
         <div className="appbar-row">
-          <Link to="/work" className="brand" aria-label="Jade — My Work">
+          <Link to="/work" className="brand" aria-label="Jade by ConsultIQ — My Work">
             <img src={`${import.meta.env.BASE_URL}jade-wordmark.png`} alt="Jade" className="brand-mark" />
           </Link>
           <nav className="primarynav" aria-label="Primary">

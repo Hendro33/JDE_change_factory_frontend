@@ -41,7 +41,20 @@ export function useSessionInfo(): SessionInfo {
   return s;
 }
 
+/** The ConsultIQ corporate band above the Jade header and on every sign-in screen. */
+export function CorporateBar({ className = "" }: { className?: string }) {
+  return (
+    <div className={`corpbar ${className}`.trim()}>
+      <div className="corpbar-row">
+        <span className="logo" aria-label="ConsultIQ">consult<b>IQ</b></span>
+        <span className="corpbar-product">Jade — an AI delivery team for enterprise change</span>
+      </div>
+    </div>
+  );
+}
+
 export const ROLE_LABEL: Record<string, string> = {
+  test_manager: "Test Manager",
   domain_owner: "Domain Owner", product_manager: "Application Manager", admin: "Administrator",
   dashboard_viewer: "Viewer", cnc_operator: "CNC operator",
 };
