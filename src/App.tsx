@@ -138,7 +138,7 @@ function Routes() {
   if (match("/knowledge", path)) return <KnowledgePage />;
   if (match("/reports", path)) return <ReportsPage />;
   if (match("/search", path)) return <SearchPage />;
-  if (path === "/validation" || path === "/validation/tasks") return <ValidationWorkspace />;
+  if (path === "/validation" || path === "/validation/tasks") return <ValidationWorkspace key={path} />;
   if (path === "/am" || path.startsWith("/am/")) return <AmWorkspace />;
   if ((m = match("/admin/:section?/:sub?", path))) return <AdminGate><AdministrationPage section={m.section} sub={m.sub} /></AdminGate>;
   return <NotFoundPage />;
