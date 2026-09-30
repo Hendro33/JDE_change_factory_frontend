@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Jade: the faceted hexagon of the wordmark's "o", on ConsultIQ yellow. -->
+  <rect width="64" height="64" rx="12" fill="#FBDD37"/>
+  <polygon points="32,6 54,19 32,32" fill="#1B8F66"/>
+  <polygon points="54,19 54,45 32,32" fill="#0B5E43"/>
+  <polygon points="54,45 32,58 32,32" fill="#168A63"/>
+  <polygon points="32,58 10,45 32,32" fill="#024A32"/>
+  <polygon points="10,45 10,19 32,32" fill="#0F6E4E"/>
+  <polygon points="10,19 32,6 32,32" fill="#2A2A2A"/>
+  <polygon points="32,22 41,27 41,37 32,42 23,37 23,27" fill="#FBDD37"/>
+</svg>

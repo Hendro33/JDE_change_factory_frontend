@@ -1,11 +1,10 @@
-import { ValidationWorkspace } from "./pages/validation/Validation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./services/api";
 import { authApi } from "./services/httpApi";
 import type { BusinessDomain, CompanyRole, MyWork, Session } from "./types/domain";
 import { CustomerScope } from "./components/CustomerScope";
 import { SetupHandover } from "./components/SetupHandover";
-import { ROLE_LABEL, SessionContext, type SessionInfo, attentionOf, storyTitle, Loading } from "./components/design";
+import { CorporateBar, ROLE_LABEL, SessionContext, type SessionInfo, attentionOf, storyTitle, Loading } from "./components/design";
 import { GlobalSearch } from "./components/GlobalSearch";
 import { Link, match, navigate, storyPath, useLocation } from "./router";
 import { MyWorkPage } from "./pages/work/MyWork";
@@ -17,6 +16,7 @@ import { KnowledgePage } from "./pages/knowledge/Knowledge";
 import { ReportsPage } from "./pages/reports/Reports";
 import { SearchPage } from "./pages/search/Search";
 import { AdministrationPage } from "./pages/admin/Administration";
+import { ValidationWorkspace } from "./pages/validation/Validation";
 import { NotFoundPage } from "./pages/NotFound";
 import { AmWorkspace } from "./pages/am/AmWorkspace";
 import { gateFor } from "./pages/stories/NextActionCard";
@@ -192,8 +192,9 @@ function MainApp({ onSignedOut, onSetupFinished }: { onSignedOut: () => void; on
     <div className="app">
       <a className="skiplink" href="#main">Skip to content</a>
       <header className="appbar">
+        <CorporateBar />
         <div className="appbar-row">
-          <Link to="/work" className="brand" aria-label="Jade — My Work">
+          <Link to="/work" className="brand" aria-label="Jade by ConsultIQ — My Work">
             <img src={`${import.meta.env.BASE_URL}jade-wordmark.png`} alt="Jade" className="brand-mark" />
           </Link>
           <nav className="primarynav" aria-label="Primary">
