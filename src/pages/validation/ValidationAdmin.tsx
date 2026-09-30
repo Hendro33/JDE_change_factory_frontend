@@ -6,7 +6,7 @@ import {
   errorText,
   type RecordData as D,
 } from "../../services/validationApi";
-import { Field, Select, Check, JsonField, Status } from "./Validation";
+import { Field, Select, Check, JsonField, ListField, Status } from "./Validation";
 import "./Validation.css";
 const blank = (): D => ({
   revision: 0,
@@ -256,21 +256,17 @@ export function ValidationAdmin() {
                 Saved certificate fingerprint: {env.certificate_sha}
               </p>
             )}
-            <Field
+            <ListField
               label="Allowed AIS paths (one exact path per line)"
-              value={env.allowed_ais_paths.join("\n")}
-              onChange={(v) =>
-                set("allowed_ais_paths", v.split("\n").filter(Boolean))
-              }
-              multiline
+              values={env.allowed_ais_paths}
+              separator={"\n"}
+              onChange={(v) => set("allowed_ais_paths", v)}
             />
-            <Field
+            <ListField
               label="Sensitive browser fields to mask (CSS selectors, one per line)"
-              value={env.redaction_selectors.join("\n")}
-              onChange={(v) =>
-                set("redaction_selectors", v.split("\n").filter(Boolean))
-              }
-              multiline
+              values={env.redaction_selectors}
+              separator={"\n"}
+              onChange={(v) => set("redaction_selectors", v)}
             />
           </details>
           <h3>Transaction controls and test data</h3>

@@ -50,6 +50,41 @@ export function Field({
     </label>
   );
 }
+/** A list edited as text: keeps what is typed (separators, spaces) and reports the parsed entries. */
+export function ListField({
+  label,
+  values,
+  onChange,
+  separator,
+}: {
+  label: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+  separator: "," | "\n";
+}) {
+  const parse = (text: string) =>
+    text
+      .split(separator)
+      .map((x) => x.trim())
+      .filter(Boolean);
+  const joiner = separator === "," ? ", " : "\n";
+  const [text, setText] = useState(values.join(joiner));
+  useEffect(() => {
+    // Follow outside changes (another record, a reload) without disturbing typing.
+    if (parse(text).join("\u0000") !== values.join("\u0000")) setText(values.join(joiner));
+  }, [values.join("\u0000")]);
+  return (
+    <Field
+      label={label}
+      value={text}
+      multiline={separator === "\n"}
+      onChange={(v) => {
+        setText(v);
+        onChange(parse(v));
+      }}
+    />
+  );
+}
 export function Select({
   label,
   value,
@@ -332,9 +367,11 @@ export function ValidationWorkspace({
                     const f = e.target.files?.[0];
                     if (f)
                       action(async () => {
-                        const value = JSON.parse(await f.text());
-                        await req("/scenarios", { ...value, revision: 0 });
-                      }, "Imported as a draft");
+                        const bodies = importedScenarioBodies(JSON.parse(await f.text()));
+                        for (const body of bodies)
+                          await req("/scenarios", { ...body, revision: 0 });
+                        e.target.value = "";
+                      }, "Imported as draft scenarios");
                   }}
                 />
               </label>
@@ -700,6 +737,21 @@ export function ValidationWorkspace({
   );
 }
 
+/** Accepts a scenario body, one exported library record, or the whole exported library. */
+function importedScenarioBodies(value: unknown): D[] {
+  const items = Array.isArray(value) ? value : [value];
+  const bodies = items.map((item: D) => {
+    if (item && Array.isArray(item.versions) && item.versions.length) {
+      const approved = item.versions.filter((v: D) => v.status === "approved");
+      return (approved.length ? approved[approved.length - 1] : latest(item)).body;
+    }
+    return item && typeof item.body === "object" ? item.body : item;
+  });
+  if (!bodies.length || bodies.some((b) => !b || typeof b !== "object" || !Array.isArray(b.steps)))
+    throw new Error("This file does not contain a JADE test scenario or exported test library");
+  return bodies;
+}
+
 function exportJson(filename: string, value: unknown) {
   const url = URL.createObjectURL(
     new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }),
@@ -826,31 +878,17 @@ function ScenarioEditor({
         onChange={(v) => set("cleanup", v)}
         multiline
       />
-      <Field
+      <ListField
         label="Tags (comma separated)"
-        value={body.tags.join(", ")}
-        onChange={(v) =>
-          set(
-            "tags",
-            v
-              .split(",")
-              .map((x) => x.trim())
-              .filter(Boolean),
-          )
-        }
+        values={body.tags}
+        separator=","
+        onChange={(v) => set("tags", v)}
       />
-      <Field
+      <ListField
         label="Business process references (comma separated)"
-        value={body.process_refs.join(", ")}
-        onChange={(v) =>
-          set(
-            "process_refs",
-            v
-              .split(",")
-              .map((x) => x.trim())
-              .filter(Boolean),
-          )
-        }
+        values={body.process_refs}
+        separator=","
+        onChange={(v) => set("process_refs", v)}
       />
       {body.steps.map((s: D, i: number) => (
         <div className="v-step" key={s.id}>
@@ -1279,7 +1317,8 @@ function PlanCard({
   const v = latest(plan),
     [env, setEnv] = useState(""),
     [assignee, setAssignee] = useState(""),
-    [approval, setApproval] = useState("");
+    [approval, setApproval] = useState(""),
+    [withdrawReason, setWithdrawReason] = useState("");
   const [selected, setSelected] = useState<string[]>(() =>
     v.scenarios.map((s: D) => s.scenario_id),
   );
@@ -1295,10 +1334,16 @@ function PlanCard({
   return (
     <article className="v-card">
       <h2>{v.body.title}</h2>
-      <Status value={v.status} />{" "}
+      <Status value={plan.retired ? "withdrawn" : v.status} />{" "}
       <span>
         Version {v.version} · {v.scenarios.length} scenarios
       </span>
+      {plan.retired && (
+        <p className="v-muted">
+          Withdrawn: {plan.retirement?.note}. Its stories’ as-built records no
+          longer wait on this plan. Save a new draft version to use it again.
+        </p>
+      )}
       <details>
         <summary>Scope and pinned versions</summary>
         {v.scenarios.map((s: D) => (
@@ -1316,7 +1361,7 @@ function PlanCard({
             <button className="btn" onClick={edit}>
               New draft version
             </button>
-            {v.status === "draft" && (
+            {v.status === "draft" && !plan.retired && (
               <button
                 className="btn"
                 disabled={busy}
@@ -1335,7 +1380,38 @@ function PlanCard({
               </button>
             )}
           </div>
-          {v.status === "approved" && (
+          {!plan.retired && (
+            <details>
+              <summary>Withdraw this plan</summary>
+              <p className="v-muted">
+                Use this for a plan raised in error or no longer needed. Its
+                versions, runs and evidence are kept, and its stories’ as-built
+                records stop waiting on its release decision.
+              </p>
+              <Field
+                label="Reason for withdrawing"
+                value={withdrawReason}
+                onChange={setWithdrawReason}
+              />
+              <button
+                className="btn"
+                disabled={busy || !withdrawReason.trim()}
+                onClick={() =>
+                  action(
+                    () =>
+                      req("/plans/" + plan.id + "/retire", {
+                        revision: plan.revision,
+                        note: withdrawReason,
+                      }),
+                    "Plan withdrawn",
+                  )
+                }
+              >
+                Withdraw plan
+              </button>
+            </details>
+          )}
+          {v.status === "approved" && !plan.retired && (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -2059,7 +2135,10 @@ function Agents({
               label="Plan"
               value={plan}
               onChange={setPlan}
-              options={names(data.plans, (p) => latest(p).body.title)}
+              options={names(
+          data.plans.filter((p: D) => !p.retired),
+          (p) => latest(p).body.title,
+        )}
             />
           )}{" "}
           {role === "result-assessor" && (
