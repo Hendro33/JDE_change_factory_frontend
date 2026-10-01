@@ -116,6 +116,7 @@ function messageFromErrorBody(status: number, body: string): string {
  */
 function friendlyMessage(status: number, detail: string): string {
   const d = detail.toLowerCase();
+  if (status === 401 && d.includes("incorrect email or password")) return "The email address or password is incorrect.";
   if (status === 401) return "Your session has ended. Sign in again to continue.";
   if (status === 403) {
     const m = detail.match(/requires one of these roles: (.*)/);
