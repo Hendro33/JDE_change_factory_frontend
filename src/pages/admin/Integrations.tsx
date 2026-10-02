@@ -65,6 +65,8 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
   const [postPickupStatus, setPostPickupStatus] = useState("");
   const [jadeIdField, setJadeIdField] = useState("");
   const [requestTypeField, setRequestTypeField] = useState("");
+  const [assignToJade, setAssignToJade] = useState(true);
+  const [commentVisibility, setCommentVisibility] = useState<"internal" | "public">("internal");
 
   const load = () => {
     if (part === "all") {
@@ -82,6 +84,8 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
         setPostPickupStatus(c.postPickupStatus);
         setJadeIdField(c.jadeIdField);
         setRequestTypeField(c.requestTypeField);
+        setAssignToJade(c.assignToJade ?? true);
+        setCommentVisibility(c.commentVisibility ?? "internal");
       })
       .catch((e) => {
         setJiraConfig(null);
@@ -126,6 +130,8 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
         postPickupStatus: postPickupStatus.trim(),
         jadeIdField: jadeIdField.trim(),
         requestTypeField: requestTypeField.trim(),
+        assignToJade,
+        commentVisibility,
         expectedRevision: jiraConfig?.revision ?? 0,
       });
       // Keep the new revision even if the credential step below fails, so a
@@ -199,7 +205,7 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
     }
   }
 
-  const configured = !!jiraConfig && !!(jiraConfig.baseUrl && jiraConfig.projectKey && jiraConfig.pickupStatus && jiraConfig.postPickupStatus && jiraConfig.jadeIdField);
+  const configured = !!jiraConfig && !!(jiraConfig.baseUrl && jiraConfig.projectKey && jiraConfig.pickupStatus && jiraConfig.postPickupStatus);
   const baseUrlError = baseUrlIssue(baseUrl);
   const canTest = !testing && !!baseUrl.trim() && !baseUrlError && !!email.trim() && !!apiToken.trim();
   const canSave = !saving && !baseUrlError;
@@ -320,10 +326,15 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
         {!jiraConfig ? null : !editing ? (
           <dl className="facts">
             <dt>Site URL</dt><dd>{jiraConfig.baseUrl || <span className="notstated">not set</span>}</dd>
-            <dt>Project key</dt><dd>{jiraConfig.projectKey || <span className="notstated">not set</span>}</dd>
+            <dt>Project / space key</dt><dd>{jiraConfig.projectKey || <span className="notstated">not set</span>}</dd>
             <dt>Pickup status</dt><dd>{jiraConfig.pickupStatus || <span className="notstated">not set</span>}</dd>
             <dt>Post-pickup status</dt><dd>{jiraConfig.postPickupStatus || <span className="notstated">not set</span>}</dd>
-            <dt>Jade Change ID field</dt><dd>{jiraConfig.jadeIdField || <span className="notstated">not set</span>}</dd>
+            <dt>On pickup</dt>
+            <dd>
+              {jiraConfig.assignToJade ? "Assign to Jade's Jira account, move" : "Move"} to {jiraConfig.postPickupStatus || "the post-pickup status"}, and add{" "}
+              {jiraConfig.commentVisibility === "public" ? "a reply to the customer" : "an internal note"} with the Jade ID
+            </dd>
+            <dt>Jade Change ID field <span className="hint">(optional)</span></dt><dd>{jiraConfig.jadeIdField || <span className="notstated">not used</span>}</dd>
             <dt>Request Type field <span className="hint">(optional)</span></dt>
             <dd>{jiraConfig.requestTypeField || <span className="notstated">not captured</span>}</dd>
             <dt>Last updated</dt>
@@ -341,8 +352,9 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
               )}
             </div>
             <div className="field">
-              <label htmlFor="jiraProjectKey">Project key</label>
+              <label htmlFor="jiraProjectKey">Project / space key</label>
               <input id="jiraProjectKey" type="text" value={projectKey} onChange={(e) => setProjectKey(e.target.value)} placeholder="CON" />
+              <span className="hint">The letters before the ticket number — CON for CON-30. A service desk queue belongs to such a space.</span>
             </div>
             <div className="field">
               <label htmlFor="jiraEmail">Jira account e-mail</label>
@@ -380,13 +392,28 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
               <input id="jiraPostPickupStatus" type="text" value={postPickupStatus} onChange={(e) => setPostPickupStatus(e.target.value)} placeholder="Jade - In Progress" />
               <span className="hint">Must be reachable from the pickup status. Jade transitions to this only after intake has durably succeeded. Also an existing status, not a new one.</span>
             </div>
+            <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+              <legend style={{ fontWeight: 600, marginBottom: 6 }}>When Jade picks up a ticket</legend>
+              <label style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 400 }}>
+                <input type="checkbox" checked={assignToJade} onChange={(e) => setAssignToJade(e.target.checked)} />
+                Assign it to the Jira account Jade connects with
+              </label>
+              <label htmlFor="jiraCommentVisibility" style={{ marginTop: 8 }}>Note with the Jade ID</label>
+              <select id="jiraCommentVisibility" value={commentVisibility} onChange={(e) => setCommentVisibility(e.target.value as "internal" | "public")}>
+                <option value="internal">Internal note (agents only)</option>
+                <option value="public">Reply to customer</option>
+              </select>
+              <span className="hint">
+                Jade does what an agent does in the status pop-up: it assigns the ticket, moves it to the status after
+                pickup and leaves the note. A ticket leaves the pickup status only once, so the note is never posted twice.
+              </span>
+            </fieldset>
             <div className="field">
-              <label htmlFor="jiraJadeIdField">Jade Change ID custom field</label>
+              <label htmlFor="jiraJadeIdField">Jade Change ID custom field <span className="hint">(optional)</span></label>
               <input id="jiraJadeIdField" type="text" value={jadeIdField} onChange={(e) => setJadeIdField(e.target.value)} placeholder="customfield_10057" />
               <span className="hint">
-                A short text field, added to the relevant screen in Jira — Jade writes its Change Request id here,
-                which is also what makes a retried sync safe (it never re-posts the acceptance comment). Still
-                required for "Sync now" to be available below — this pilot does not weaken that safety check.
+                Leave empty unless you want the Jade ID in a Jira field as well. If used: a short text field that is on
+                the ticket's edit screen in Jira (the API can only fill fields on that screen).
               </span>
             </div>
             <div className="field">
@@ -435,6 +462,7 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
             {syncResult.considered} ticket{syncResult.considered === 1 ? "" : "s"} found in the pickup status.{" "}
             {syncResult.imported.length} new Change Request{syncResult.imported.length === 1 ? "" : "s"} created.{" "}
             {syncResult.updatedInJira.length} ticket{syncResult.updatedInJira.length === 1 ? "" : "s"} moved to the post-pickup status.
+            {(syncResult.skippedWithdrawn?.length ?? 0) > 0 && ` ${syncResult.skippedWithdrawn!.length} left alone because the request was withdrawn in Jade.`}
             {syncResult.errors.length > 0 && (
               <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
                 {syncResult.errors.map((e, i) => (

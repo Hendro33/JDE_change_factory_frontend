@@ -131,6 +131,7 @@ export const API_ENDPOINTS = {
   disconnectJiraCredentials: "DELETE /admin/jira-credentials",
   testJiraConnection: "POST /admin/jira-integration/test-connection",
   syncJiraIntegration: "POST /admin/jira-integration/sync",
+  withdrawRequests: "POST /change-requests/withdraw",
 
   listCompanyUsers: "GET /admin/users",
   inviteUser: "POST /admin/users/invite",
@@ -422,6 +423,9 @@ export interface ChangeFactoryApi {
    * comment. Never triggers Receive -> Improve -> Check itself.
    */
   syncJiraIntegration(): Promise<JiraSyncResult>;
+
+  /** Takes requests that have not become a story yet off the list, with a reason (kept on record). */
+  withdrawRequests(ids: string[], reason: string): Promise<{ withdrawn: string[]; refused: { id: string; reason: string }[] }>;
 
   /**
    * Admin > Users — company member list (active/inactive/pending

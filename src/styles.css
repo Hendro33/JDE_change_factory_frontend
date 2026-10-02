@@ -817,3 +817,6 @@ a.iconbtn.on { color: var(--jade-deep); border-color: var(--jade); box-shadow: i
 .agenttable-row.open .row-chevron { transform: rotate(45deg); }
 .agenttable-detail > td { background: var(--panel); padding: 16px 20px 20px; border-left: 3px solid var(--jade); }
 @media (max-width: 720px) { .costbar > small { display: none; } }
+
+/* Requests: actions on selected rows */
+.selectionbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 12px; border: 1px solid var(--jade); border-radius: var(--radius); background: var(--jade-pale); }

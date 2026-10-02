@@ -704,6 +704,10 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     });
   }
 
+  async withdrawRequests(ids: string[], reason: string): Promise<{ withdrawn: string[]; refused: { id: string; reason: string }[] }> {
+    return request("/change-requests/withdraw", { method: "POST", customerId: await this.activeCustomerId(), body: { ids, reason } });
+  }
+
   async syncJiraIntegration(): Promise<JiraSyncResult> {
     const customerId = await this.activeCustomerId();
     return request<JiraSyncResult>("/admin/jira-integration/sync", { method: "POST", customerId });
