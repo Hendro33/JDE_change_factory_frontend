@@ -1315,10 +1315,14 @@ export interface JiraIntegrationConfig {
   pickupStatus: string;
   /** The status Jade transitions the ticket to once intake has durably succeeded, e.g. "Jade - In Progress". */
   postPickupStatus: string;
-  /** The Jira custom field id Jade writes its own Change Request id into. */
+  /** Optional: a Jira custom field id Jade also writes its own Change Request id into. */
   jadeIdField: string;
   /** Optional Jira custom field id for JSM's own Request Type, imported into sourceMetadata for display only. */
   requestTypeField: string;
+  /** On pickup, assign the ticket to the Jira account Jade connects with. */
+  assignToJade: boolean;
+  /** The acceptance note: an internal note (agents only) or a reply the customer sees. */
+  commentVisibility: "internal" | "public";
   /** 0 means never saved. */
   revision: number;
   updatedAt?: string;
@@ -1332,6 +1336,8 @@ export interface JiraIntegrationConfigUpdateInput {
   postPickupStatus: string;
   jadeIdField: string;
   requestTypeField: string;
+  assignToJade: boolean;
+  commentVisibility: "internal" | "public";
   expectedRevision: number;
 }
 
@@ -1397,6 +1403,8 @@ export interface JiraSyncResult {
   imported: string[];
   updatedInJira: string[];
   errors: JiraSyncError[];
+  /** Tickets still in the pickup status whose request was withdrawn in Jade (left alone). */
+  skippedWithdrawn?: string[];
 }
 
 export interface RatingView {
