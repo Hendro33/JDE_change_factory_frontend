@@ -792,3 +792,28 @@ a.iconbtn.on { color: var(--jade-deep); border-color: var(--jade); box-shadow: i
   .primarynav a.on::after { bottom: -6px; }
   .appbar-tools { margin-left: auto; }
 }
+
+/* Agents & AI: key figures and the agent grid with expandable detail rows */
+.agentkpis .kpi .value { font-size: 26px; }
+.kpi .kpi-of { font-size: 16px; font-weight: 600; color: var(--muted); }
+.budgetbar { margin-top: 8px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.budgetbar > span { display: block; height: 100%; background: var(--jade); }
+.costbars { display: flex; align-items: flex-end; gap: 6px; height: 120px; padding-top: 6px; }
+.costbar { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; min-width: 0; }
+.costbar > span { width: 100%; max-width: 28px; background: var(--jade); border-radius: 3px 3px 0 0; }
+.costbar > small { font-size: 11px; color: var(--muted); }
+.agenttable { width: 100%; }
+.agenttable-group td { background: var(--wash); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 14px; }
+.agenttable-row { cursor: pointer; }
+.agenttable-row:hover td { background: var(--jade-pale); }
+.agenttable-row.open td { background: var(--jade-pale); border-bottom-color: transparent; }
+.agenttable-row.planned { opacity: .8; }
+.agenttable-row .linkbtn { text-decoration: none; padding: 4px; display: inline-flex; }
+.agenttable-name { display: flex; align-items: center; gap: 10px; min-width: 220px; }
+.agenttable-name .hint { max-width: 360px; }
+.agenticon.small { width: 30px; height: 30px; border-radius: 8px; }
+.agenticon.small svg { width: 18px; height: 18px; }
+.row-chevron { width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .15s; display: inline-block; }
+.agenttable-row.open .row-chevron { transform: rotate(45deg); }
+.agenttable-detail > td { background: var(--panel); padding: 16px 20px 20px; border-left: 3px solid var(--jade); }
+@media (max-width: 720px) { .costbar > small { display: none; } }
