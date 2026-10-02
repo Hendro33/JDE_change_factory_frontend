@@ -71,6 +71,9 @@ export interface NetworkRestriction {
   restrictedToSource: boolean;
   evidence: string;
   evidenceArtifactIds: string[];
+  /** Isolated trial only: the Admin accepts, with a reason, that AIS is not restricted to Jade's address. */
+  trialException?: boolean;
+  trialExceptionReason?: string;
 }
 
 export interface VerificationItem {
@@ -174,7 +177,7 @@ export interface SampleReadPreview {
 
 export interface Prerequisite {
   id: string; label: string; satisfied: boolean; detail: string; required?: boolean;
-  kind?: "customer_attestation" | "machine_verified" | "configuration" | "server_managed" | "evidence";
+  kind?: "customer_attestation" | "machine_verified" | "configuration" | "server_managed" | "evidence" | "accepted_exception";
 }
 
 export interface SampleReadInput {
