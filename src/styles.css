@@ -76,10 +76,18 @@ a:hover { color: var(--jade-deep); }
 
 .appbar {
   background: var(--panel);
-  border-top: 4px solid var(--brand);
   border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 30;
 }
+/* The ConsultIQ corporate band: the company's yellow and wordmark above Jade's own bar. */
+.corpbar { background: var(--brand); color: var(--brand-ink); }
+.corpbar-row {
+  max-width: 1440px; margin: 0 auto; padding: 0 28px; min-height: 30px;
+  display: flex; align-items: center; gap: 14px;
+}
+.corpbar .logo { font-size: 17px; font-weight: 400; letter-spacing: -0.3px; line-height: 1; text-transform: capitalize; }
+.corpbar .logo b { font-weight: 800; }
+.corpbar-product { font-size: 12.5px; font-weight: 600; padding-left: 14px; border-left: 1px solid rgba(25, 25, 25, .35); line-height: 1.2; }
 .appbar-row {
   max-width: 1440px; margin: 0 auto; padding: 10px 28px;
   display: flex; align-items: center; gap: 28px; min-height: 76px;
@@ -195,6 +203,8 @@ a:hover { color: var(--jade-deep); }
 .authcard { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 36px; max-width: 440px; width: 100%; }
 .authscreen { background: radial-gradient(1200px 500px at 50% -10%, var(--jade-pale), var(--canvas) 70%); }
 .authcard { border-top: 4px solid var(--jade); }
+/* The corporate band spans the top of every sign-in screen, as it does above the app header. */
+.corpbar.authcorp { position: fixed; top: 0; left: 0; right: 0; z-index: 5; }
 .authbrand { display: grid; justify-items: start; gap: 8px; margin-bottom: 28px; }
 .authbrand-mark { height: 64px; width: auto; display: block; }
 .authbrand-tag { font-size: 13.5px; color: var(--muted); }
@@ -340,11 +350,14 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--j
 .impact { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; white-space: nowrap; color: var(--ink-soft); }
 .impact-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
 .impact-bars i { display: block; width: 4px; border-radius: 1px; background: var(--line-strong); }
-.impact-bars i:nth-child(1) { height: 6px; } .impact-bars i:nth-child(2) { height: 10px; } .impact-bars i:nth-child(3) { height: 14px; }
+.impact-bars i:nth-child(1) { height: 5px; } .impact-bars i:nth-child(2) { height: 8px; } .impact-bars i:nth-child(3) { height: 11px; } .impact-bars i:nth-child(4) { height: 14px; }
 .impact.i-low .impact-bars i:nth-child(1),
 .impact.i-medium .impact-bars i:nth-child(-n+2),
-.impact.i-high .impact-bars i { background: var(--ink-soft); }
+.impact.i-high .impact-bars i:nth-child(-n+3) { background: var(--ink-soft); }
 .impact.i-high { color: var(--ink); }
+.impact.i-urgent .impact-bars i { background: var(--stop); }
+.impact.i-urgent { color: var(--stop); }
+.fielderror { color: var(--stop); font-size: 13.5px; margin-top: 4px; }
 .impact-areas { font-weight: 400; color: var(--muted); white-space: normal; }
 
 .nextline { font-size: 14px; color: var(--ink-soft); }
@@ -662,6 +675,8 @@ dl.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
   body { font-size: 15px; }
   .page { padding: 18px 14px 40px; }
   .brand-mark { height: 38px; }
+  .corpbar-row { padding: 0 14px; }
+  .corpbar-product { display: none; }
   .cscope-label { display: none; }
   .pageheader h1 { font-size: 24px; }
   .storyheader { padding: 18px; }
@@ -777,3 +792,37 @@ a.iconbtn.on { color: var(--jade-deep); border-color: var(--jade); box-shadow: i
   .primarynav a.on::after { bottom: -6px; }
   .appbar-tools { margin-left: auto; }
 }
+
+/* Agents & AI: key figures and the agent grid with expandable detail rows */
+.agentkpis .kpi .value { font-size: 26px; }
+.kpi .kpi-of { font-size: 16px; font-weight: 600; color: var(--muted); }
+.budgetbar { margin-top: 8px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.budgetbar > span { display: block; height: 100%; background: var(--jade); }
+.costbars { display: flex; align-items: flex-end; gap: 6px; height: 120px; padding-top: 6px; }
+.costbar { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; min-width: 0; }
+.costbar > span { width: 100%; max-width: 28px; background: var(--jade); border-radius: 3px 3px 0 0; }
+.costbar > small { font-size: 11px; color: var(--muted); }
+.agenttable { width: 100%; }
+.agenttable-group td { background: var(--wash); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding-top: 14px; }
+.agenttable-row { cursor: pointer; }
+.agenttable-row:hover td { background: var(--jade-pale); }
+.agenttable-row.open td { background: var(--jade-pale); border-bottom-color: transparent; }
+.agenttable-row.planned { opacity: .8; }
+.agenttable-row .linkbtn { text-decoration: none; padding: 4px; display: inline-flex; }
+.agenttable-name { display: flex; align-items: center; gap: 10px; min-width: 220px; }
+.agenttable-name .hint { max-width: 360px; }
+.agenticon.small { width: 30px; height: 30px; border-radius: 8px; }
+.agenticon.small svg { width: 18px; height: 18px; }
+.row-chevron { width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .15s; display: inline-block; }
+.agenttable-row.open .row-chevron { transform: rotate(45deg); }
+.agenttable-detail > td { background: var(--panel); padding: 16px 20px 20px; border-left: 3px solid var(--jade); }
+@media (max-width: 720px) { .costbar > small { display: none; } }
+
+/* Requests: actions on selected rows */
+.selectionbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 12px; border: 1px solid var(--jade); border-radius: var(--radius); background: var(--jade-pale); }
+
+/* JD Edwards connection: the one plain status */
+.jdestatus { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--line); border-left-width: 4px; background: var(--panel); }
+.jdestatus.ok { border-left-color: var(--ok); } .jdestatus.stop { border-left-color: var(--stop); }
+.jdestatus.warn { border-left-color: var(--warn); } .jdestatus.grey { border-left-color: var(--line-strong); }
+.jdestatus .badge { font-size: 14px; }

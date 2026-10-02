@@ -16,6 +16,8 @@ import type {
   Change,
   ArchitectureReviewRun,
   ChangeSource,
+  ChangeType,
+  Priority,
   CompanyUsersOut,
   CustomerProfile,
   DeliveryQueueEntry,
@@ -64,6 +66,7 @@ export const API_ENDPOINTS = {
   getMyWork: "GET /work",
   listAgentInventory: "GET /admin/agent-inventory",
   createChange: "POST /changes",
+  setClassification: "PUT /changes/{id}/classification",
   getChange: "GET /changes/{id}",
 
   enhanceStory: "POST /changes/{id}/enhance",
@@ -128,6 +131,7 @@ export const API_ENDPOINTS = {
   disconnectJiraCredentials: "DELETE /admin/jira-credentials",
   testJiraConnection: "POST /admin/jira-integration/test-connection",
   syncJiraIntegration: "POST /admin/jira-integration/sync",
+  withdrawRequests: "POST /change-requests/withdraw",
 
   listCompanyUsers: "GET /admin/users",
   inviteUser: "POST /admin/users/invite",
@@ -160,6 +164,15 @@ export interface CreateChangeInput {
   originalRequest: string;
   /** Pending uploads (DraftDocuments) to attach; real backend only. */
   attachmentIds?: string[];
+  priority?: Priority;
+  changeType?: ChangeType;
+}
+
+export interface ClassificationInput {
+  priority?: Priority;
+  changeType?: ChangeType;
+  /** The classificationRevision the caller loaded. */
+  expectedRevision: number;
 }
 
 export interface DecisionInput {
@@ -193,6 +206,8 @@ export interface ChangeFactoryApi {
   listAgentInventory(): Promise<AgentInventoryEntry[]>;
   getChange(id: string): Promise<Change | undefined>;
   createChange(input: CreateChangeInput): Promise<Change>;
+  /** Sets a story's priority and/or change type (revision-checked). */
+  setClassification(id: string, input: ClassificationInput): Promise<Change>;
 
   /** Runs Receive -> Improve -> Check. Returns the enriched story. */
   enhanceStory(id: string): Promise<Change>;
@@ -408,6 +423,9 @@ export interface ChangeFactoryApi {
    * comment. Never triggers Receive -> Improve -> Check itself.
    */
   syncJiraIntegration(): Promise<JiraSyncResult>;
+
+  /** Takes requests that have not become a story yet off the list, with a reason (kept on record). */
+  withdrawRequests(ids: string[], reason: string): Promise<{ withdrawn: string[]; refused: { id: string; reason: string }[] }>;
 
   /**
    * Admin > Users — company member list (active/inactive/pending

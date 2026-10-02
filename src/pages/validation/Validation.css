@@ -1,0 +1,135 @@
+.validation {
+  max-width: 1380px;
+  margin: 0 auto;
+}
+.validation .v-nav,
+.validation .v-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 1rem 0;
+}
+.validation .v-nav button[aria-current="page"] {
+  background: var(--ink, #243e3d);
+  color: white;
+}
+.validation .v-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+.validation .v-card {
+  border: 1px solid var(--line, #dce2df);
+  border-radius: 12px;
+  padding: 1.2rem;
+  margin: 1rem 0;
+  background: var(--surface, #fff);
+}
+.validation .v-card h2,
+.validation .v-card h3 {
+  margin-top: 0;
+}
+.validation label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.7rem 0;
+  font-weight: 500;
+}
+.validation label.v-check {
+  flex-direction: row;
+  align-items: center;
+  font-weight: 400;
+}
+.validation input:not([type="checkbox"]):not([type="file"]),
+.validation textarea,
+.validation select {
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid var(--line, #bac8c2);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: inherit;
+}
+.validation input[type="checkbox"] {
+  width: auto;
+}
+.validation textarea {
+  min-height: 85px;
+}
+.validation .v-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+.validation .v-metrics strong {
+  display: block;
+  font-size: 2rem;
+}
+.validation .v-status {
+  display: inline-block;
+  font-size: 0.8rem;
+  border-radius: 20px;
+  padding: 0.25rem 0.6rem;
+  background: #edf1ef;
+}
+.validation .v-status.passed {
+  background: #dff3e5;
+  color: #215c37;
+}
+.validation .v-status.failed,
+.validation .v-status.execution_error {
+  background: #fbe4e1;
+  color: #873b31;
+}
+.validation .v-status.stale,
+.validation .v-status.needs_review {
+  background: #fff0ce;
+  color: #7a5717;
+}
+.validation .v-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.validation .v-table td,
+.validation .v-table th {
+  padding: 0.7rem;
+  text-align: left;
+  border-bottom: 1px solid var(--line, #dde3df);
+}
+.validation .v-scroll {
+  overflow-x: auto;
+}
+.validation .v-error {
+  background: #fff1ec;
+  border: 1px solid #b34c34;
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+.validation .v-success {
+  padding: 0.7rem;
+  background: #e5f2e8;
+}
+.validation .v-muted {
+  color: var(--muted, #66746f);
+  font-size: 0.9rem;
+}
+.validation .v-step {
+  border-left: 3px solid #cedbd4;
+  padding: 0.4rem 1rem;
+  margin: 1rem 0;
+}
+.validation details {
+  margin: 1rem 0;
+}
+.validation summary {
+  cursor: pointer;
+}
+.validation pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 400px;
+  overflow: auto;
+}

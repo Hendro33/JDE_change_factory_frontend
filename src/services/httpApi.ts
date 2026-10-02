@@ -41,7 +41,7 @@ import type {
   Session,
   UpdateMembershipInput,
   UserStory, CustomerInput, Customer, MyWork, AgentInventoryEntry } from "../types/domain";
-import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
+import type { ChangeFactoryApi, ClassificationInput, CreateChangeInput, DecisionInput } from "./api";
 import { RevisionConflictError } from "./saveErrors";
 
 /**
@@ -116,6 +116,7 @@ function messageFromErrorBody(status: number, body: string): string {
  */
 function friendlyMessage(status: number, detail: string): string {
   const d = detail.toLowerCase();
+  if (status === 401 && d.includes("incorrect email or password")) return "The email address or password is incorrect.";
   if (status === 401) return "Your session has ended. Sign in again to continue.";
   if (status === 403) {
     const m = detail.match(/requires one of these roles: (.*)/);
@@ -308,6 +309,12 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     }
   }
 
+  async setClassification(id: string, input: ClassificationInput): Promise<Change> {
+    return request<Change>(`/changes/${encodeURIComponent(id)}/classification`, {
+      method: "PUT", customerId: await this.activeCustomerId(), body: input,
+    });
+  }
+
   async createChange(input: CreateChangeInput): Promise<Change> {
     const customerId = await this.activeCustomerId();
     const created = await request<{ id: string }>("/change-requests", {
@@ -319,6 +326,8 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
         sourceReference: input.sourceReference,
         rawContent: input.originalRequest,
         attachmentIds: input.attachmentIds ?? [],
+        ...(input.priority ? { priority: input.priority } : {}),
+        ...(input.changeType ? { changeType: input.changeType } : {}),
       },
     });
     // The API returns the ChangeRequest, not a Change -- fetch it back
@@ -693,6 +702,10 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<JiraTestConnectionResult>("/admin/jira-integration/test-connection", {
       method: "POST", customerId, body: input,
     });
+  }
+
+  async withdrawRequests(ids: string[], reason: string): Promise<{ withdrawn: string[]; refused: { id: string; reason: string }[] }> {
+    return request("/change-requests/withdraw", { method: "POST", customerId: await this.activeCustomerId(), body: { ids, reason } });
   }
 
   async syncJiraIntegration(): Promise<JiraSyncResult> {

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DemandNav } from "../demand/DemandNav";
 import { api } from "../../services/api";
 import type { Change, Health, JiraConnectionStatus, JiraSyncResult, Phase } from "../../types/domain";
-import { PHASES } from "../../types/domain";
+import { CHANGE_TYPES, PHASES, PRIORITIES } from "../../types/domain";
 import {
   EmptyState, ErrorState, HealthIndicator, ImpactIndicator, Loading, NextActionLine, PageHeader, PhaseLabel,
   formatDate, sourceLabel, storyTitle, useAsync, useSessionInfo,
@@ -34,6 +34,13 @@ export function StoriesPage() {
   const [retrieved, setRetrieved] = useState<JiraSyncResult | null>(null);
   const [retrieveError, setRetrieveError] = useState<unknown>(null);
   useEffect(() => { api.getJiraIntegrationStatus().then(setJira).catch(() => setJira(null)); }, []);
+  const canEdit = info.roles.some((r) => r !== "dashboard_viewer");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [withdrawReason, setWithdrawReason] = useState("");
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [withdrawResult, setWithdrawResult] = useState<string | null>(null);
+  const [withdrawError, setWithdrawError] = useState<unknown>(null);
 
   const q = query.get("q") ?? "";
   const phase = query.get("phase") ?? "";
@@ -41,6 +48,7 @@ export function StoriesPage() {
   const health = query.get("health") ?? "";
   const owner = query.get("owner") ?? "";
   const priority = query.get("priority") ?? "";
+  const changeType = query.get("type") ?? "";
   const view = query.get("view") === "board" ? "board" : "list";
   const period = INSIGHT_PERIODS.find((p) => p.key === query.get("period"));
   const showDone = query.get("done") === "1";
@@ -56,16 +64,37 @@ export function StoriesPage() {
       if (phase && lc?.phase !== phase) return false;
       if (domain && (domain === "none" ? c.businessDomainId : c.businessDomainId !== domain)) return false;
       if (priority && c.priority !== priority) return false;
+      if (changeType && c.changeType !== changeType) return false;
       if (owner && lc?.nextAction.owner !== owner) return false;
       if (health === "attention" && !(lc && lc.nextAction.owner !== "jade" && lc.nextAction.kind !== "none")) return false;
       if (health === "stuck" && lc?.health !== "blocked" && lc?.health !== "failed") return false;
       if (health && health !== "attention" && health !== "stuck" && lc?.health !== health) return false;
       return true;
     });
-  }, [data, q, phase, domain, health, owner, priority, showDone, info, period]);
+  }, [data, q, phase, domain, health, owner, priority, changeType, showDone, info, period]);
 
   const doneCount = (data ?? []).filter((c) => c.lifecycle?.phase === "done").length;
-  const filtered = !!(q || phase || domain || health || owner || priority);
+  const filtered = !!(q || phase || domain || health || owner || priority || changeType);
+
+  const selectable = canEdit && phase === "understand" && view === "list";
+  const withdrawable = (c: Change) => c.lifecycle?.phase === "understand" && !c.userStory
+    && !["receiving", "improving", "checking"].includes(c.processingStage ?? "");
+  const toggle = (id: string) => setSelected((cur) => {
+    const next = new Set(cur);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const visibleSelected = rows.filter((c) => selected.has(c.id)).map((c) => c.id);
+
+  async function withdraw() {
+    setWithdrawing(true); setWithdrawError(null);
+    try {
+      const r = await api.withdrawRequests(visibleSelected, withdrawReason.trim());
+      setWithdrawResult(`${r.withdrawn.length} request${r.withdrawn.length === 1 ? "" : "s"} withdrawn.`
+        + (r.refused.length ? ` Not withdrawn: ${r.refused.map((x) => `${x.id} (${x.reason})`).join(", ")}.` : ""));
+      setSelected(new Set()); setWithdrawOpen(false); setWithdrawReason(""); reload();
+    } catch (e) { setWithdrawError(e); } finally { setWithdrawing(false); }
+  }
 
   async function retrieve() {
     setRetrieving(true); setRetrieveError(null);
@@ -88,7 +117,33 @@ export function StoriesPage() {
       {retrieveError !== null && <ErrorState error={retrieveError} title="Could not retrieve new requests" />}
       {retrieved && (
         <div className="noticebar ok">{retrieved.imported.length} new request{retrieved.imported.length === 1 ? "" : "s"} imported
-          ({retrieved.considered} found in Jira).{retrieved.errors.length > 0 && ` ${retrieved.errors.length} could not be imported.`}</div>
+          ({retrieved.considered} found in Jira).{retrieved.errors.length > 0 && ` ${retrieved.errors.length} had a problem — see Administration › Systems & Connections › Jira.`}</div>
+      )}
+      {withdrawResult && <div className="noticebar ok">{withdrawResult}</div>}
+      {withdrawError !== null && <ErrorState error={withdrawError} title="Could not withdraw the requests" />}
+      {selectable && visibleSelected.length > 0 && (
+        <div className="selectionbar" role="region" aria-label="Selected requests">
+          <strong>{visibleSelected.length} selected</strong>
+          {!withdrawOpen ? (
+            <>
+              <button className="btn" onClick={() => setWithdrawOpen(true)}>Withdraw…</button>
+              <button className="linkbutton" onClick={() => setSelected(new Set())}>Clear selection</button>
+            </>
+          ) : (
+            <>
+              <input type="text" aria-label="Reason for withdrawing" placeholder="Reason, e.g. test import, duplicate, not a change"
+                     value={withdrawReason} onChange={(e) => setWithdrawReason(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
+              <button className="btn primary" disabled={withdrawing || !withdrawReason.trim()} onClick={withdraw}>
+                {withdrawing ? "Withdrawing…" : `Withdraw ${visibleSelected.length}`}
+              </button>
+              <button className="linkbutton" onClick={() => setWithdrawOpen(false)}>Cancel</button>
+            </>
+          )}
+          <span className="hint" style={{ flexBasis: "100%" }}>
+            Withdrawn requests leave this list and are kept on record with your name and reason. A Jira ticket stays as it
+            is in Jira and is not imported again.
+          </span>
+        </div>
       )}
 
       <div className="toolbar" role="search">
@@ -117,7 +172,11 @@ export function StoriesPage() {
         </select>
         <select aria-label="Priority" value={priority} onChange={(e) => setQueryParam("priority", e.target.value)}>
           <option value="">Any priority</option>
-          <option>High</option><option>Medium</option><option>Low</option>
+          {[...PRIORITIES].reverse().map((p) => <option key={p}>{p}</option>)}
+        </select>
+        <select aria-label="Change type" value={changeType} onChange={(e) => setQueryParam("type", e.target.value)}>
+          <option value="">Any type</option>
+          {CHANGE_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
         {filtered && <button className="linkbutton" onClick={() => navigate(`/stories${view === "board" ? "?view=board" : ""}`, { replace: true })}>Clear filters</button>}
         <div className="viewswitch" role="group" aria-label="View">
@@ -131,7 +190,10 @@ export function StoriesPage() {
           action={filtered ? <button className="btn" onClick={() => navigate("/stories", { replace: true })}>Clear filters</button> : <Link className="btn primary" to="/stories/new">New request</Link>}>
           {filtered ? "Try fewer filters." : "Stories appear here as requests come in from Jira or are entered by a person."}
         </EmptyState>
-      ) : view === "board" ? <Board rows={rows} /> : <StoryTable rows={rows} />}
+      ) : view === "board" ? <Board rows={rows} /> : (
+        <StoryTable rows={rows} select={selectable ? { selected, toggle, can: withdrawable,
+          setAll: (on) => setSelected(on ? new Set(rows.filter(withdrawable).map((c) => c.id)) : new Set()) } : undefined} />
+      )}
 
       {doneCount > 0 && !phase && (
         <p className="muted" style={{ marginTop: 12 }}>
@@ -143,16 +205,37 @@ export function StoriesPage() {
   );
 }
 
-export function StoryTable({ rows, compact }: { rows: Change[]; compact?: boolean }) {
+interface RowSelection {
+  selected: Set<string>;
+  toggle: (id: string) => void;
+  can: (c: Change) => boolean;
+  setAll: (on: boolean) => void;
+}
+
+export function StoryTable({ rows, compact, select }: { rows: Change[]; compact?: boolean; select?: RowSelection }) {
   const info = useSessionInfo();
+  const eligible = select ? rows.filter(select.can) : [];
+  const allOn = !!select && eligible.length > 0 && eligible.every((c) => select.selected.has(c.id));
   return (
     <div className="tablewrap">
       <table className="data stories">
         <thead>
-          <tr><th>Story</th>{!compact && <th>Business domain</th>}<th>Priority</th><th>Phase</th><th>Health</th><th>Next action</th></tr>
+          <tr>{select && (
+            <th style={{ width: 36 }}>
+              <input type="checkbox" aria-label="Select all requests that can be withdrawn" checked={allOn}
+                     disabled={!eligible.length} onChange={(e) => select.setAll(e.target.checked)} />
+            </th>
+          )}<th>Story</th>{!compact && <th>Business domain</th>}<th>Priority</th><th>Phase</th><th>Health</th><th>Next action</th></tr>
         </thead>
         <tbody>{rows.map((c) => (
-          <tr key={c.id} className="clickable" onClick={(e) => { if ((e.target as HTMLElement).closest("a")) return; navigate(storyPath(c.id)); }}>
+          <tr key={c.id} className="clickable" onClick={(e) => { if ((e.target as HTMLElement).closest("a, input")) return; navigate(storyPath(c.id)); }}>
+            {select && (
+              <td>
+                <input type="checkbox" aria-label={`Select ${c.id}`} checked={select.selected.has(c.id)}
+                       disabled={!select.can(c)} title={select.can(c) ? undefined : "Only requests JADE is not working on can be withdrawn"}
+                       onChange={() => select.toggle(c.id)} />
+              </td>
+            )}
             <td className="storycell">
               <Link to={storyPath(c.id)} className="storylink">{storyTitle(c)}</Link>
               <div className="muted small"><span className="mono">{c.id}</span> · {sourceLabel(c)} · {formatDate(c.updatedAt)}</div>

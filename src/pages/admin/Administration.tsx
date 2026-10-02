@@ -1,3 +1,4 @@
+import { ValidationAdmin } from "../validation/ValidationAdmin";
 import { AgentExecutionSwitches } from "../../components/AgentExecution";
 import { ConnectionHealthCard } from "../../components/visualReview";
 import { KnowledgePage } from "../knowledge/Knowledge";
@@ -54,6 +55,7 @@ const SECTIONS: AdminSection[] = [
     { key: "scope", label: "Scope, approvals & environments", render: () => <ErpLandscape /> },
     { key: "agent-execution", label: "Agent execution", render: () => <AgentExecutionSwitches /> },
   ] },
+  { key: "validation", label: "Validation", what: "Test environments, accounts and assurance policy.", tabs: [{ key: "settings", label: "Settings", render: () => <ValidationAdmin /> }] },
   { key: "operations", label: "Operations", what: "Agent health, runs and cost -- the engine at work.", tabs: [
     { key: "agents", label: "Agent health & runs", render: () => <AgentConfiguration part="operations" /> },
   ] },

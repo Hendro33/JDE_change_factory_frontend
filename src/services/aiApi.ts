@@ -47,6 +47,29 @@ export interface AiConnection {
   serverKeyConfigured: boolean;
 }
 
+export interface AiSpendPeriod {
+  from: string;
+  costUsd: number;
+  runs: number;
+  completed: number;
+  failed: number;
+  blocked: number;
+  running: number;
+  avgDurationMs: number | null;
+}
+
+/** Workspace totals of the estimated AI cost (GET /admin/ai/spend), UTC periods. */
+export interface AiSpend {
+  today: AiSpendPeriod;
+  week: AiSpendPeriod;
+  month: AiSpendPeriod;
+  daily: { date: string; costUsd: number; runs: number }[];
+  monthByDriver: { driver: string; costUsd: number; runs: number }[];
+  monthlyBudgetUsd: number | null;
+  currency: string;
+  costBasis: string;
+}
+
 export interface PackContent {
   description: string;
   instructions: string;
@@ -192,6 +215,9 @@ export const aiApi = {
   },
   async runs(): Promise<AiRun[]> {
     return request<AiRun[]>("/admin/ai/runs", { customerId: await customerId() });
+  },
+  async spend(): Promise<AiSpend> {
+    return request<AiSpend>("/admin/ai/spend", { customerId: await customerId() });
   },
   async health(): Promise<{ roles: RoleHealth[]; runtime: string; provider: string }> {
     return request("/admin/ai/health", { customerId: await customerId() });

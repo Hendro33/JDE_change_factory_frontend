@@ -3,6 +3,7 @@ import {
   EmptyState, Fact, Section, businessNeed, formatDateTime, needText, useSessionInfo,
 } from "../../components/design";
 import { ROUTE_LABEL, cleanAgentText, type StoryCtx } from "./storyContext";
+import { ClassificationFacts } from "../../components/Classification";
 
 /** Seconds-since-epoch (the gate's records) or ISO text, as ISO text. */
 export function isoOf(t: string | number): string {
@@ -122,6 +123,7 @@ export function OverviewTab({ ctx }: { ctx: StoryCtx }) {
             )) : <span className="muted">Not confirmed yet</span>}
           </Fact>
           <Fact label="Source">{change.source}{change.sourceReference ? ` · ${change.sourceReference}` : ""}</Fact>
+          <ClassificationFacts change={change} onSaved={ctx.reload} />
         </Section>
 
         <Section title="Risks and open questions" quiet>

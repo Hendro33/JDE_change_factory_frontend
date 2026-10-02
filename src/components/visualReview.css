@@ -15,10 +15,13 @@
 .vr-section-meta { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
 .vr-section-meta h2 { margin: 0; font-size: 19px; letter-spacing: -.02em; }
 .vr-section-meta > span { color: var(--muted); font-size: 12px; }
-.vr-flow { list-style: none; display: flex; gap: 0; margin: 0 0 24px; padding: 0; flex-wrap: wrap; }
-.vr-flow li { display: flex; gap: 9px; align-items: center; font-size: 12px; font-weight: 650; color: var(--jade-deep); padding: 8px 0; }
-.vr-flow li:not(:last-child)::after { content: ''; width: 28px; height: 1px; background: var(--line-strong); margin: 0 12px; }
+.vr-flow { list-style: none; display: flex; align-items: center; gap: 0; margin: 0 0 28px; padding: 0; width: 100%; }
+/* The steps share the full width: each step plus the line to the next one grows. */
+.vr-flow li { flex: 1 1 0; min-width: 0; display: flex; gap: 12px; align-items: center; font-size: 16px; font-weight: 700; line-height: 1.25; color: var(--jade-deep); padding: 8px 0; }
+.vr-flow li:last-child { flex: 0 1 auto; }
+.vr-flow li:not(:last-child)::after { content: ''; flex: 1 1 24px; min-width: 16px; height: 2px; background: var(--line-strong); margin: 0 16px; }
 .vr-stepno { font-size: 10px; border: 1px solid #bedbcd; background: var(--jade-pale); width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; }
+.vr-flow .vr-stepno { flex: none; font-size: 13px; width: 34px; height: 34px; }
 .vr-flow li:last-child .vr-stepno { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
 .vr-detail { border-top: 1px solid var(--line); padding-top: 13px; margin-top: 14px; }
 .vr-detail > summary { cursor: pointer; font-size: 13px; font-weight: 650; color: var(--jade-dark); padding: 3px 0; }
@@ -94,7 +97,7 @@
   .vr-connector { transform: rotate(90deg); justify-self: start; }
   .vr-impact, .vr-acceptance ol, .vr-integrity-grid, .vr-connections-grid { grid-template-columns: 1fr; }
   .vr-comparison-head { display: none; } .vr-comparison-row { grid-template-columns: 1fr; }
-  .vr-map-node { padding: 12px 0; } .vr-flow li:not(:last-child)::after { width: 12px; margin: 0 8px; }
+  .vr-map-node { padding: 12px 0; } .vr-flow { flex-wrap: wrap; row-gap: 4px; } .vr-flow li, .vr-flow li:last-child { flex: 0 1 auto; font-size: 14px; } .vr-flow li:not(:last-child)::after { flex: 0 0 12px; margin: 0 8px; }
   .vr-pilot .panel { padding: 18px; } .vr-pilot .vr-story-heading h2 { font-size: 21px; }
 }
 

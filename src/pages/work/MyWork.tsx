@@ -1,3 +1,4 @@
+import { validationRequest } from "../../services/validationApi";
 import { useEffect, useState } from "react";
 import { recentStories } from "../../services/recent";
 import { api } from "../../services/api";
@@ -56,6 +57,14 @@ function WorkItem({ c }: { c: Change }) {
  */
 export function MyWorkPage() {
   const info = useSessionInfo();
+  const { data: validationTasks, error: validationError } = useAsync(() => validationRequest<any[]>("/tasks"), [info.session.activeCustomerId]);
+  // A manual acceptance test is ready once its run waits for input; earlier it is still being prepared.
+  const openTests = (validationTasks ?? []).flatMap((r) => r.attempts
+    .filter((a: any) => a.assignee_id === info.session.userId && !a.submitted_at && a.selected && a.body.route === "manual"
+      && ["awaiting_input", "queued", "preflight", "running"].includes(r.status))
+    .map(() => r.status));
+  const readyTests = openTests.filter((status) => status === "awaiting_input").length;
+  const preparingTests = openTests.length - readyTests;
   const { data: work, error } = useAsync(() => api.getMyWork(), []);
   const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
   useEffect(() => {
@@ -66,7 +75,8 @@ export function MyWorkPage() {
   if (!work) return <Loading what="your work" />;
 
   // New requests that only need "Start analysis" are grouped, not listed one by one.
-  const { decisions, otherTasks, newRequests, count } = attentionOf(work);
+  const { decisions, otherTasks, newRequests, count: storyCount } = attentionOf(work);
+  const count = storyCount + readyTests;
   const firstName = info.session.displayName.split(/\s+/)[0];
   const problems = integrations.filter((i) => !i.connected);
   const recent = recentStories(info.session.activeCustomerId);
@@ -80,9 +90,20 @@ export function MyWorkPage() {
         title={count === 0 ? "Nothing needs you right now" : `${count} thing${count === 1 ? "" : "s"} need${count === 1 ? "s" : ""} your attention`}
         subtitle={work.roles.length ? `As ${work.roles.map((r) => ROLE_LABEL[r] ?? r).join(", ")} on this customer.` : "You have no role on this customer yet; ask an administrator."} />
 
+      {openTests.length > 0 && (
+        <Section title="Assigned acceptance tests">
+          <p>
+            {readyTests > 0 && `${readyTests} test${readyTests === 1 ? " awaits" : "s await"} your observations.`}
+            {readyTests > 0 && preparingTests > 0 && " "}
+            {preparingTests > 0 && `${preparingTests} ${preparingTests === 1 ? "is" : "are"} still being prepared and will open once setup scenarios finish.`}
+          </p>
+          <Link className="btn" to="/validation/tasks">Open my acceptance tests</Link>
+        </Section>
+      )}
+      {!!validationError && <p role="alert">Assigned acceptance tests could not be loaded.</p>}
       <div className="mywork-grid">
         <div>
-          {count === 0 ? (
+          {storyCount === 0 ? (
             <EmptyState title="You're up to date">When a story needs your decision or action, it appears here and in the bell at the top.</EmptyState>
           ) : (
             <ul className="worklist">
