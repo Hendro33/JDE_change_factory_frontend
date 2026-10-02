@@ -13,6 +13,7 @@ import {
   Loading,
   NotStated,
   PriorityBadge,
+  PRIORITY_RANK,
 } from "../../components/ui";
 
 export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
@@ -57,7 +58,7 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
 
   const columns: GridColumn[] = [
     { key: "title", header: "Approved story / domain", render: (c) => <><button className="vr-grid-story" title={c.title} onClick={(e) => { e.stopPropagation(); setOpenId(c.id); }}>{c.title}</button><details className="vr-grid-disclosure" onClick={(e) => e.stopPropagation()}><summary>{domainsById.get(reviews.get(c.id)?.businessDomainId ?? "")?.name ?? "Domain not assigned"}</summary><span className="vr-note">Domain Owner: {ownersOf(domainsById.get(reviews.get(c.id)?.businessDomainId ?? ""))}</span></details><span className="vr-note mono">{c.id}</span></>, sortValue: (c) => c.title },
-    { key: "priority", header: "Priority", render: (c) => <PriorityBadge priority={c.priority} />, sortValue: (c) => (({High:3,Medium:2,Low:1} as Record<string,number>)[c.priority] ?? 0) },
+    { key: "priority", header: "Priority", render: (c) => <PriorityBadge priority={c.priority} />, sortValue: (c) => PRIORITY_RANK[c.priority] ?? 0 },
     ...([['businessBenefit','Benefit'],['businessImpact','Business impact'],['technicalImpact','Technical impact']] as const).map(([key,header]) => ({ key, header, render: (c: Change) => <CompactRating rating={c.ratings?.[key]} />, sortValue: (c: Change) => (({High:3,Medium:2,Low:1,Small:1} as Record<string,number>)[c.ratings?.[key]?.confirmed ?? c.ratings?.[key]?.proposed ?? ''] ?? 0) })),
     { key: "complexity", header: "Complexity", render: (c) => <span>{c.complexitySignal || "Not assessed"}</span>, sortValue: (c) => (({High:3,Medium:2,Low:1} as Record<string,number>)[c.complexitySignal] ?? 0) },
     { key: "concerns", header: "Dependencies / concerns", render: (c) => c.architectDecision ? <details className="vr-grid-disclosure" onClick={(e) => e.stopPropagation()}><summary>{c.architectDecision.dependenciesAndConflicts.length || "None identified"}{c.architectDecision.dependenciesAndConflicts.length > 0 ? " recorded" : ""}</summary><ul>{c.architectDecision.dependenciesAndConflicts.map((d,i) => <li key={i}>{d}</li>)}</ul></details> : <span className="vr-note">Awaiting assessment</span> },

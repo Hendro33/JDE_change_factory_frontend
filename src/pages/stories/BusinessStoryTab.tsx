@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type { UserStory } from "../../types/domain";
 import { AskJadePanel } from "../../components/AskJade";
+import { ClassificationFacts } from "../../components/Classification";
 import { DocumentCitations, RequestDocuments } from "../../components/RequestDocuments";
 import { Details, ErrorState, Fact, Section, businessNeed, formatDateTime, useSessionInfo } from "../../components/design";
 import { Link, useLocation } from "../../router";
@@ -71,7 +72,7 @@ export function BusinessStoryTab({ ctx }: { ctx: StoryCtx }) {
               {processes.length ? processes.map((r) => <div key={r.node_key}>{r.path.map((p) => p.name).join(" › ")}</div>)
                 : <a href="#process">{ctx.process?.framework ? "Not confirmed yet — confirm below" : "No process framework active"}</a>}
             </Fact>
-            <Fact label="Priority">{change.priority}</Fact>
+            <ClassificationFacts change={change} onSaved={ctx.reload} />
           </div>
 
           <Section title="User story">

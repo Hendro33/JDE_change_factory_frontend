@@ -350,11 +350,14 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--j
 .impact { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; white-space: nowrap; color: var(--ink-soft); }
 .impact-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
 .impact-bars i { display: block; width: 4px; border-radius: 1px; background: var(--line-strong); }
-.impact-bars i:nth-child(1) { height: 6px; } .impact-bars i:nth-child(2) { height: 10px; } .impact-bars i:nth-child(3) { height: 14px; }
+.impact-bars i:nth-child(1) { height: 5px; } .impact-bars i:nth-child(2) { height: 8px; } .impact-bars i:nth-child(3) { height: 11px; } .impact-bars i:nth-child(4) { height: 14px; }
 .impact.i-low .impact-bars i:nth-child(1),
 .impact.i-medium .impact-bars i:nth-child(-n+2),
-.impact.i-high .impact-bars i { background: var(--ink-soft); }
+.impact.i-high .impact-bars i:nth-child(-n+3) { background: var(--ink-soft); }
 .impact.i-high { color: var(--ink); }
+.impact.i-urgent .impact-bars i { background: var(--stop); }
+.impact.i-urgent { color: var(--stop); }
+.fielderror { color: var(--stop); font-size: 13.5px; margin-top: 4px; }
 .impact-areas { font-weight: 400; color: var(--muted); white-space: normal; }
 
 .nextline { font-size: 14px; color: var(--ink-soft); }

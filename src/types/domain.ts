@@ -101,7 +101,8 @@ export type LifecycleState =
   | "CLOSED"
   | "FAILED";
 
-export type Priority = "High" | "Medium" | "Low";
+export type Priority = "Low" | "Medium" | "High" | "Urgent";
+export const PRIORITIES: Priority[] = ["Low", "Medium", "High", "Urgent"];
 export type Complexity = "Low" | "Medium" | "High" | "Unknown";
 
 /** Which route the Architect selected (design doc Section 4.3). */
@@ -114,12 +115,8 @@ export type ImplementationRoute =
   /** The evidence contradicts the story or a business question is open: a result, not a failure. */
   | "Clarification Required";
 
-export type ChangeType =
-  | "Configuration"
-  | "Functional Change"
-  | "Technical Change"
-  | "Investigation"
-  | "Other";
+export type ChangeType = "Defect" | "Enhancement" | "New Functionality" | "Other";
+export const CHANGE_TYPES: ChangeType[] = ["Defect", "Enhancement", "New Functionality", "Other"];
 
 /**
  * The five business impact criteria (design doc Section 3.6).
@@ -719,6 +716,10 @@ export interface Change {
   changeType: ChangeType;
   state: LifecycleState;
   priority: Priority;
+  /** 0 while nobody has set the priority or change type (the defaults Medium / Other apply). */
+  classificationRevision?: number;
+  classifiedBy?: string | null;
+  classifiedAt?: string | null;
   complexitySignal: Complexity;
   businessImpact: BusinessImpact;
   createdAt: string;

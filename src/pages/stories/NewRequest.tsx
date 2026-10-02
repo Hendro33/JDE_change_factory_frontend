@@ -2,7 +2,7 @@ import { useState } from "react";
 import { DemandNav } from "../demand/DemandNav";
 import { api } from "../../services/api";
 import type { Attachment } from "../../services/aiApi";
-import type { ChangeSource } from "../../types/domain";
+import { CHANGE_TYPES, PRIORITIES, type ChangeSource, type ChangeType, type Priority } from "../../types/domain";
 import { DraftDocuments } from "../../components/RequestDocuments";
 import { ErrorState, PageHeader, Section } from "../../components/design";
 import { Link, navigate, storyPath } from "../../router";
@@ -14,6 +14,8 @@ export function NewRequestPage() {
   const [title, setTitle] = useState("");
   const [source, setSource] = useState<ChangeSource>("Business");
   const [ref, setRef] = useState("");
+  const [priority, setPriority] = useState<Priority>("Medium");
+  const [changeType, setChangeType] = useState<ChangeType | "">("");
   const [request, setRequest] = useState("");
   const [docs, setDocs] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
@@ -24,7 +26,8 @@ export function NewRequestPage() {
     setBusy(true); setError(null);
     try {
       const created = await api.createChange({ title: title.trim(), source, sourceReference: ref.trim(),
-        originalRequest: request.trim(), attachmentIds: docs.map((d) => d.id) });
+        originalRequest: request.trim(), attachmentIds: docs.map((d) => d.id), priority,
+        ...(changeType ? { changeType } : {}) });
       if (analyse) {
         try { await api.enhanceStory(created.id); } catch { /* shown as the next step on the story */ }
       }
@@ -55,6 +58,21 @@ export function NewRequestPage() {
           <div className="field">
             <label htmlFor="nr-ref">Reference <span className="hint">(ticket, email, meeting)</span></label>
             <input id="nr-ref" type="text" value={ref} onChange={(e) => setRef(e.target.value)} placeholder="e.g. Topdesk #4521" />
+          </div>
+        </div>
+        <div className="fieldrow">
+          <div className="field">
+            <label htmlFor="nr-priority">Priority</label>
+            <select id="nr-priority" value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
+              {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="nr-type">Change type</label>
+            <select id="nr-type" value={changeType} onChange={(e) => setChangeType(e.target.value as ChangeType | "")}>
+              <option value="">Not sure yet</option>
+              {CHANGE_TYPES.map((t) => <option key={t}>{t}</option>)}
+            </select>
           </div>
         </div>
         <div className="field">
