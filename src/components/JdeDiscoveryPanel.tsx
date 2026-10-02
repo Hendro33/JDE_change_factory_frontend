@@ -25,6 +25,11 @@ import { Details } from "./design";
 
 const tone: Record<string, string> = { ok: "ok", failed: "stop", unknown: "grey", stale: "warn" };
 
+const CONNECTION_TONE: Record<string, string> = {
+  connected: "ok", network_unavailable: "stop", certificate_problem: "stop", authentication_failed: "stop",
+  environment_mismatch: "warn", not_tested: "grey",
+};
+
 function blankConfig(): JdeProfileConfig {
   const start = new Date();
   const end = new Date(start.getTime() + 7 * 24 * 3600 * 1000);
@@ -414,6 +419,15 @@ export function JdeDiscoveryPanel() {
       )}
       {view.configured && cfg && (
         <div className="stack">
+          {view.connectionStatus && (
+            <div className={`jdestatus ${CONNECTION_TONE[view.connectionStatus.state] ?? "grey"}`} role="status">
+              <span className={`badge ${CONNECTION_TONE[view.connectionStatus.state] ?? "grey"}`}>{view.connectionStatus.label}</span>
+              {view.connectionStatus.detail && <span>{view.connectionStatus.detail}</span>}
+              {view.health.reachability?.checkedAt && (
+                <span className="hint">last checked {new Date(view.health.reachability.checkedAt).toLocaleString("en-GB")}</span>
+              )}
+            </div>
+          )}
           <div style={{ fontSize: 15 }}>
             <span className="badge info" style={{ fontSize: 13 }}>{view.modeLabel || "LIVE customer AIS endpoint"}</span>{" "}
             <span className={`badge ${view.discoveryEnabled ? "ok" : "grey"}`}>

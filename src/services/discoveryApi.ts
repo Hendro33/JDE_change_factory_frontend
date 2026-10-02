@@ -144,6 +144,12 @@ export interface JdeProfileView {
   /** Connectivity, Identity, JDE authorisation, Network restriction, Jade runtime safeguards. */
   readiness: ReadinessGroup[];
   ready: boolean;
+  /** One plain status from the last Test Connection and sample read. */
+  connectionStatus?: {
+    state: "connected" | "network_unavailable" | "certificate_problem" | "authentication_failed" | "environment_mismatch" | "not_tested";
+    label: string;
+    detail: string;
+  };
   /** The uploaded AIS certificate in use (snake_case inner keys), or null. */
   certificate?: (CertificateSummary & { coversHost?: boolean; missing?: boolean }) | null;
   /** False when the saved password was entered for another address or certificate. */
