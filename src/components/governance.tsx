@@ -5,7 +5,7 @@
  * and the change timeline. Styled by the current design tokens.
  */
 import type { ReactNode } from "react";
-import type { LifecycleState } from "../types/domain";
+import type { LifecycleState, Priority } from "../types/domain";
 
 const STATE_LABELS: Record<LifecycleState, string> = {
   RECEIVED: "Received",
@@ -75,8 +75,10 @@ export const DOMAIN_STAGE_LABEL: Record<string, string> = {
   application_manager_rejected: "Application Manager rejected — will not proceed",
 };
 
-export function PriorityBadge({ priority }: { priority: "High" | "Medium" | "Low" }) {
-  const tone = priority === "High" ? "stop" : priority === "Medium" ? "warn" : "ok";
+export const PRIORITY_RANK: Record<Priority, number> = { Urgent: 4, High: 3, Medium: 2, Low: 1 };
+
+export function PriorityBadge({ priority }: { priority: Priority }) {
+  const tone = ({ Urgent: "stop", High: "warn", Medium: "info", Low: "ok" } as const)[priority] ?? "grey";
   return <span className={`badge ${tone}`}>{priority}</span>;
 }
 

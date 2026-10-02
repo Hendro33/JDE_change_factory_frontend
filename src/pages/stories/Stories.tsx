@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DemandNav } from "../demand/DemandNav";
 import { api } from "../../services/api";
 import type { Change, Health, JiraConnectionStatus, JiraSyncResult, Phase } from "../../types/domain";
-import { PHASES } from "../../types/domain";
+import { CHANGE_TYPES, PHASES, PRIORITIES } from "../../types/domain";
 import {
   EmptyState, ErrorState, HealthIndicator, ImpactIndicator, Loading, NextActionLine, PageHeader, PhaseLabel,
   formatDate, sourceLabel, storyTitle, useAsync, useSessionInfo,
@@ -41,6 +41,7 @@ export function StoriesPage() {
   const health = query.get("health") ?? "";
   const owner = query.get("owner") ?? "";
   const priority = query.get("priority") ?? "";
+  const changeType = query.get("type") ?? "";
   const view = query.get("view") === "board" ? "board" : "list";
   const period = INSIGHT_PERIODS.find((p) => p.key === query.get("period"));
   const showDone = query.get("done") === "1";
@@ -56,16 +57,17 @@ export function StoriesPage() {
       if (phase && lc?.phase !== phase) return false;
       if (domain && (domain === "none" ? c.businessDomainId : c.businessDomainId !== domain)) return false;
       if (priority && c.priority !== priority) return false;
+      if (changeType && c.changeType !== changeType) return false;
       if (owner && lc?.nextAction.owner !== owner) return false;
       if (health === "attention" && !(lc && lc.nextAction.owner !== "jade" && lc.nextAction.kind !== "none")) return false;
       if (health === "stuck" && lc?.health !== "blocked" && lc?.health !== "failed") return false;
       if (health && health !== "attention" && health !== "stuck" && lc?.health !== health) return false;
       return true;
     });
-  }, [data, q, phase, domain, health, owner, priority, showDone, info, period]);
+  }, [data, q, phase, domain, health, owner, priority, changeType, showDone, info, period]);
 
   const doneCount = (data ?? []).filter((c) => c.lifecycle?.phase === "done").length;
-  const filtered = !!(q || phase || domain || health || owner || priority);
+  const filtered = !!(q || phase || domain || health || owner || priority || changeType);
 
   async function retrieve() {
     setRetrieving(true); setRetrieveError(null);
@@ -117,7 +119,11 @@ export function StoriesPage() {
         </select>
         <select aria-label="Priority" value={priority} onChange={(e) => setQueryParam("priority", e.target.value)}>
           <option value="">Any priority</option>
-          <option>High</option><option>Medium</option><option>Low</option>
+          {[...PRIORITIES].reverse().map((p) => <option key={p}>{p}</option>)}
+        </select>
+        <select aria-label="Change type" value={changeType} onChange={(e) => setQueryParam("type", e.target.value)}>
+          <option value="">Any type</option>
+          {CHANGE_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
         {filtered && <button className="linkbutton" onClick={() => navigate(`/stories${view === "board" ? "?view=board" : ""}`, { replace: true })}>Clear filters</button>}
         <div className="viewswitch" role="group" aria-label="View">

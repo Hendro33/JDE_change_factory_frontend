@@ -41,7 +41,7 @@ import type {
   Session,
   UpdateMembershipInput,
   UserStory, CustomerInput, Customer, MyWork, AgentInventoryEntry } from "../types/domain";
-import type { ChangeFactoryApi, CreateChangeInput, DecisionInput } from "./api";
+import type { ChangeFactoryApi, ClassificationInput, CreateChangeInput, DecisionInput } from "./api";
 import { RevisionConflictError } from "./saveErrors";
 
 /**
@@ -309,6 +309,12 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     }
   }
 
+  async setClassification(id: string, input: ClassificationInput): Promise<Change> {
+    return request<Change>(`/changes/${encodeURIComponent(id)}/classification`, {
+      method: "PUT", customerId: await this.activeCustomerId(), body: input,
+    });
+  }
+
   async createChange(input: CreateChangeInput): Promise<Change> {
     const customerId = await this.activeCustomerId();
     const created = await request<{ id: string }>("/change-requests", {
@@ -320,6 +326,8 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
         sourceReference: input.sourceReference,
         rawContent: input.originalRequest,
         attachmentIds: input.attachmentIds ?? [],
+        ...(input.priority ? { priority: input.priority } : {}),
+        ...(input.changeType ? { changeType: input.changeType } : {}),
       },
     });
     // The API returns the ChangeRequest, not a Change -- fetch it back

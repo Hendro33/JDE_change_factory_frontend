@@ -273,7 +273,7 @@ export function NextActionLine({ lifecycle }: { lifecycle?: Lifecycle | null }) 
 /* Business context                                                      */
 /* ------------------------------------------------------------------ */
 
-/** Priority as Jade's agents assessed it from the stated business impact. */
+/** The story's priority as people set it (four steps), with the impact areas the requester stated. */
 export function ImpactIndicator({ change, showAreas }: { change: Change; showAreas?: boolean }) {
   const bi = change.businessImpact;
   const areas = [
@@ -282,7 +282,7 @@ export function ImpactIndicator({ change, showAreas }: { change: Change; showAre
   ].filter(([, v]) => v && String(v).trim()).map(([k]) => k as string);
   return (
     <span className={`impact i-${change.priority.toLowerCase()}`}>
-      <span className="impact-bars" aria-hidden="true"><i /><i /><i /></span>
+      <span className="impact-bars" aria-hidden="true"><i /><i /><i /><i /></span>
       {change.priority} priority
       {showAreas && areas.length > 0 && <span className="impact-areas"> · {areas.join(", ")}</span>}
     </span>

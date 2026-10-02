@@ -175,6 +175,6 @@ export { Loading } from "./design";
 
 // Governance widgets used by the Application Management and User Story Review screens.
 export {
-  StateBadge, stateLabel, PIPELINE_STATES, DOMAIN_STAGE_LABEL, PriorityBadge, Kpi, ColumnChart, DonutChart,
+  StateBadge, stateLabel, PIPELINE_STATES, DOMAIN_STAGE_LABEL, PriorityBadge, PRIORITY_RANK, Kpi, ColumnChart, DonutChart,
   BarList, FlowSteps, PipelineFlow, Timeline, type TimelineItem,
 } from "./governance";
