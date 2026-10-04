@@ -820,3 +820,9 @@ a.iconbtn.on { color: var(--jade-deep); border-color: var(--jade); box-shadow: i
 
 /* Requests: actions on selected rows */
 .selectionbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 12px; border: 1px solid var(--jade); border-radius: var(--radius); background: var(--jade-pale); }
+
+/* JD Edwards connection: the one plain status */
+.jdestatus { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--line); border-left-width: 4px; background: var(--panel); }
+.jdestatus.ok { border-left-color: var(--ok); } .jdestatus.stop { border-left-color: var(--stop); }
+.jdestatus.warn { border-left-color: var(--warn); } .jdestatus.grey { border-left-color: var(--line-strong); }
+.jdestatus .badge { font-size: 14px; }

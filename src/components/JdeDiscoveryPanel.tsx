@@ -25,6 +25,11 @@ import { Details } from "./design";
 
 const tone: Record<string, string> = { ok: "ok", failed: "stop", unknown: "grey", stale: "warn" };
 
+const CONNECTION_TONE: Record<string, string> = {
+  connected: "ok", network_unavailable: "stop", certificate_problem: "stop", authentication_failed: "stop",
+  environment_mismatch: "warn", not_tested: "grey",
+};
+
 function blankConfig(): JdeProfileConfig {
   const start = new Date();
   const end = new Date(start.getTime() + 7 * 24 * 3600 * 1000);
@@ -36,7 +41,7 @@ function blankConfig(): JdeProfileConfig {
     runtimeAttestationEvidence: "", evidenceArtifactIds: [], approvedReads: [],
     dedicatedAccount: { username: "", role: "", verifiedBy: "", verifiedOn: "", method: "", permitsApprovedReads: false,
       rejectsProhibitedOperations: false, evidenceArtifactIds: [], notes: "" },
-    networkRestriction: { backendSourceAddress: "", restrictedToSource: false, evidence: "", evidenceArtifactIds: [] },
+    networkRestriction: { backendSourceAddress: "", restrictedToSource: false, evidence: "", evidenceArtifactIds: [], trialException: false, trialExceptionReason: "" },
     discoveryWindow: { startsAt: start.toISOString(), endsAt: end.toISOString() },
     limits: { maxRecords: 10, timeoutSeconds: 15, concurrentRequests: 1 }, dataSharingPolicy: "metadata_only",
   };
@@ -106,6 +111,7 @@ const KIND_LABEL: Record<string, string> = {
   configuration: "Configuration",
   server_managed: "Server-managed -- set by whoever runs the backend, not in this browser",
   evidence: "Evidence -- a verification record with a linked document",
+  accepted_exception: "Accepted exception -- an isolated trial, accepted by an Admin with a reason",
 };
 
 /** The five separately visible readiness statuses. Passing TLS, sign-in or attestations alone never makes a connection ready. */
@@ -122,8 +128,8 @@ function Readiness({ groups, ready }: { groups: ReadinessGroup[]; ready: boolean
             <ul style={{ listStyle: "none", paddingLeft: 0, margin: "4px 0 0" }}>
               {g.items.map((i) => (
                 <li key={i.id} style={{ fontSize: 13 }}>
-                  <span className={`badge ${i.satisfied ? "ok" : i.required === false ? "grey" : "stop"}`}>
-                    {i.satisfied ? "ok" : i.required === false ? "not required" : "missing"}</span> {i.label}
+                  <span className={`badge ${i.satisfied ? (i.kind === "accepted_exception" ? "warn" : "ok") : i.required === false ? "grey" : "stop"}`}>
+                    {i.satisfied ? (i.kind === "accepted_exception" ? "accepted exception" : "ok") : i.required === false ? "not required" : "missing"}</span> {i.label}
                   <span className="hint"> ({(i.kind ?? "").replace(/_/g, " ")}) -- {i.detail}</span>
                 </li>
               ))}
@@ -414,6 +420,15 @@ export function JdeDiscoveryPanel() {
       )}
       {view.configured && cfg && (
         <div className="stack">
+          {view.connectionStatus && (
+            <div className={`jdestatus ${CONNECTION_TONE[view.connectionStatus.state] ?? "grey"}`} role="status">
+              <span className={`badge ${CONNECTION_TONE[view.connectionStatus.state] ?? "grey"}`}>{view.connectionStatus.label}</span>
+              {view.connectionStatus.detail && <span>{view.connectionStatus.detail}</span>}
+              {view.health.reachability?.checkedAt && (
+                <span className="hint">last checked {new Date(view.health.reachability.checkedAt).toLocaleString("en-GB")}</span>
+              )}
+            </div>
+          )}
           <div style={{ fontSize: 15 }}>
             <span className="badge info" style={{ fontSize: 13 }}>{view.modeLabel || "LIVE customer AIS endpoint"}</span>{" "}
             <span className={`badge ${view.discoveryEnabled ? "ok" : "grey"}`}>
@@ -439,7 +454,9 @@ export function JdeDiscoveryPanel() {
             <dt>Dedicated JDE account</dt><dd>{cfg.dedicatedAccount.username
               ? <><span className="mono">{cfg.dedicatedAccount.username} / {cfg.dedicatedAccount.role}</span> <span className="hint">verified by {cfg.dedicatedAccount.verifiedBy || "—"} on {cfg.dedicatedAccount.verifiedOn || "—"} ({cfg.dedicatedAccount.method.replace(/_/g, " ") || "no method"}), {cfg.dedicatedAccount.evidenceArtifactIds.length} evidence document(s)</span></>
               : <span className="notstated">no verification recorded</span>}</dd>
-            <dt>Network restriction</dt><dd>{cfg.networkRestriction.backendSourceAddress
+            <dt>Network restriction</dt><dd>{cfg.environmentPurpose === "isolated_trial" && cfg.networkRestriction.trialException
+              ? <><span className="badge warn">accepted trial exception</span> <span className="hint">{cfg.networkRestriction.trialExceptionReason}</span></>
+              : cfg.networkRestriction.backendSourceAddress
               ? <>AIS restricted to <span className="mono">{cfg.networkRestriction.backendSourceAddress}</span>{cfg.networkRestriction.restrictedToSource ? "" : " (not confirmed)"} <span className="hint">{cfg.networkRestriction.evidence}</span></>
               : <span className="notstated">not recorded</span>}</dd>
             <dt>Authentication</dt><dd>{view.authMethods.find((m) => m.id === cfg.authMethod)?.label} · {view.credentialConfigured
@@ -651,12 +668,34 @@ export function JdeDiscoveryPanel() {
           </fieldset>
 
           <fieldset><legend>Network restriction</legend>
+            {form.environmentPurpose === "isolated_trial" && (
+              <div className="callout" style={{ marginBottom: 10 }}>
+                <label style={{ display: "flex", gap: 6, fontWeight: 600 }}>
+                  <input type="checkbox" aria-label="Accept trial network exception" checked={!!form.networkRestriction.trialException}
+                         onChange={(e) => setNet({ trialException: e.target.checked })} />
+                  Isolated trial: accept that AIS is not restricted to Jade's backend address
+                </label>
+                <div className="hint">
+                  For a trial environment without customer data you can skip the firewall restriction. It is recorded with your name and
+                  shown as an accepted exception on the readiness checks. The certificate, sign-in and read-only checks still apply.
+                </div>
+                {form.networkRestriction.trialException && (
+                  <label className="field" style={{ marginTop: 8 }}>Reason
+                    <input aria-label="Trial exception reason" value={form.networkRestriction.trialExceptionReason ?? ""}
+                           onChange={(e) => setNet({ trialExceptionReason: e.target.value })}
+                           placeholder="e.g. ConsultIQ OCI trial instance, no customer data; Azure DEV has no fixed outbound address yet" />
+                  </label>
+                )}
+              </div>
+            )}
+            {!(form.environmentPurpose === "isolated_trial" && form.networkRestriction.trialException) && (<>
             <div className="grid halves">
               <label className="field">Backend source address <span className="hint">(the address JDE sees requests come from)</span><input aria-label="Backend source address" value={form.networkRestriction.backendSourceAddress} onChange={(e) => setNet({ backendSourceAddress: e.target.value })} /></label>
               <label className="field">Evidence<input aria-label="Network restriction evidence" value={form.networkRestriction.evidence} onChange={(e) => setNet({ evidence: e.target.value })} placeholder="e.g. firewall rule allowing the AIS port from that address only" /></label>
             </div>
             <label style={{ display: "flex", gap: 6, fontWeight: 400 }}><input type="checkbox" aria-label="Restricted to source" checked={form.networkRestriction.restrictedToSource} onChange={(e) => setNet({ restrictedToSource: e.target.checked })} />AIS access is restricted to that source address</label>
             <DocChooser label="Network evidence documents" documents={documents} selected={form.networkRestriction.evidenceArtifactIds} onChange={(ids) => setNet({ evidenceArtifactIds: ids })} />
+            </>)}
           </fieldset>
 
           <fieldset><legend>Approved discovery reads</legend>

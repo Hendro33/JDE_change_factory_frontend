@@ -71,6 +71,9 @@ export interface NetworkRestriction {
   restrictedToSource: boolean;
   evidence: string;
   evidenceArtifactIds: string[];
+  /** Isolated trial only: the Admin accepts, with a reason, that AIS is not restricted to Jade's address. */
+  trialException?: boolean;
+  trialExceptionReason?: string;
 }
 
 export interface VerificationItem {
@@ -144,6 +147,12 @@ export interface JdeProfileView {
   /** Connectivity, Identity, JDE authorisation, Network restriction, Jade runtime safeguards. */
   readiness: ReadinessGroup[];
   ready: boolean;
+  /** One plain status from the last Test Connection and sample read. */
+  connectionStatus?: {
+    state: "connected" | "network_unavailable" | "certificate_problem" | "authentication_failed" | "environment_mismatch" | "not_tested";
+    label: string;
+    detail: string;
+  };
   /** The uploaded AIS certificate in use (snake_case inner keys), or null. */
   certificate?: (CertificateSummary & { coversHost?: boolean; missing?: boolean }) | null;
   /** False when the saved password was entered for another address or certificate. */
@@ -168,7 +177,7 @@ export interface SampleReadPreview {
 
 export interface Prerequisite {
   id: string; label: string; satisfied: boolean; detail: string; required?: boolean;
-  kind?: "customer_attestation" | "machine_verified" | "configuration" | "server_managed" | "evidence";
+  kind?: "customer_attestation" | "machine_verified" | "configuration" | "server_managed" | "evidence" | "accepted_exception";
 }
 
 export interface SampleReadInput {
