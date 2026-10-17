@@ -34,8 +34,12 @@ export interface FrameworkList {
 }
 
 export interface Inspection {
-  sheets: { sheet: string; headers: string[]; rows: number; proposed_mapping: Record<string, string | null> }[];
+  sheets: { sheet: string; headers: string[]; rows: number; proposed_mapping: Record<string, string | null>; proposed_derive_parent?: boolean }[];
   default_sheet: string | null; fields: string[]; required_fields: string[]; field_labels: Record<string, string>;
+  /** The workbook has a "PCF ID" column (an APQC Process Classification Framework export). */
+  looks_like_apqc?: boolean;
+  /** A sheet with a Definition per Hierarchy ID, used for descriptions when none is mapped. */
+  description_source?: string | null;
 }
 
 export interface VersionPreview {
@@ -165,6 +169,11 @@ export const processApi = {
   },
   async version(frameworkId: string, version: number): Promise<VersionPreview> {
     return request<VersionPreview>(`/process/frameworks/${enc(frameworkId)}/versions/${version}`, { customerId: await customer() });
+  },
+  /** Business domains from chosen processes of an active version (existing codes are kept, never duplicated). */
+  async createDomains(frameworkId: string, version: number, nodeKeys: string[]): Promise<{ created: { code: string; name: string; id: string }[]; existing: { code: string; name: string; id: string }[] }> {
+    return request(`/process/frameworks/${enc(frameworkId)}/versions/${version}/domains`, {
+      method: "POST", customerId: await customer(), body: { nodeKeys } });
   },
   async activate(frameworkId: string, version: number): Promise<VersionPreview> {
     return request<VersionPreview>(`/process/frameworks/${enc(frameworkId)}/versions/${version}/activate`, {

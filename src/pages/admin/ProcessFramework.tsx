@@ -77,6 +77,67 @@ function NodeDetail({ fw, preview, nodeKey }: { fw: Framework; preview: VersionP
   );
 }
 
+/** Turn processes of an active framework version into the company's business domains. */
+function DomainsPanel({ fw, preview }: { fw: Framework; preview: VersionPreview }) {
+  const levels = useMemo(() => Array.from(new Set(preview.nodes.map((n) => n.level))).sort((a, b) => a - b).slice(0, 3), [preview.nodes]);
+  const [level, setLevel] = useState(levels[0] ?? 1);
+  const [existing, setExisting] = useState<Set<string>>(new Set());
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const atLevel = preview.nodes.filter((n) => n.level === level);
+  const loadExisting = () => api.listBusinessDomains().then((ds) => setExisting(new Set(ds.map((d) => d.apqcCode)))).catch(() => setExisting(new Set()));
+  useEffect(() => { loadExisting(); }, []);
+  useEffect(() => { setPicked(new Set(atLevel.filter((n) => !existing.has(n.node_key)).map((n) => n.node_key))); }, [level, existing, preview.version.version]);
+  const toggle = (k: string) => { const next = new Set(picked); if (next.has(k)) next.delete(k); else next.add(k); setPicked(next); };
+  const label = (l: number) => l === 1 ? "Level 1 -- categories" : l === 2 ? "Level 2 -- process groups" : `Level ${l} -- processes`;
+
+  async function create() {
+    setBusy(true); setResult(null);
+    try {
+      const r = await processApi.createDomains(fw.framework_id, preview.version.version, Array.from(picked));
+      setResult({ ok: true, text: `Created ${r.created.length} business domain(s)` + (r.existing.length ? `; ${r.existing.length} already existed and were left as they are` : "") + ". Assign Domain Owners in Organisation › Users." });
+      await loadExisting();
+    } catch (e) { setResult({ ok: false, text: saveErrorMessage(e, "Refused.") }); } finally { setBusy(false); }
+  }
+
+  return (
+    <section className="panel" aria-label="Business domains from this framework">
+      <h2 style={{ marginTop: 0 }}>Business domains from this framework</h2>
+      <p className="hint">Choose the level that matches how this company organises its business, then the processes that are its
+        business domains. Each becomes a domain with the process ID as its code, and its name and description. Domains that
+        already exist are never duplicated or changed; you can retire or add domains later under Business Model.</p>
+      <div className="btnrow" style={{ marginBottom: 8 }}>
+        <label htmlFor="dom-level">Level</label>
+        <select id="dom-level" value={level} onChange={(e) => setLevel(Number(e.target.value))}>
+          {levels.map((l) => <option key={l} value={l}>{label(l)} ({preview.nodes.filter((n) => n.level === l).length})</option>)}
+        </select>
+        <button className="btn small" onClick={() => setPicked(new Set(atLevel.filter((n) => !existing.has(n.node_key)).map((n) => n.node_key)))}>Select all</button>
+        <button className="btn small" onClick={() => setPicked(new Set())}>Select none</button>
+      </div>
+      <div style={{ maxHeight: 360, overflowY: "auto", border: "1px solid var(--line)", borderRadius: 6, padding: 6 }}>
+        {atLevel.map((n) => {
+          const parent = n.parent_key ? preview.nodes.find((p) => p.node_key === n.parent_key) : undefined;
+          const has = existing.has(n.node_key);
+          return (
+            <label key={n.node_key} style={{ display: "flex", gap: 8, fontWeight: 400, padding: "2px 0", opacity: has ? 0.6 : 1 }}>
+              <input type="checkbox" aria-label={`Domain ${n.node_key}`} disabled={has} checked={!has && picked.has(n.node_key)} onChange={() => toggle(n.node_key)} />
+              <span><span className="mono">{n.node_key}</span> {n.name}
+                {parent && <span className="hint"> · in {parent.node_key} {parent.name}</span>}
+                {has && <span className="badge grey" style={{ marginLeft: 6 }}>already a domain</span>}</span>
+            </label>
+          );
+        })}
+      </div>
+      <div className="btnrow" style={{ marginTop: 8 }}>
+        <button className="btn primary" disabled={busy || picked.size === 0} onClick={create}>
+          {busy ? "Creating…" : `Create ${picked.size} business domain${picked.size === 1 ? "" : "s"}`}</button>
+      </div>
+      {result && <div className="callout" role="status" style={{ marginTop: 8, borderColor: result.ok ? "var(--ok)" : "var(--stop)" }}>{result.text}</div>}
+    </section>
+  );
+}
+
 function ImportPanel({ list, onDone }: { list: FrameworkList; onDone: (p: VersionPreview) => void }) {
   const [file, setFile] = useState<{ name: string; b64: string } | null>(null);
   const [insp, setInsp] = useState<Inspection | null>(null);
@@ -102,7 +163,13 @@ function ImportPanel({ list, onDone }: { list: FrameworkList; onDone: (p: Versio
       setInsp(i);
       const s = i.default_sheet ?? i.sheets[0]?.sheet ?? "";
       setSheet(s);
-      setMapping(i.sheets.find((x) => x.sheet === s)?.proposed_mapping ?? {});
+      const chosen = i.sheets.find((x) => x.sheet === s);
+      setMapping(chosen?.proposed_mapping ?? {});
+      setDerive(!!chosen?.proposed_derive_parent);
+      if (i.looks_like_apqc) {
+        setKind("apqc_authorised");
+        setName((cur) => cur || f.name.replace(/\.xlsx$/i, "").replace(/_/g, " "));
+      }
     } catch (e) { setError(saveErrorMessage(e, "Could not read the workbook.")); }
   }
 
@@ -163,10 +230,13 @@ function ImportPanel({ list, onDone }: { list: FrameworkList; onDone: (p: Versio
             <input id="pf-statement" value={statement} onChange={(e) => setStatement(e.target.value)}
                    placeholder="e.g. licence reference, or who owns this hierarchy" />
             <label htmlFor="pf-sheet">Sheet</label>
-            <select id="pf-sheet" value={sheet} onChange={(e) => { setSheet(e.target.value); setMapping(insp.sheets.find((s) => s.sheet === e.target.value)?.proposed_mapping ?? {}); }}>
+            <select id="pf-sheet" value={sheet} onChange={(e) => { setSheet(e.target.value); const sh = insp.sheets.find((s) => s.sheet === e.target.value); setMapping(sh?.proposed_mapping ?? {}); setDerive(!!sh?.proposed_derive_parent); }}>
               {insp.sheets.map((s) => <option key={s.sheet} value={s.sheet}>{s.sheet} ({s.rows} rows)</option>)}
             </select>
           </div>
+          {insp.looks_like_apqc && <div className="callout">Recognised as an APQC Process Classification Framework workbook: the
+            combined hierarchy sheet is chosen, parents follow the numbering (4.0 → 4.1 → 4.1.1){insp.description_source ? <>, and
+            descriptions come from the "{insp.description_source}" sheet</> : null}. Check the mapping below, then validate.</div>}
           <h3>Column mapping</h3>
           <table className="grid"><tbody>
             {insp.fields.map((f) => (
@@ -300,6 +370,8 @@ export function ProcessFramework() {
           </div>
         </section>
       )}
+
+      {isAdmin && fw && preview && preview.version.status === "active" && <DomainsPanel fw={fw} preview={preview} />}
 
       {isAdmin ? <ImportPanel list={list} onDone={(p) => {
         setNotice(`Activated ${p.framework.name} version ${p.version.version}.` + (p.affected_stories?.length
