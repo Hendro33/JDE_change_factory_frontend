@@ -13,6 +13,8 @@ export interface ExecutionConfig {
   /** sha256 of the web client's certificate uploaded for this customer; "" = the AIS certificate or public CAs. */
   webCaCertificateSha256: string;
   writeRole: string;
+  /** The web client user's role; "" = the write role. */
+  browserRole: string;
   notes: string;
 }
 
@@ -45,6 +47,10 @@ export interface ExecutionView {
   writeUserConfigured: boolean;
   writeUserMasked?: string | null;
   writeUserStorage: string;
+  /** Optional separate user for the web client and Web OMW (else the write user). */
+  browserUserConfigured: boolean;
+  browserUserMasked?: string | null;
+  browserUserStorage: string;
   agentExecutionEnabled: boolean;
   capabilities: ExecutionCapability[];
   checks: Record<string, ExecutionCheck>;
@@ -86,6 +92,12 @@ export const executionApi = {
   /** The password goes to the server once and is never read back. */
   async saveWriteUser(username: string, password: string, expectedRevision: number): Promise<ExecutionView> {
     return request<ExecutionView>("/admin/jde/execution/write-user", {
+      method: "PUT", customerId: await customer(), body: { username, password, expectedRevision },
+    });
+  },
+  /** The optional web client / Web OMW user; the password is never read back. */
+  async saveBrowserUser(username: string, password: string, expectedRevision: number): Promise<ExecutionView> {
+    return request<ExecutionView>("/admin/jde/execution/browser-user", {
       method: "PUT", customerId: await customer(), body: { username, password, expectedRevision },
     });
   },

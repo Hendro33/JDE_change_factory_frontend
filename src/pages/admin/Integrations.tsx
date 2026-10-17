@@ -5,8 +5,7 @@ import { Loading } from "../../components/ui";
 import { saveErrorMessage } from "../../services/saveErrors";
 import { HttpError } from "../../services/httpApi";
 import { useSessionInfo } from "../../components/design";
-import { JdeDiscoveryPanel } from "../../components/JdeDiscoveryPanel";
-import { AgentExecutionPanel } from "../../components/AgentExecution";
+import { JdeConnectionSetup } from "../../components/JdeConnectionSetup";
 
 /**
  * Client-side mirror of the backend's own check (jira_gateway.
@@ -233,8 +232,7 @@ export function Integrations({ part = "all" }: { part?: "jde" | "jira" | "all" }
         </section>
       ))}
 
-      {part !== "jira" && <JdeDiscoveryPanel />}
-      {part !== "jira" && <AgentExecutionPanel />}
+      {part !== "jira" && <JdeConnectionSetup />}
 
       {part !== "jde" && <section className="panel">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>

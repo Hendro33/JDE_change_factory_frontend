@@ -1,6 +1,6 @@
 """Journey 1 -- the Jade Administrator sets up a customer from an empty installation, entirely in the browser:
-own account, customer, people, AI key and agent packs, Jira, the JD Edwards connection (certificate, credential,
-evidence, Test Connection, approved reads, Enable), agent execution (web client, DEV write user, Test, switches),
+own account, customer, people, AI key and agent packs, Jira, the JD Edwards connection (addresses, certificates,
+read and change users, Test; optional customer assurance), the agent execution switches,
 engagement scope and approval policy, business domain,
 invitations accepted, Domain Owner assigned."""
 import os
@@ -77,7 +77,8 @@ def ai_connection(page):
           FAKE_AI_KEY not in page.content() and "…xxxx" in page.inner_text("main"))
     go(page, "/admin/agents/configuration")
     for agent in ("Receive Agent", "Improve Agent", "Requirements (Check) Agent", "Architect Agent",
-                  "Functional Agent", "Technical Agent", "Process Analyst"):
+                  "Functional Agent", "Technical Agent", "Process Analyst", "Test Design Agent",
+                  "Regression Scope Agent", "Test Execution Agent", "Result Assessment Agent", "Validation Summary Agent"):
         sel = page.locator(f"select[aria-label='Pack for {agent}']")
         if sel.count() == 0:
             continue
@@ -116,58 +117,57 @@ def jira(page):
 
 
 def jde_connection(page):
+    """The JD Edwards connection on one form: AIS and web client addresses (with their self-signed certificates),
+    the environment, and the JD Edwards users -- a read user and a change user (the change user also signs in to
+    the web client when no separate web client user is given). Save, then Test: the agents can use it at once.
+    Customer assurance is optional and recorded under the collapsed section."""
     go(page, "/admin/connections/jde")
-    page.click("button:has-text('Set up')")
-    page.wait_for_timeout(800)
+    page.wait_for_selector("#jde-ais", timeout=10000)
     check("there is no simulation choice: the connection is always the customer's live AIS",
           page.locator("text=/[Ss]imulation/").count() == 0)
-    fill(page, "Connection name", "Acme DEV (JDV920)")
-    fill(page, "AIS HTTPS address", AIS)
+    check("a new connection opens straight on the form, with no attestations or window to fill first",
+          page.locator("text=/attest|isolation|window/i").count() == 0)
+    page.fill("#jde-ais", AIS)
     page.set_input_files("input[aria-label='AIS certificate file']", CERT)
     page.wait_for_selector("[aria-label='Uploaded certificate']", timeout=10000)
-    for label, value in (("JDE environment", "JDV920"), ("JDE role", "JADEDISC"), ("Application release", "9.2"),
-                         ("Tools release", "9.2.8.2"), ("Path code", "DV920"), ("Customer contact", "Acme IT (Pat)"),
-                         ("CNC contact", "Acme CNC (Chris)"),
-                         ("Network access notes", "Site-to-site VPN from the Jade backend to the DEV AIS server only"),
-                         ("Isolation evidence", "CNC ticket CNC-12: JDV920 maps to DEV data only"),
-                         ("Privilege statement", "JADEDISC: read-only role limited to the approved tables"),
-                         ("Runtime attestation", "CNC (Chris, CNC-12): JDV920 runs path code DV920 on Tools 9.2.8.2"),
-                         ("Verified JDE user", "JADEDISC"), ("Verified role", "JADEDISC"),
-                         ("Verified by", "Acme security lead"), ("Verified on", "2026-09-25"),
-                         ("Backend source address", "203.0.113.10"),
-                         ("Network restriction evidence", "Acme firewall rule 7 allows the AIS port from 203.0.113.10 only")):
-        fill(page, label, value)
-    for box in ("Routing and isolation confirmed", "Privilege confirmed", "Runtime attested", "Permits approved reads",
-                "Rejects prohibited operations", "Restricted to source"):
-        page.get_by_label(box, exact=True).check()
-    page.get_by_label("Verification method", exact=True).select_option(index=1)
-    reads = [("udc_values", "00/DT", "DRSY, DRRT, DRKY, DRDL01, DRSPHD", "DRKY"),
-             ("processing_option_values", "P4210|CIQ0001", "", ""),
-             ("table_browse", "F00941, F40039", "EMENHV, EMPATHCD, DCTO, DCT4, DCDL01", "EMENHV, DCTO")]
-    for i, (cap, target, fields, filt) in enumerate(reads, start=1):
-        page.click("button:has-text('Add approved read')")
-        page.wait_for_timeout(400)
-        page.select_option(f"select[aria-label='Read {i} capability']", cap)
-        page.get_by_label(f"Read {i} targets").fill(target)
-        if fields:
-            page.get_by_label(f"Read {i} fields").fill(fields)
-        if filt:
-            page.get_by_label(f"Read {i} filter fields").fill(filt)
-    fill(page, "Records per query", "5")
-    page.click("button:has-text('Save')")
-    page.wait_for_timeout(2500)
-    check("the JD Edwards connection settings are saved", "Edit settings" in buttons(page))
+    page.fill("#jde-env", "JDV920")
+    page.fill("#jde-web", open(os.path.join(WORK, "web_url.txt")).read().strip())
+    page.set_input_files("input[aria-label='Web client certificate file']", os.path.join(WORK, "web_cert.pem"))
+    page.wait_for_timeout(800)
+    users = page.locator("table[aria-label='JD Edwards users']")
+    read, change = users.locator("tbody tr").nth(0), users.locator("tbody tr").nth(1)
+    read.locator("input").nth(0).fill("JADEDISC")
+    read.locator("input").nth(1).fill("JADEDISC")
+    read.locator("input").nth(2).fill(os.environ["JADE_E2E_JDE_PW"])
+    change.locator("input").nth(0).fill("JADEWRITE")
+    change.locator("input").nth(1).fill("JADEWRITE")
+    change.locator("input").nth(2).fill(os.environ["JADE_E2E_WRITE_PW"])
+    shot(page, "admin-jde-form")
+    page.locator("section[aria-label='JD Edwards connection'] button:text-is('Save')").click()
+    page.wait_for_selector("text=/Saved: /", timeout=20000)
+    check("the connection, read user, web client and change user are saved in one go",
+          all(w in page.inner_text("main") for w in ("read user JADEDISC", "change user JADEWRITE", "web client")))
+    check("the JD Edwards passwords are stored encrypted and never shown",
+          os.environ["JADE_E2E_JDE_PW"] not in page.content() and os.environ["JADE_E2E_WRITE_PW"] not in page.content())
 
-    # Credential
-    page.get_by_label("JDE user", exact=True).fill("JADEDISC")
-    page.get_by_label("JDE password", exact=True).fill(os.environ["JADE_E2E_JDE_PW"])
-    page.click("button:has-text('Save credential')")
-    page.wait_for_timeout(1500)
-    check("the JDE password is stored encrypted and never shown", os.environ["JADE_E2E_JDE_PW"] not in page.content())
+    page.locator("section[aria-label='JD Edwards connection'] button:text-is('Test')").click()
+    page.wait_for_selector("table[aria-label='Test results']", timeout=120000)
+    rows = page.locator("table[aria-label='Test results'] tbody tr")
+    states = [rows.nth(i).locator("td").nth(1).inner_text().strip() for i in range(rows.count())]
+    check("Test signs in the read user (AIS, verified TLS), the change user (AIS) and the web client user",
+          states == ["ok", "ok", "ok"])
+    main = page.inner_text("main")
+    check("after a passed Test the agents can use the connection -- no attestations, window or Enable step",
+          "Agents can use this connection" in main)
+    routes = page.locator("table[aria-label='Agent routes']").inner_text()
+    check("research, AIS changes and web client changes are all ready", "Not ready" not in routes and routes.count("Ready") >= 3)
+    check("the path code is read from JD Edwards (F00941) during Test", "DV920" in main)
+    shot(page, "admin-jde")
 
-    # Evidence that the JDE user is narrowly privileged: imported, then linked without reloading the page.
+    # Optional: customer assurance, recorded -- it never blocks the agents.
+    page.click("summary:has-text('Optional: customer assurance')")
     evidence = os.path.join(WORK, "security_workbench_export.txt")
-    open(evidence, "w").write("Security Workbench export -- user JADEDISC, role JADEDISC. Read-only; approved tables only.\n")
+    open(evidence, "w").write("Security Workbench export -- user JADEDISC, role JADEDISC. Read-only.\n")
     page.click("summary:has-text('Import an approved export or document')")
     d = page.locator("details:has(summary:has-text('Import an approved export'))")
     d.get_by_label("Kind").select_option("reference_document")
@@ -179,69 +179,26 @@ def jde_connection(page):
     d.locator("input[type=file]").set_input_files(evidence)
     d.locator("button:has-text('Import')").click()
     page.wait_for_timeout(2000)
-    page.click("button:has-text('Edit settings')")
-    page.wait_for_timeout(800)
+    page.click("button:has-text('Edit customer assurance and restrictions')")
+    page.wait_for_timeout(600)
+    for label, value in (("Connection name", "Acme DEV (JDV920)"), ("Customer contact", "Acme IT (Pat)"),
+                         ("CNC contact", "Acme CNC (Chris)"),
+                         ("Privilege statement", "JADEDISC: read-only role"),
+                         ("Verified JDE user", "JADEDISC"), ("Verified role", "JADEDISC"),
+                         ("Verified by", "Acme security lead"), ("Verified on", "2026-09-25")):
+        fill(page, label, value)
+    page.get_by_label("Privilege confirmed", exact=True).check()
     boxes = page.locator("input[aria-label^='Verification evidence documents: ']")
     check("a newly imported document can be linked as verification evidence straight away", boxes.count() >= 1)
     boxes.first.check()
-    page.locator("button:text-is('Save')").click()
+    page.locator("details:has(summary:has-text('Optional: customer assurance')) button:text-is('Save')").click()
     page.wait_for_timeout(2000)
-
-    # Test Connection, approved sample reads, Enable
-    page.click("button:has-text('Test Connection')")
-    page.wait_for_selector("text=/Test Connection: /", timeout=60000)
-    check("Test Connection reaches the AIS server over verified TLS and signs in",
-          "ok" in page.locator("[role=status]").first.inner_text().lower())
-    for cap, target in (("udc_values", "00/DT"), ("processing_option_values", "P4210|CIQ0001"), ("table_browse", "F00941")):
-        page.get_by_label("Sample read capability", exact=True).select_option(cap)
-        page.wait_for_timeout(300)
-        t = page.get_by_label("Sample read target", exact=True)
-        t.select_option(target) if t.evaluate("e => e.tagName") == "SELECT" else t.fill(target)
-        page.click("button:has-text('Preview exact request')")
-        page.wait_for_timeout(800)
-        page.click("button:has-text('Run Approved Sample Read')")
-        page.wait_for_timeout(2500)
-        check(f"approved sample read {cap} {target} succeeds",
-              "ok" in page.locator("[role=status]").first.inner_text().lower())
     go(page, "/admin/connections/jde")
-    enable = page.locator("button:has-text('Enable Architect Discovery')")
-    check("with every readiness item satisfied, Enable is available", enable.is_enabled())
-    enable.click()
-    page.wait_for_timeout(2500)
-    go(page, "/admin/connections/jde")
-    check("the JD Edwards connection is enabled",
-          "Readiness for discovery: ready" in page.inner_text("main")
-          and not page.locator("button:has-text('Enable Architect Discovery')").is_enabled())
-    shot(page, "admin-jde")
+    check("recording customer assurance keeps the connection usable", "Agents can use this connection" in page.inner_text("main"))
 
 
 def agent_execution(page):
-    """The agents' access to DEV: the web client, its certificate, the DEV write user (separate from the read-only
-    discovery user), Test -- and the switches under Governance."""
-    go(page, "/admin/connections/jde")
-    panel = page.locator("section[aria-label='Agent execution']")
-    panel.locator("button:has-text('Set up')").click()
-    page.wait_for_timeout(500)
-    page.fill("#exec-web", open(os.path.join(WORK, "web_url.txt")).read().strip())
-    page.set_input_files("input[aria-label='Web client certificate file']", os.path.join(WORK, "web_cert.pem"))
-    page.wait_for_timeout(800)
-    page.fill("#exec-role", "JADEWRITE")
-    panel.locator("button:has-text('Save settings')").click()
-    page.wait_for_timeout(1500)
-    page.fill("#exec-user", "JADEWRITE")
-    page.fill("#exec-password", os.environ["JADE_E2E_WRITE_PW"])
-    panel.locator("button:has-text('Save write user')").click()
-    page.wait_for_timeout(1500)
-    check("the DEV write user is stored encrypted and never shown",
-          os.environ["JADE_E2E_WRITE_PW"] not in page.content() and "encrypted" in panel.inner_text())
-    panel.locator("button:text-is('Test')").click()
-    page.wait_for_selector("text=/Test: /", timeout=90000)
-    status = panel.locator("[role=status]").first.inner_text()
-    check("Test signs the write user in to AIS and to the web client (in the agents' browser)",
-          "signs in to AIS: ok" in status and "signs in to the web client: ok" in status)
-    routes = page.locator("table[aria-label='Agent routes']").inner_text()
-    check("both agent routes are ready", routes.count("Ready") >= 2 and "Not ready" not in routes)
-    shot(page, "admin-agent-execution")
+    """The switches under Governance: agent execution on/off per capability, recorded with name and reason."""
     go(page, "/admin/governance/agent-execution")
     page.fill("#switch-reason", "walkthrough: switch test")
     page.locator("tr:has-text('document_type_definition') button:has-text('Switch off')").click()

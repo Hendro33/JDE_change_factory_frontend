@@ -78,11 +78,11 @@ export interface NetworkRestriction {
 
 export interface VerificationItem {
   item: string;
-  status: "verified" | "attested" | "missing" | "mismatch" | "pending";
+  status: "verified" | "recorded" | "attested" | "missing" | "mismatch" | "pending";
   source: string;
   detail: string;
-  configured?: string;
-  reported?: string;
+  configured?: string | Record<string, unknown> | null;
+  reported?: string | Record<string, unknown> | null;
 }
 
 export interface CheckResult {
@@ -144,7 +144,7 @@ export interface JdeProfileView {
   ceilings: { max_records: number; max_timeout_seconds: number; max_window_days: number; concurrent_requests: number; max_filters: number };
   authMethods: { id: string; supported: boolean; label: string; credentials: string[]; detail: string }[];
   requestUrls: Record<string, string>;
-  /** Connectivity, Identity, JDE authorisation, Network restriction, Jade runtime safeguards. */
+  /** [0] Connection (needed by the agents), [1] Customer assurance (optional, recorded only). */
   readiness: ReadinessGroup[];
   ready: boolean;
   /** One plain status from the last Test Connection and sample read. */
@@ -372,7 +372,7 @@ export const HEALTH_CHECKS: { key: string; label: string }[] = [
   { key: "reachability", label: "Reachability" },
   { key: "authentication", label: "Authentication" },
   { key: "environment", label: "Environment verification" },
-  { key: "approved_read", label: "Approved-read success" },
+  { key: "approved_read", label: "Sample read (optional)" },
 ];
 
 export function fileToBase64(file: File): Promise<string> {
