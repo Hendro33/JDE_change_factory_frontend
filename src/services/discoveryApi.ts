@@ -49,7 +49,6 @@ export interface JdeProfileConfig {
   /** The customer-side security boundary: a dedicated, non-*ALL JDE user and role, independently verified. */
   dedicatedAccount: DedicatedAccount;
   networkRestriction: NetworkRestriction;
-  discoveryWindow: { startsAt: string; endsAt: string } | null;
   limits: { maxRecords: number; timeoutSeconds: number; concurrentRequests: 1 };
   dataSharingPolicy: DataSharingPolicy;
 }
@@ -141,7 +140,7 @@ export interface JdeProfileView {
   updatedBy?: string | null;
   prerequisites: Prerequisite[];
   serverPrerequisites: Prerequisite[];
-  ceilings: { max_records: number; max_timeout_seconds: number; max_window_days: number; concurrent_requests: number; max_filters: number };
+  ceilings: { max_records: number; max_timeout_seconds: number; concurrent_requests: number; max_filters: number };
   authMethods: { id: string; supported: boolean; label: string; credentials: string[]; detail: string }[];
   requestUrls: Record<string, string>;
   /** [0] Connection (needed by the agents), [1] Customer assurance (optional, recorded only). */

@@ -23,11 +23,6 @@ import { Loading } from "./ui";
 const tone: Record<string, string> = { ok: "ok", failed: "stop", unknown: "grey", stale: "warn" };
 
 const split = (v: string) => v.split(",").map((s) => s.trim()).filter(Boolean);
-const localInput = (iso?: string) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-};
 
 function Check({ result }: { result?: CheckResult }) {
   const r = result ?? { state: "unknown", detail: "" };
@@ -264,7 +259,7 @@ function SampleRead({ view, busy, run }: { view: JdeProfileView; busy: boolean; 
  * The optional part of Administration > Systems & Connections > JD Edwards,
  * under the main connection form (JdeConnectionSetup): what the last Test
  * found, customer assurance (recorded, never required), optional read
- * restrictions (approved reads, a time window, limits), a sample read, the
+ * restrictions (approved reads, limits), a sample read, the
  * kill switch, the technical baseline and the discovery activity.
  */
 export function JdeDiscoveryPanel({ onChanged }: { onChanged?: () => void } = {}) {
@@ -433,18 +428,6 @@ export function JdeDiscoveryPanel({ onChanged }: { onChanged?: () => void } = {}
 
           <fieldset><legend>Restrict reads (optional)</legend>
             <ReadsEditor reads={form.approvedReads} onChange={(r) => set("approvedReads", r)} view={view} />
-            <label style={{ display: "flex", gap: 6, fontWeight: 400, marginTop: 8 }}>
-              <input type="checkbox" aria-label="Limit to a time window" checked={!!form.discoveryWindow}
-                onChange={(e) => set("discoveryWindow", e.target.checked
-                  ? { startsAt: new Date().toISOString(), endsAt: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString() } : null)} />
-              Only allow reads within a time window</label>
-            {form.discoveryWindow && (
-              <div className="grid halves">
-                <label className="field">Window starts<input aria-label="Window starts" type="datetime-local" value={localInput(form.discoveryWindow.startsAt)}
-                  onChange={(e) => set("discoveryWindow", { startsAt: new Date(e.target.value).toISOString(), endsAt: form.discoveryWindow!.endsAt })} /></label>
-                <label className="field">Window ends <span className="hint">(at most {view.ceilings.max_window_days} days)</span><input aria-label="Window ends" type="datetime-local" value={localInput(form.discoveryWindow.endsAt)}
-                  onChange={(e) => set("discoveryWindow", { startsAt: form.discoveryWindow!.startsAt, endsAt: new Date(e.target.value).toISOString() })} /></label>
-              </div>)}
             <div className="grid halves">
               <label className="field">Records per query (max {view.ceilings.max_records})<input aria-label="Records per query" type="number" min={1} max={view.ceilings.max_records} value={form.limits.maxRecords} onChange={(e) => set("limits", { ...form.limits, maxRecords: Number(e.target.value) })} /></label>
               <label className="field">Request timeout, seconds (max {view.ceilings.max_timeout_seconds})<input aria-label="Request timeout" type="number" min={1} max={view.ceilings.max_timeout_seconds} value={form.limits.timeoutSeconds} onChange={(e) => set("limits", { ...form.limits, timeoutSeconds: Number(e.target.value) })} /></label>

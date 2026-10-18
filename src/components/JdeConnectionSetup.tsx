@@ -43,7 +43,7 @@ function newConfig(f: Form, existing?: JdeProfileConfig | null): JdeProfileConfi
     dedicatedAccount: { username: "", role: "", verifiedBy: "", verifiedOn: "", method: "", permitsApprovedReads: false,
       rejectsProhibitedOperations: false, evidenceArtifactIds: [], notes: "" },
     networkRestriction: { backendSourceAddress: "", restrictedToSource: false, evidence: "", evidenceArtifactIds: [] },
-    discoveryWindow: null, limits: { maxRecords: 10, timeoutSeconds: 15, concurrentRequests: 1 },
+    limits: { maxRecords: 10, timeoutSeconds: 15, concurrentRequests: 1 },
     dataSharingPolicy: "configuration_and_artifacts",
   };
   return {
