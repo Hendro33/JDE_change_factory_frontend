@@ -1138,6 +1138,8 @@ export interface ApprovedConfiguration {
 }
 
 export interface FunctionalAgentScope {
+  /** Enforced: kinds of change (capability ids) the Functional Agent may make for any target. */
+  allowedCapabilities?: string[];
   approvedVersions: ApprovedVersion[];
   /** Enforced: UDC types, set-up tables, document and line types, order activity rules and batch versions. */
   approvedConfiguration?: ApprovedConfiguration[];

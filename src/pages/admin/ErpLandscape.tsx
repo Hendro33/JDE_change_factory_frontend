@@ -53,6 +53,34 @@ const categoryInfo = (c: string) => OPTION_CATEGORIES.find((x) => x.category ===
 
 const PERMITTED_TEST_EFFECTS: TestSideEffect[] = ["none", "creates_dev_transaction"];
 
+/** The Functional Agent's kinds of change (capability_catalog.json); the server refuses unknown ids. */
+const FUNCTIONAL_KINDS: { id: string; label: string }[] = [
+  { id: "udc_value_maintenance", label: "User defined codes (UDC values)" },
+  { id: "constants_and_setup_master_data", label: "Set-up and constants tables (incl. AAIs, next numbers)" },
+  { id: "document_type_definition", label: "Document types" },
+  { id: "line_type_definition", label: "Line types" },
+  { id: "order_activity_status_rules", label: "Order activity rules" },
+  { id: "processing_option_update", label: "Processing options on customer versions" },
+  { id: "batch_version_data_selection", label: "Batch version data selection" },
+  { id: "batch_version_data_sequencing", label: "Batch version data sequencing" },
+];
+const kindLabel = (id: string) => FUNCTIONAL_KINDS.find((k) => k.id === id)?.label ?? id;
+
+/** OMW object types the Technical Agent may prepare (custom objects, system codes 55-59). */
+const TECHNICAL_TYPES: { id: string; label: string }[] = [
+  { id: "UBE", label: "Reports and batch programs (UBE)" },
+  { id: "APPL", label: "Interactive applications (APPL)" },
+  { id: "BSFN", label: "Business functions (BSFN)" },
+  { id: "NER", label: "Named event rules (NER)" },
+  { id: "TBLE", label: "Tables (TBLE)" },
+  { id: "BSVW", label: "Business views (BSVW)" },
+  { id: "DSTR", label: "Data structures (DSTR)" },
+];
+
+function toggle<T>(list: T[], value: T): T[] {
+  return list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
+}
+
 function approvedVersionsToText(v: ApprovedVersion[]): string {
   return v
     .map((a) => `${a.capabilityId ?? ""}|${a.optionCategory ?? ""}|${a.application}|${a.version}|${a.options.join(",")}|${a.allowedValues.join(",")}|${a.notes}`)
@@ -173,6 +201,7 @@ export function ErpLandscape() {
 
   // Form state, only meaningful while editing.
   const [toolsRelease, setToolsRelease] = useState("");
+  const [allowedKinds, setAllowedKinds] = useState<string[]>([]);
   const [approvedVersionsText, setApprovedVersionsText] = useState("");
   const [configurationText, setConfigurationText] = useState("");
   const [neverTouch, setNeverTouch] = useState<string[]>([]);
@@ -189,6 +218,11 @@ export function ErpLandscape() {
   const [policyRoles, setPolicyRoles] = useState<ApproverRole[]>([]);
   const [policyHours, setPolicyHours] = useState(24);
 
+  // The advanced section opens by itself when it holds something.
+  const hasAdvanced = !!scope && (scope.functionalAgent.approvedVersions.length > 0
+    || (scope.functionalAgent.approvedConfiguration ?? []).length > 0 || (scope.testScope?.approvedTests ?? []).length > 0
+    || (scope.functionalAgent.spikeExperiments ?? []).length > 0);
+
   const load = () => {
     setLoadError(null);
     const onLoadError = (e: unknown) => setLoadError(saveErrorMessage(e, "Could not load the ERP landscape."));
@@ -196,6 +230,7 @@ export function ErpLandscape() {
     api.getEngagementScope().then((s) => {
       setScope(s);
       setToolsRelease(s.toolsRelease);
+      setAllowedKinds(s.functionalAgent.allowedCapabilities ?? []);
       setApprovedVersionsText(approvedVersionsToText(s.functionalAgent.approvedVersions));
       setConfigurationText(configurationToText(s.functionalAgent.approvedConfiguration ?? []));
       setNeverTouch(s.functionalAgent.neverTouchCategories);
@@ -216,6 +251,15 @@ export function ErpLandscape() {
 
   useEffect(load, []);
 
+  /** Everything allowed, as for a trial on an isolated demo environment. Isolation stays a person's tick. */
+  function trialDefaults() {
+    setAllowedKinds(FUNCTIONAL_KINDS.map((k) => k.id));
+    setObjectTypesText(TECHNICAL_TYPES.map((t) => t.id).join("\n"));
+    setPolicyRoles((r) => (r.length ? r : ["admin", "product_manager"]));
+    setPolicyHours(168);
+    setMechanisms(MECHANISMS.map((m) => m.mechanism));
+  }
+
   async function save() {
     if (!scope) return;
     setSaving(true);
@@ -225,6 +269,7 @@ export function ErpLandscape() {
         toolsRelease,
         environment,
         functionalAgent: {
+          allowedCapabilities: allowedKinds,
           approvedVersions: approvedVersionsFromText(approvedVersionsText, scope.functionalAgent.approvedVersions),
           approvedConfiguration: configurationFromText(configurationText),
           spikeExperiments: spikesFromText(spikesText),
@@ -326,51 +371,53 @@ export function ErpLandscape() {
               {!editing && <button className="btn" onClick={() => setEditing(true)}>Edit</button>}
             </div>
             <div className="sub" style={{ marginBottom: 12 }}>
-              What this company's changes may touch in JDE and who may approve them. The delivery gate enforces exactly what is saved here, for this company's stories
-              only. Anything missing authorises nothing: no approval policy means nothing can be approved,
-              and an unconfirmed DEV environment means nothing can be recorded as delivered.
+              What each agent may change in JDE for this customer, who approves, and the one DEV environment it happens in.
+              The Architect is never limited by this: it explores freely and designs the best solution, then uses these
+              permissions only to decide who delivers it — the Functional Agent, the Technical Agent or a person.
+              Every change still needs a person's approval.
             </div>
 
             {!editing ? (
               <div className="stack">
                 <div>
-                  <strong>Approval policy</strong>
-                  {scope.approvalPolicy ? (
-                    <p style={{ margin: "4px 0 0" }}>
-                      Exact changes may be approved by:{" "}
-                      {scope.approvalPolicy.exactChangeApproverRoles
-                        .map((r) => APPROVER_ROLES.find((x) => x.role === r)?.label ?? r)
-                        .join(", ")}
-                      . An approval stays valid for {scope.approvalPolicy.approvalValidHours} hours.
-                    </p>
+                  <strong>Functional Agent may change</strong>
+                  {(scope.functionalAgent.allowedCapabilities ?? []).length === 0 ? (
+                    <p className="notstated">Nothing yet{scope.functionalAgent.approvedVersions.length + (scope.functionalAgent.approvedConfiguration ?? []).length
+                      ? " — only the targets listed under Advanced" : " — configuration changes go to a person"}</p>
                   ) : (
-                    <p style={{ margin: "4px 0 0" }}>
-                      <span className="badge warn">None</span> Nobody can approve an exact change for this company,
-                      so nothing can run.
-                    </p>
+                    <p style={{ margin: "4px 0 0" }}>{(scope.functionalAgent.allowedCapabilities ?? []).map(kindLabel).join(" · ")}
+                      <span className="hint"> — any target; nothing has to be listed per table, code or version</span></p>
                   )}
                 </div>
                 <div>
-                  <strong>DEV environment binding</strong>
-                  <dl className="facts" style={{ marginTop: 4 }}>
-                    <dt>Environment</dt><dd className="mono">{scope.environment?.devEnvironmentId || <NotStatedInline />}</dd>
-                    <dt>Path code</dt><dd className="mono">{scope.environment?.devPathCode || <NotStatedInline />}</dd>
-                    <dt>Data source</dt><dd>{scope.environment?.aisDataSourceName || <NotStatedInline />}</dd>
-                    <dt>Isolation</dt>
-                    <dd>
-                      {scope.environment?.isolationConfirmed ? (
-                        <>
-                          <span className="badge ok">Confirmed</span>{" "}
-                          by {scope.environment.isolationConfirmedBy}
-                          {scope.environment.isolationConfirmedAt && `, ${new Date(scope.environment.isolationConfirmedAt).toLocaleString("en-GB")}`}
-                        </>
-                      ) : (
-                        <><span className="badge warn">Not confirmed</span> nothing can run until it is</>
-                      )}
-                    </dd>
-                    <dt>Evidence</dt><dd>{scope.environment?.isolationEvidence || <NotStatedInline />}</dd>
-                  </dl>
+                  <strong>Technical Agent may prepare</strong>
+                  <p style={{ margin: "4px 0 0" }}>
+                    {scope.technicalAgent.authorizedObjectTypes.join(", ") || <span className="notstated">nothing yet — development work goes to a person</span>}
+                    {scope.technicalAgent.authorizedObjectTypes.length > 0 && <span className="hint"> — custom objects in system codes 55–59</span>}
+                  </p>
                 </div>
+                <div>
+                  <strong>Who approves a change</strong>
+                  {scope.approvalPolicy ? (
+                    <p style={{ margin: "4px 0 0" }}>
+                      {scope.approvalPolicy.exactChangeApproverRoles.map((r) => APPROVER_ROLES.find((x) => x.role === r)?.label ?? r).join(", ")}
+                      {" "}· approval valid for {scope.approvalPolicy.approvalValidHours} hours
+                    </p>
+                  ) : (
+                    <p style={{ margin: "4px 0 0" }}><span className="badge warn">Nobody yet</span> nothing can be approved</p>
+                  )}
+                </div>
+                <div>
+                  <strong>DEV environment</strong>
+                  <p style={{ margin: "4px 0 0" }}>
+                    <span className="mono">{scope.environment?.devEnvironmentId || "—"}</span> / <span className="mono">{scope.environment?.devPathCode || "—"}</span>{" "}
+                    {scope.environment?.isolationConfirmed
+                      ? <span className="badge ok">isolation confirmed by {scope.environment.isolationConfirmedBy}</span>
+                      : <span className="badge warn">isolation not confirmed — nothing can be delivered</span>}
+                  </p>
+                </div>
+                <Details summary="Advanced: detailed allowlists, tests and technical rules" open={hasAdvanced}>
+                  <div className="stack">
                 <div>
                   <strong>Functional Agent — approved versions</strong>
                   {scope.functionalAgent.approvedVersions.length === 0 ? (
@@ -476,45 +523,59 @@ export function ErpLandscape() {
                     </table>
                   )}
                 </div>
-                <dl className="facts">
-                  <dt>Never-touch categories <span className="hint">(enforced)</span></dt>
-                  <dd>
-                    {scope.functionalAgent.neverTouchCategories.map((c) => categoryInfo(c)?.label ?? c).join(", ") || <span className="notstated">none</span>}
-                    <span className="hint"> — in addition to the always-protected categories</span>
-                  </dd>
-                  <dt>Never-touch notes <span className="hint">(reference only, not enforced)</span></dt>
-                  <dd>{(scope.functionalAgent.neverTouchNotes ?? []).join("; ") || <span className="notstated">none</span>}</dd>
-                  <dt>Functional approvers <span className="hint">(reference only)</span></dt>
-                  <dd>{scope.functionalAgent.approvers.join(", ") || <span className="notstated">none listed</span>}</dd>
-                  <dt>Authorized object types</dt>
-                  <dd>{scope.technicalAgent.authorizedObjectTypes.join(", ") || <span className="notstated">none — Technical Agent writes refuse every request</span>}</dd>
-                  <dt>Reserved product code</dt>
-                  <dd>{scope.technicalAgent.reservedProductCode || <NotStatedInline />}</dd>
-                  <dt>Naming prefix</dt>
-                  <dd>{scope.technicalAgent.namingPrefix || <NotStatedInline />}</dd>
-                  <dt>Technical approvers <span className="hint">(reference only)</span></dt>
-                  <dd>{scope.technicalAgent.approvers.join(", ") || <span className="notstated">none listed</span>}</dd>
-                  <dt>Last updated</dt>
-                  <dd>{scope.updatedAt ? `${new Date(scope.updatedAt).toLocaleString("en-GB")} by ${scope.updatedBy}` : <span className="notstated">never configured</span>}</dd>
-                </dl>
+                    <dl className="facts">
+                      <dt>Tools release</dt><dd>{scope.toolsRelease || <NotStatedInline />}</dd>
+                      <dt>Data source</dt><dd>{scope.environment?.aisDataSourceName || <NotStatedInline />}</dd>
+                      <dt>Isolation evidence</dt><dd>{scope.environment?.isolationEvidence || <NotStatedInline />}</dd>
+                      <dt>Never-touch categories</dt>
+                      <dd>{scope.functionalAgent.neverTouchCategories.map((c) => categoryInfo(c)?.label ?? c).join(", ") || <span className="notstated">none</span>}
+                        <span className="hint"> — applies to listed targets</span></dd>
+                      <dt>Reserved product code</dt><dd>{scope.technicalAgent.reservedProductCode || <span className="notstated">any of 55–59</span>}</dd>
+                      <dt>Naming prefix</dt><dd>{scope.technicalAgent.namingPrefix || <NotStatedInline />}</dd>
+                    </dl>
+                  </div>
+                </Details>
+                <p className="hint">{scope.updatedAt ? `Last saved ${new Date(scope.updatedAt).toLocaleString("en-GB")} by ${scope.updatedBy}` : "Never saved."}</p>
               </div>
             ) : (
               <div className="stack">
-                <div className="field">
-                  <label htmlFor="toolsRelease">Tools Release</label>
-                  <input id="toolsRelease" type="text" value={toolsRelease} onChange={(e) => setToolsRelease(e.target.value)} />
+                <div className="btnrow">
+                  <button className="btn" type="button" onClick={trialDefaults}>Allow everything (trial)</button>
+                  <span className="hint">Ticks every kind of change for both agents and sets approval to Admin and Application Manager. You still confirm the DEV environment yourself.</span>
                 </div>
                 <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
-                  <legend style={{ fontWeight: 700, marginBottom: 6 }}>Approval policy</legend>
-                  <span className="hint">Which roles may approve an exact change. Select none and nothing can be approved or run.</span>
+                  <legend style={{ fontWeight: 700, marginBottom: 6 }}>Functional Agent may change</legend>
+                  <span className="hint">Any target within a ticked kind. Never XJDE/ZJDE versions, never outside the DEV environment below.</span>
+                  <div className="stack" style={{ gap: 4, margin: "6px 0" }}>
+                    {FUNCTIONAL_KINDS.map(({ id, label }) => (
+                      <label key={id} style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 400 }}>
+                        <input type="checkbox" checked={allowedKinds.includes(id)} onChange={() => setAllowedKinds((k) => toggle(k, id))} />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+                  <legend style={{ fontWeight: 700, marginBottom: 6 }}>Technical Agent may prepare</legend>
+                  <span className="hint">Custom objects in system codes 55–59 only; people apply them through OMW.</span>
+                  <div className="stack" style={{ gap: 4, margin: "6px 0" }}>
+                    {TECHNICAL_TYPES.map(({ id, label }) => {
+                      const types = lines(objectTypesText);
+                      return (
+                        <label key={id} style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 400 }}>
+                          <input type="checkbox" checked={types.includes(id)} onChange={() => setObjectTypesText(toggle(types, id).join("\n"))} />
+                          {label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+                <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+                  <legend style={{ fontWeight: 700, marginBottom: 6 }}>Who approves a change</legend>
                   <div style={{ display: "flex", gap: 16, flexWrap: "wrap", margin: "6px 0" }}>
                     {APPROVER_ROLES.map(({ role, label }) => (
                       <label key={role} style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 400 }}>
-                        <input
-                          type="checkbox"
-                          checked={policyRoles.includes(role)}
-                          onChange={() => setPolicyRoles((r) => (r.includes(role) ? r.filter((x) => x !== role) : [...r, role]))}
-                        />
+                        <input type="checkbox" checked={policyRoles.includes(role)} onChange={() => setPolicyRoles((r) => toggle(r, role))} />
                         {label}
                       </label>
                     ))}
@@ -523,26 +584,35 @@ export function ErpLandscape() {
                   <input id="policyHours" type="number" min={1} max={168} value={policyHours} onChange={(e) => setPolicyHours(Number(e.target.value))} />
                 </fieldset>
                 <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
-                  <legend style={{ fontWeight: 700, marginBottom: 6 }}>DEV environment binding</legend>
+                  <legend style={{ fontWeight: 700, marginBottom: 6 }}>DEV environment</legend>
                   <div className="grid halves">
                     <div className="field">
                       <label htmlFor="devEnvironmentId">JDE environment</label>
-                      <input id="devEnvironmentId" type="text" value={environment.devEnvironmentId} onChange={(e) => setEnvironment({ ...environment, devEnvironmentId: e.target.value })} placeholder="JDV920" />
+                      <input id="devEnvironmentId" type="text" value={environment.devEnvironmentId} onChange={(e) => setEnvironment({ ...environment, devEnvironmentId: e.target.value.toUpperCase() })} placeholder="JPS920" />
                     </div>
                     <div className="field">
                       <label htmlFor="devPathCode">Path code</label>
-                      <input id="devPathCode" type="text" value={environment.devPathCode} onChange={(e) => setEnvironment({ ...environment, devPathCode: e.target.value })} placeholder="DV920" />
+                      <input id="devPathCode" type="text" value={environment.devPathCode} onChange={(e) => setEnvironment({ ...environment, devPathCode: e.target.value.toUpperCase() })} placeholder="PS920" />
                     </div>
                   </div>
-                  <label htmlFor="aisDataSourceName">Business data source</label>
-                  <input id="aisDataSourceName" type="text" value={environment.aisDataSourceName} onChange={(e) => setEnvironment({ ...environment, aisDataSourceName: e.target.value })} />
                   <label style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 400, margin: "8px 0" }}>
                     <input type="checkbox" checked={environment.isolationConfirmed} onChange={(e) => setEnvironment({ ...environment, isolationConfirmed: e.target.checked })} />
-                    I have checked that this environment's OCM mappings and data sources cannot affect another environment
+                    Changes here cannot affect another environment (for example a standalone trial instance)
                   </label>
-                  <label htmlFor="isolationEvidence">How isolation was checked</label>
-                  <textarea id="isolationEvidence" value={environment.isolationEvidence} onChange={(e) => setEnvironment({ ...environment, isolationEvidence: e.target.value })} />
+                  <label htmlFor="isolationEvidence">How you know <span className="hint">(optional)</span></label>
+                  <input id="isolationEvidence" type="text" value={environment.isolationEvidence} onChange={(e) => setEnvironment({ ...environment, isolationEvidence: e.target.value })} placeholder="Standalone Oracle trial instance" />
                 </fieldset>
+                <Details summary="Advanced: detailed allowlists, tests and technical rules" open={hasAdvanced}>
+                  <div className="stack">
+                    <p className="hint">Only needed to allow single targets of a kind that is not ticked above, or to run post-change tests.</p>
+                    <div className="field">
+                      <label htmlFor="toolsRelease">Tools Release</label>
+                      <input id="toolsRelease" type="text" value={toolsRelease} onChange={(e) => setToolsRelease(e.target.value)} />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="aisDataSourceName">Business data source</label>
+                      <input id="aisDataSourceName" type="text" value={environment.aisDataSourceName} onChange={(e) => setEnvironment({ ...environment, aisDataSourceName: e.target.value })} />
+                    </div>
                 <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
                   <legend style={{ fontWeight: 700, marginBottom: 6 }}>Mechanisms allowed <span className="hint">(enforced)</span></legend>
                   <span className="hint">A write or test whose mechanism is not ticked is refused.</span>
@@ -609,22 +679,20 @@ export function ErpLandscape() {
                   <label htmlFor="functionalApprovers">Functional approvers <span className="hint">(one per line; reference only — authority comes from the approval policy)</span></label>
                   <textarea id="functionalApprovers" value={functionalApproversText} onChange={(e) => setFunctionalApproversText(e.target.value)} />
                 </div>
-                <div className="field">
-                  <label htmlFor="objectTypes">Authorized technical object types <span className="hint">(one per line)</span></label>
-                  <textarea id="objectTypes" value={objectTypesText} onChange={(e) => setObjectTypesText(e.target.value)} placeholder="ExternalFormApplication" />
-                </div>
-                <div className="field">
-                  <label htmlFor="reservedProductCode">Reserved product code</label>
-                  <input id="reservedProductCode" type="text" value={reservedProductCode} onChange={(e) => setReservedProductCode(e.target.value)} placeholder="55-59" />
-                </div>
-                <div className="field">
-                  <label htmlFor="namingPrefix">Naming prefix</label>
-                  <input id="namingPrefix" type="text" value={namingPrefix} onChange={(e) => setNamingPrefix(e.target.value)} />
-                </div>
-                <div className="field">
-                  <label htmlFor="technicalApprovers">Technical approvers <span className="hint">(one per line; reference only)</span></label>
-                  <textarea id="technicalApprovers" value={technicalApproversText} onChange={(e) => setTechnicalApproversText(e.target.value)} />
-                </div>
+                    <div className="field">
+                      <label htmlFor="reservedProductCode">Reserved product code <span className="hint">(empty = any of 55–59)</span></label>
+                      <input id="reservedProductCode" type="text" value={reservedProductCode} onChange={(e) => setReservedProductCode(e.target.value)} />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="namingPrefix">Object name prefix <span className="hint">(empty = none)</span></label>
+                      <input id="namingPrefix" type="text" value={namingPrefix} onChange={(e) => setNamingPrefix(e.target.value)} />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="technicalApprovers">Technical approvers <span className="hint">(one per line; reference only)</span></label>
+                      <textarea id="technicalApprovers" value={technicalApproversText} onChange={(e) => setTechnicalApproversText(e.target.value)} />
+                    </div>
+                  </div>
+                </Details>
                 <p className="hint">Saved under your signed-in name.</p>
                 {saveError && (
                   <div className="callout" style={{ borderColor: "var(--stop)" }}>

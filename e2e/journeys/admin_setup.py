@@ -216,14 +216,18 @@ def governance(page):
     go(page, "/admin/governance")
     page.click("button:has-text('Edit')")
     page.wait_for_timeout(800)
-    page.fill("#toolsRelease", "9.2.8.2")
-    page.locator("fieldset:has(legend:has-text('Approval policy')) label:has-text('Application Manager') input").check()
+    page.locator("fieldset:has(legend:has-text('Functional Agent may change')) label:has-text('User defined codes') input").check()
+    page.locator("fieldset:has(legend:has-text('Technical Agent may prepare')) label:has-text('(BSFN)') input").check()
+    page.locator("fieldset:has(legend:has-text('Technical Agent may prepare')) label:has-text('(NER)') input").check()
+    page.locator("fieldset:has(legend:has-text('Who approves a change')) label:has-text('Application Manager') input").check()
     page.fill("#policyHours", "72")
     page.fill("#devEnvironmentId", "JDV920")
     page.fill("#devPathCode", "DV920")
-    page.fill("#aisDataSourceName", "Business Data - DEV")
-    page.locator("label:has-text('OCM mappings') input[type=checkbox]").check()
+    page.locator("label:has-text('cannot affect another environment') input[type=checkbox]").check()
     page.fill("#isolationEvidence", "CNC checked OCM for JDV920: business data maps to the DEV data source only (CNC-118)")
+    page.click("summary:has-text('Advanced')")
+    page.fill("#toolsRelease", "9.2.8.2")
+    page.fill("#aisDataSourceName", "Business Data - DEV")
     page.locator("label:has-text('Configuration change') input").check()
     page.locator("label:has-text('AIS orchestration') input").check()
     page.fill("#approvedVersions",
@@ -233,7 +237,6 @@ def governance(page):
               "document_type_definition|document_and_order_types|F40039:DCTO=SW|DCT4,DCDL01|add|DCT4=SO|Webshop order type")
     page.fill("#approvedTests", "ORCH_SO|creates_dev_transaction|Creates one DEV sales order and reads it back")
     page.fill("#functionalApprovers", "Sanne (Application Manager)")
-    page.fill("#objectTypes", "BSFN\nER")
     page.fill("#reservedProductCode", "55")
     page.fill("#namingPrefix", "CIQ")
     page.click("button:has-text('Save engagement scope')")
@@ -241,7 +244,8 @@ def governance(page):
     main = page.inner_text("main")
     check("the engagement scope is saved with its approved version, configuration, test and DEV binding",
           "never configured" not in main and "P4210" in main and "ORCH_SO" in main and "JDV920" in main
-          and "F40039:DCTO=SW" in main and "00/DT" in main)
+          and "F40039:DCTO=SW" in main and "00/DT" in main and "User defined codes (UDC values)" in main
+          and "BSFN, NER" in main)
     check("the JD Edwards connection is shown as this customer's own", "deployment-wide" not in main)
 
 
