@@ -334,6 +334,12 @@ export interface ChangeFactoryApi {
   updateCustomerProfile(input: CustomerInput): Promise<CustomerProfile>;
   /** Admin: create a new customer; the creator becomes its Admin. */
   createCustomer(input: CustomerInput): Promise<Customer>;
+  /** Admin: remove every request, story, design and change of the active customer; settings stay. */
+  clearCustomerWork(input: { confirmName: string; removeSampleData: boolean }): Promise<CustomerClearResult>;
+  /** Admin: copy JD Edwards connection, scope, settings and AI from another customer; move its Jira connection. */
+  copyCustomerSetup(input: { sourceCustomerId: string; moveJira: boolean }): Promise<CustomerCopyResult>;
+  /** Admin: read companies, branch plants, items, customers, suppliers and code lists from JDE into a document. */
+  readJdeEstate(): Promise<JdeEstateResult>;
   /** JDE connection + engagement-scope status. Never a credential value. */
   getErpLandscape(): Promise<ErpLandscape>;
   /** Read-only: what the delivery gate would decide right now. */
@@ -448,3 +454,17 @@ import { HttpChangeFactoryApi } from "./httpApi";
 
 /** The one API client: Jade's FastAPI backend (VITE_API_BASE_URL). */
 export const api: ChangeFactoryApi = new HttpChangeFactoryApi();
+
+export interface CustomerClearResult {
+  stories: string[];
+  removed: Record<string, number>;
+  sample_people_deactivated: string[];
+  sample_domains_removed: string[];
+}
+export interface CustomerCopyResult { copied: Record<string, number>; jira_moved: boolean; next: string }
+export interface JdeEstateResult {
+  artifact_id: string;
+  revision: number;
+  markdown: string;
+  reads: { title: string; target: string; rows: number; error: string | null }[];
+}

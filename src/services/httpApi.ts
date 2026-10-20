@@ -41,7 +41,10 @@ import type {
   Session,
   UpdateMembershipInput,
   UserStory, CustomerInput, Customer, MyWork, AgentInventoryEntry } from "../types/domain";
-import type { ChangeFactoryApi, ClassificationInput, CreateChangeInput, DecisionInput } from "./api";
+import type {
+  ChangeFactoryApi, ClassificationInput, CreateChangeInput, CustomerClearResult, CustomerCopyResult, DecisionInput,
+  JdeEstateResult,
+} from "./api";
 import { RevisionConflictError } from "./saveErrors";
 
 /**
@@ -555,6 +558,21 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
   async updateCustomerProfile(input: CustomerInput): Promise<CustomerProfile> {
     const customerId = await this.activeCustomerId();
     return request<CustomerProfile>("/admin/customer-profile", { method: "PUT", customerId, body: input });
+  }
+
+  async clearCustomerWork(input: { confirmName: string; removeSampleData: boolean }): Promise<CustomerClearResult> {
+    const customerId = await this.activeCustomerId();
+    return request<CustomerClearResult>("/admin/customer/clear-work", { method: "POST", customerId, body: input });
+  }
+
+  async copyCustomerSetup(input: { sourceCustomerId: string; moveJira: boolean }): Promise<CustomerCopyResult> {
+    const customerId = await this.activeCustomerId();
+    return request<CustomerCopyResult>("/admin/customer/copy-setup", { method: "POST", customerId, body: input });
+  }
+
+  async readJdeEstate(): Promise<JdeEstateResult> {
+    const customerId = await this.activeCustomerId();
+    return request<JdeEstateResult>("/admin/jde/estate", { method: "POST", customerId });
   }
 
   async createCustomer(input: CustomerInput): Promise<Customer> {

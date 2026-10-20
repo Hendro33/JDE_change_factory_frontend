@@ -6,6 +6,7 @@ import {
   readLegacyLocalThresholds,
 } from "../../services/dashboardThresholds";
 import { saveErrorMessage } from "../../services/saveErrors";
+import type { JdeEstateResult } from "../../services/api";
 import type { CustomerInput, CustomerProfile, DashboardThresholds } from "../../types/domain";
 import { Link } from "../../router";
 import { Loading } from "../../components/ui";
@@ -106,6 +107,104 @@ function CustomerConfigLinks() {
   );
 }
 
+/**
+ * Setting up a test customer: copy a working set-up from another customer,
+ * read what the connected JD Edwards holds, or clear this customer's work.
+ */
+function CustomerTools({ profile }: { profile: CustomerProfile }) {
+  const info = useSessionInfo();
+  const others = info.session.customers.filter((c) => c.id !== profile.customer.id);
+  const [source, setSource] = useState(others[0]?.id ?? "");
+  const [moveJira, setMoveJira] = useState(true);
+  const [confirm, setConfirm] = useState("");
+  const [removeSample, setRemoveSample] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const [estate, setEstate] = useState<JdeEstateResult | null>(null);
+
+  async function run(what: string, fn: () => Promise<string>) {
+    setBusy(what); setError(null); setDone(null);
+    try { setDone(await fn()); } catch (e) { setError(saveErrorMessage(e, "Not done.")); } finally { setBusy(null); }
+  }
+  function download(md: string) {
+    const url = URL.createObjectURL(new Blob([md], { type: "text/markdown" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `jde-estate-${profile.customer.shortName || "customer"}.md`; a.click();
+    URL.revokeObjectURL(url);
+  }
+  return (
+    <section className="panel" id="customer-tools">
+      <h2>Set up this customer</h2>
+      <div className="stack">
+        <div>
+          <h3 style={{ margin: "0 0 4px" }}>Copy the set-up from another customer</h3>
+          <p className="hint" style={{ marginTop: 0 }}>Copies the JD Edwards connection (users, passwords, certificate), the engagement scope,
+            agent switches and the AI connection. Afterwards, click Test once on the JD Edwards page.</p>
+          {others.length === 0 ? <p className="notstated">You have no other customer to copy from.</p> : (
+            <div className="btnrow">
+              <select aria-label="Copy from" value={source} onChange={(e) => setSource(e.target.value)}>
+                {others.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <label style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 400 }}>
+                <input type="checkbox" checked={moveJira} onChange={(e) => setMoveJira(e.target.checked)} />
+                Move the Jira connection here (one Jira project serves one customer)</label>
+              <button className="btn primary" disabled={!!busy || !source}
+                onClick={() => run("copy", async () => {
+                  const r = await api.copyCustomerSetup({ sourceCustomerId: source, moveJira });
+                  return `Copied${r.jira_moved ? ", Jira connection moved" : ""}. ${r.next}`;
+                })}>{busy === "copy" ? "Copying…" : "Copy set-up"}</button>
+            </div>
+          )}
+        </div>
+        <div>
+          <h3 style={{ margin: "0 0 4px" }}>Read what JD Edwards holds</h3>
+          <p className="hint" style={{ marginTop: 0 }}>Reads companies, branch plants, items, stock, customers, suppliers, line types and a few
+            code lists (at most 10 rows each, read-only) and saves them as a reference document for this customer.</p>
+          <div className="btnrow">
+            <button className="btn primary" disabled={!!busy}
+              onClick={() => run("estate", async () => {
+                const r = await api.readJdeEstate(); setEstate(r);
+                return `Saved as a reference document (${r.reads.filter((x) => x.rows).length} of ${r.reads.length} lists read).`;
+              })}>{busy === "estate" ? "Reading JD Edwards…" : "Read JD Edwards"}</button>
+            {estate && <button className="btn" onClick={() => download(estate.markdown)}>Download</button>}
+          </div>
+          {estate && (
+            <table className="data" style={{ marginTop: 8 }}>
+              <thead><tr><th>List</th><th>Source</th><th>Rows</th></tr></thead>
+              <tbody>{estate.reads.map((r) => (
+                <tr key={r.title}><td>{r.title}</td><td className="mono">{r.target}</td>
+                  <td>{r.error ? <span className="badge warn" title={r.error}>not read</span> : r.rows}</td></tr>))}</tbody>
+            </table>
+          )}
+        </div>
+        <div className="callout" style={{ borderColor: "var(--stop)" }}>
+          <h3 style={{ margin: "0 0 4px" }}>Clear this customer's work</h3>
+          <p className="hint" style={{ marginTop: 0 }}>Removes every request, story, design, change, delivery record, as-built record and uploaded
+            document of {profile.customer.name}. The settings stay: JD Edwards and Jira connections, engagement scope, agents,
+            AI, process framework, business domains and people. This cannot be undone.</p>
+          <label style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 400 }}>
+            <input type="checkbox" checked={removeSample} onChange={(e) => setRemoveSample(e.target.checked)} />
+            Also remove the sample data set's fictional people and business domains</label>
+          <div className="btnrow" style={{ marginTop: 6 }}>
+            <input aria-label="Type the customer name to confirm" style={{ minWidth: 280 }} placeholder={`Type ${profile.customer.name} to confirm`} value={confirm}
+              onChange={(e) => setConfirm(e.target.value)} />
+            <button className="btn" disabled={!!busy || confirm.trim() !== profile.customer.name}
+              onClick={() => run("clear", async () => {
+                const r = await api.clearCustomerWork({ confirmName: confirm.trim(), removeSampleData: removeSample });
+                setConfirm("");
+                return `Cleared ${r.stories.length} stories` + (r.sample_people_deactivated.length
+                  ? `; ${r.sample_people_deactivated.length} sample people and ${r.sample_domains_removed.length} sample domains removed.` : ".");
+              })}>{busy === "clear" ? "Clearing…" : "Clear all work"}</button>
+          </div>
+        </div>
+        {done && <div className="callout" role="status" style={{ borderColor: "var(--ok)" }}>{done}</div>}
+        {error && <div className="callout" role="alert" style={{ borderColor: "var(--stop)" }}><strong>Not done</strong>{error}</div>}
+      </div>
+    </section>
+  );
+}
+
 export function CustomerSetup() {
   const info = useSessionInfo();
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
@@ -192,6 +291,7 @@ export function CustomerSetup() {
         <div className="stack">
           <CustomerEditor profile={profile} isAdmin={isAdmin} onSaved={setProfile} />
           <CustomerConfigLinks />
+          {isAdmin && <CustomerTools profile={profile} />}
 
           <section className="panel">
             <h2>Members</h2>
