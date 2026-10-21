@@ -155,8 +155,9 @@ function MainApp({ onSignedOut, onSetupFinished }: { onSignedOut: () => void; on
   useEffect(() => { api.getSession().then(setSession); }, []);
   useEffect(() => {
     if (!session) return;
+    // Refreshed on every navigation too, so domains an administrator just created show at once.
     api.listBusinessDomains().then(setDomains).catch(() => setDomains([]));
-  }, [session?.activeCustomerId, scopeKey]);
+  }, [session?.activeCustomerId, scopeKey, path]);
   // My Work drives the notification count; refreshed on every navigation.
   useEffect(() => {
     if (!session) return;
