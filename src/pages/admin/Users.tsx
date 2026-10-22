@@ -191,7 +191,7 @@ function MemberRow({
         ) : (
           <>
             {member.roles.map((r) => ROLE_LABEL[r]).join(", ") || <span className="notstated">no roles</span>}
-            {member.domainIds.length > 0 && <div className="hint">Domains: {member.domainIds.join(", ")}</div>}
+            {member.domainIds.length > 0 && <div className="hint">Domains: {member.domainIds.map((id) => domains.find((d) => d.id === id)?.name ?? id).join(", ")}</div>}
           </>
         )}
         {error && <div className="hint" style={{ color: "var(--stop)" }}>{error}</div>}

@@ -67,6 +67,8 @@ export function BusinessStoryTab({ ctx }: { ctx: StoryCtx }) {
             <Fact label="Business domain">
               {info.domainName(change.businessDomainId) ?? <span className="muted">Not placed yet</span>}
               {domainReview?.domainClassificationUncertain && <div className="muted">Classification uncertain{domainReview.domainClassificationNote ? `: ${domainReview.domainClassificationNote}` : ""}</div>}
+              {!domainReview?.domainClassificationUncertain && domainReview?.domainClassificationNote && <div className="muted">{domainReview.domainClassificationNote}</div>}
+              <MoveDomain ctx={ctx} />
             </Fact>
             <Fact label="Process">
               {processes.length ? processes.map((r) => <div key={r.node_key}>{r.path.map((p) => p.name).join(" › ")}</div>)
@@ -190,6 +192,50 @@ export function BusinessStoryTab({ ctx }: { ctx: StoryCtx }) {
           <p className="muted">Decisions and approvals are under <Link to={`/stories/${encodeURIComponent(change.id)}/evidence`}>Evidence &amp; History</Link>.</p>
         </Details>
       )}
+    </div>
+  );
+}
+
+
+/**
+ * The Domain Owner a story landed with (or the Application Manager, before
+ * review starts) moves it to the domain it really belongs to; that domain's
+ * owner then reviews it.
+ */
+function MoveDomain({ ctx }: { ctx: StoryCtx }) {
+  const { change, domainReview } = ctx;
+  const info = useSessionInfo();
+  const [open, setOpen] = useState(false);
+  const [target, setTarget] = useState("");
+  const [why, setWhy] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const stage = domainReview?.stage;
+  const manager = info.has("product_manager", "admin") && stage === "ready_for_domain_owner";
+  const owner = info.has("domain_owner") && !!change.businessDomainId
+    && (stage === "ready_for_domain_owner" || stage === "domain_owner_reviewing");
+  if (!domainReview || !(manager || owner)) return null;
+  const choices = info.domains.filter((d) => d.status === "active" && d.id !== change.businessDomainId);
+  if (!open) return <button className="btn small" style={{ marginTop: 4 }} onClick={() => setOpen(true)}>{change.businessDomainId ? "Move to another domain" : "Place in a domain"}</button>;
+  return (
+    <div className="stack" style={{ marginTop: 6, gap: 6 }}>
+      <select aria-label="New business domain" value={target} onChange={(e) => setTarget(e.target.value)}>
+        <option value="">Choose a business domain…</option>
+        {choices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+      </select>
+      <input aria-label="Why it belongs there" placeholder="Why it belongs there (optional)" value={why} onChange={(e) => setWhy(e.target.value)} />
+      <div className="btnrow">
+        <button className="btn small primary" disabled={busy || !target} onClick={async () => {
+          setBusy(true); setError(null);
+          try {
+            ctx.setDomainReview(await api.assignBusinessDomain(change.id, { businessDomainId: target, note: why }));
+            setOpen(false); ctx.reload();
+          } catch (e) { setError(e); } finally { setBusy(false); }
+        }}>{busy ? "Moving…" : "Move"}</button>
+        <button className="btn small" onClick={() => setOpen(false)}>Cancel</button>
+      </div>
+      {owner && <span className="hint">The story goes to that domain's owner and starts its review again.</span>}
+      {error !== null && <ErrorState error={error} title="Not moved" />}
     </div>
   );
 }
