@@ -1,10 +1,10 @@
 import { processApi, type Mapping } from "../../services/processApi";
-import { useSessionInfo } from "../../components/design";
+import { JadeWorking, useSessionInfo } from "../../components/design";
 import { StoryRatingsPanel } from "../../components/StoryRatings";
 import { ReviewFlow, ReviewDetail, BusinessContextMap, AcceptanceChecklist, QuestionCards, BacklogComparison, SolutionArchitectureMap, IntegrityPanel } from "../../components/visualReview";
 import { inAmStage } from "./workflow";
 import { Link, storyPath } from "../../router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../services/api";
 import { saveErrorMessage } from "../../services/saveErrors";
 import type { ArchitectureReviewRun, Change, DomainReview } from "../../types/domain";
@@ -35,6 +35,11 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
   const [run, setRun] = useState<ArchitectureReviewRun | null>(null);
   const [showAnalysisHistory, setShowAnalysisHistory] = useState(false);
 
+  // Stories whose re-run was just requested here: shown as working at once,
+  // before the next refresh confirms it.
+  const [requested, setRequested] = useState<Set<string>>(new Set());
+  const isWorking = (c: Change) => c.lifecycle?.nextAction.owner === "jade" || requested.has(c.id);
+
   const reload = () => {
     api.listChanges().then((all) => {
       const queue = all.filter((c) => inAmStage(c, "architecture") || c.architectDecision || c.exactChange);
@@ -45,6 +50,36 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
   };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(reload, [navToken]);
+
+  // While JADE works on any story in the list, refresh every few seconds so
+  // the page shows the result by itself.
+  const anyWorking = (changes ?? []).some(isWorking);
+  useEffect(() => {
+    if (!anyWorking) return;
+    const t = setInterval(() => {
+      api.listChanges().then((all) => {
+        const queue = all.filter((c) => inAmStage(c, "architecture") || c.architectDecision || c.exactChange);
+        setChanges(queue);
+        setRequested((cur) => {
+          // A request is confirmed (or finished) once the server reports it.
+          const next = new Set([...cur].filter((id) => {
+            const c = queue.find((q) => q.id === id);
+            return c && c.lifecycle?.nextAction.owner !== "jade" && Date.now() - (requestedAt.current[id] ?? 0) < 20000;
+          }));
+          return next.size === cur.size ? cur : next;
+        });
+      });
+      if (openId) api.getArchitectureReview(openId).then((r) => setRun(r ?? null));
+    }, 4000);
+    return () => clearInterval(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anyWorking, openId]);
+  const requestedAt = useRef<Record<string, number>>({});
+  const startRerun = async (id: string) => {
+    requestedAt.current[id] = Date.now();
+    setRequested((cur) => new Set(cur).add(id));
+    await api.retriggerArchitectureReview(id);
+  };
 
   useEffect(() => {
     if (!openId) { setDomainReview(null); setRun(null); return; }
@@ -63,7 +98,8 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
     { key: "title", header: "Title", render: (c) => c.title, sortValue: (c) => c.title },
     { key: "route", header: "Route", render: (c) => c.architectDecision?.recommendedRoute ?? <span className="notstated">not decided</span> },
     { key: "decision", header: "Exact change", render: (c) =>
-      c.changeApproval?.status === "approved" ? <span className="badge ok">Approved</span>
+      isWorking(c) ? <JadeWorking>Architect at work</JadeWorking>
+        : c.changeApproval?.status === "approved" ? <span className="badge ok">Approved</span>
         : c.changeApproval?.status === "rejected" ? <span className="badge stop">Rejected</span>
         : c.exactChange ? <span className="badge warn">Awaiting your decision</span>
         : <span className="badge grey">Not proposed yet</span> },
@@ -138,6 +174,17 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
             </div>
           </section>
 
+          {isWorking(open) && (
+            <section className="panel nextcard working" aria-live="polite">
+              <JadeWorking>The Architect is at work on this story</JadeWorking>
+              <div className="nextcard-note">
+                It is researching JD Edwards and preparing {architectDecision ? "a new version of the solution" : "the solution"}.
+                This usually takes a few minutes. No action is needed from you; this page updates by itself.
+                {architectDecision && " What you see below is the previous version until the new one arrives."}
+              </div>
+            </section>
+          )}
+
           {architectDecision && <><SolutionArchitectureMap change={open} decision={architectDecision} spec={implementationSpec} domain={info.domainName(open.businessDomainId)} mapping={mapping} /><IntegrityPanel decision={architectDecision} /></>}
           <StoryRatingsPanel key={open.id} change={open} mode="technical" />
           {architectDecision ? (
@@ -191,11 +238,11 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
                 </div>
               )}
             </ReviewDetail>
-          ) : (
+          ) : isWorking(open) ? null : (
             <section className="panel">
               <div className="callout">
-                <strong>Architecture Review has not produced a recommendation yet</strong>
-                This can take a few minutes after Backlog Review approval — check back shortly.
+                <strong>No solution yet</strong>
+                The Architect has not started on this story. Open the story to see what it is waiting for.
               </div>
             </section>
           )}
@@ -257,13 +304,13 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
               renderRecommendReanalysisActions={() => (
                 <button
                   className="btn primary"
+                  disabled={isWorking(open)}
                   onClick={async () => {
-                    await api.retriggerArchitectureReview(open.id);
-                    const updated = await api.getArchitectureReview(open.id);
-                    setRun(updated ?? null);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                    await startRerun(open.id);
                   }}
                 >
-                  Re-run Architecture Review
+                  {isWorking(open) ? "Architect at work…" : "Re-run Architecture Review"}
                 </button>
               )}
             /></ReviewDetail>

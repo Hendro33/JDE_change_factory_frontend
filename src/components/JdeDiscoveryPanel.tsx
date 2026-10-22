@@ -209,7 +209,7 @@ function SampleRead({ view, busy, run }: { view: JdeProfileView; busy: boolean; 
   const [previewError, setPreviewError] = useState<string | null>(null);
   useEffect(() => { setTarget(read?.targets[0] ?? ""); setFField(""); }, [capId]);
   useEffect(() => { setPreview(null); setPreviewError(null); }, [capId, target, max, fField, fOp, fValue, view.revision]);
-  const limit = Math.min(view.config?.limits.maxRecords ?? 1, view.ceilings.max_records);
+  const limit = view.ceilings.max_records;
   const input = () => ({ capabilityId: capId, target, maxRecords: max, filters: fField ? [{ field: fField, op: fOp, value: fValue }] : [] });
   return (
     <div className="callout" style={{ marginTop: 6 }}>
@@ -331,7 +331,7 @@ export function JdeDiscoveryPanel({ onChanged }: { onChanged?: () => void } = {}
 
       <div>
         <strong>What the Architect can read</strong>
-        <div className="hint">Reads only, at most {cfg.limits.maxRecords} records per query, no paging. A capability with approved reads is limited to
+        <div className="hint">Reads only, up to {view.ceilings.max_records} records per query, no paging. A capability with approved reads is limited to
           those targets and columns; without, any exact table / UDC / application / version name is allowed and the read user's JD Edwards role
           decides what it can see.</div>
         <table className="data">
@@ -429,7 +429,6 @@ export function JdeDiscoveryPanel({ onChanged }: { onChanged?: () => void } = {}
           <fieldset><legend>Restrict reads (optional)</legend>
             <ReadsEditor reads={form.approvedReads} onChange={(r) => set("approvedReads", r)} view={view} />
             <div className="grid halves">
-              <label className="field">Records per query (max {view.ceilings.max_records})<input aria-label="Records per query" type="number" min={1} max={view.ceilings.max_records} value={form.limits.maxRecords} onChange={(e) => set("limits", { ...form.limits, maxRecords: Number(e.target.value) })} /></label>
               <label className="field">Request timeout, seconds (max {view.ceilings.max_timeout_seconds})<input aria-label="Request timeout" type="number" min={1} max={view.ceilings.max_timeout_seconds} value={form.limits.timeoutSeconds} onChange={(e) => set("limits", { ...form.limits, timeoutSeconds: Number(e.target.value) })} /></label>
             </div>
           </fieldset>
