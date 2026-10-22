@@ -14,11 +14,17 @@ import {
   NotStated,
   PriorityBadge,
   Provenance,
-  StateBadge,
   Timeline,
   type TimelineItem,
 } from "../../components/ui";
 import { ExactChangeFacts, isChangeSet } from "../../components/ConfigurationItems";
+import { HealthIndicator, PhaseLabel } from "../../components/design";
+
+/** Applied in DEV, from the canonical lifecycle's delivery steps (the same state every screen shows). */
+function builtInDev(c: Change): boolean {
+  const build = c.lifecycle?.deliverySteps.find((s) => s.id === "build");
+  return build?.state === "done" || c.exactChange?.execution?.writeState === "applied" || c.lifecycle?.outcome === "delivered";
+}
 
 /** The lifecycle, in order, as the business reads it. */
 const LIFECYCLE: { key: string; title: string; reached: (c: Change) => boolean; detail: (c: Change) => string | undefined }[] = [
@@ -58,7 +64,7 @@ const LIFECYCLE: { key: string; title: string; reached: (c: Change) => boolean; 
   },
   {
     key: "execute", title: "Applied in JDE DEV",
-    reached: (c) => c.exactChange?.execution?.writeState === "applied" || ["EXECUTING", "TESTING", "VALIDATED", "CNC_HANDOFF", "CLOSED"].includes(c.state),
+    reached: (c) => builtInDev(c),
     detail: (c) => {
       const a = c.exactChange?.execution?.applied as { by?: string; source?: string } | undefined;
       return a?.by ? `Recorded by ${a.by}${a.source?.toLowerCase().startsWith("live") ? ", read back live" : ", stated"}` : undefined;
@@ -80,7 +86,7 @@ const LIFECYCLE: { key: string; title: string; reached: (c: Change) => boolean; 
   },
   {
     key: "cnc", title: "CNC hand-off",
-    reached: (c) => ["CNC_HANDOFF", "CLOSED"].includes(c.state),
+    reached: (c) => c.lifecycle?.outcome === "delivered",
     detail: () => "Package build and promotion stays with CNC",
   },
   {
@@ -118,7 +124,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
   }));
 
   const ec = change.exactChange;
-  const applied = ["EXECUTING", "TESTING", "VALIDATED", "CNC_HANDOFF", "CLOSED"].includes(change.state);
+  const applied = builtInDev(change);
 
   return (
     <>
@@ -132,7 +138,8 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <PriorityBadge priority={change.priority} />
-          <StateBadge state={change.state} />
+          <PhaseLabel lifecycle={change.lifecycle} />
+          <HealthIndicator lifecycle={change.lifecycle} />
         </div>
       </div>
 

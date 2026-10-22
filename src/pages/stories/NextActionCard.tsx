@@ -5,6 +5,7 @@ import { ConfirmDialog } from "../../components/ui";
 import { ErrorState, JadeWorking, useSessionInfo } from "../../components/design";
 import { Link, storyPath } from "../../router";
 import type { StoryCtx } from "./storyContext";
+import { WhatNeedsToHappen } from "../../components/work";
 
 type Dialog = { title: string; intro?: ReactNode; next: string; confirm: string; tone: "primary" | "danger"; requireNote: boolean;
   reasonCode?: boolean; run: (note: string, reason?: string) => Promise<unknown> } | null;
@@ -113,7 +114,8 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
 
   const mine = canOwn(na.owner, info.has);
   const copy = na.action ? DECISION_COPY[na.action] : undefined;
-  const risks = change.architectDecision?.dependenciesAndConflicts ?? [];
+  const openPoints = (lc.issues ?? []).filter((i) => !i.resolution && i.kind !== "jade");
+  const blockingPoints = openPoints.filter((i) => i.blocks);
 
   /* ---------------- someone else owns it ---------------- */
   if (!mine) {
@@ -123,6 +125,7 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
         <div className="nextcard-kicker">Waiting for: {withAm ? "Application Management" : na.ownerLabel || "someone else"}</div>
         <div className="nextcard-summary">{withAm ? `The approved story is with the Application Manager (${lc.phaseLabel}).` : na.summary}</div>
         <div className="nextcard-note">You can follow progress here; nothing is needed from you.</div>
+        {!withAm && <WhatNeedsToHappen lifecycle={lc} changeId={change.id} skipPrimary title="Also open" />}
       </section>
     );
   }
@@ -159,6 +162,14 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
     case "clarify":
       controls = <Link className="btn primary" to={storyPath(change.id, "story", "ask")}>Answer JADE's question</Link>;
       break;
+    case "answer_issue":
+    case "decide_issue":
+      controls = <Link className="btn primary" to={storyPath(change.id, na.tab === "story" ? "story" : "solution", "open-points")}>
+        {na.action === "decide_issue" ? "Decide" : "Answer the question"}</Link>;
+      break;
+    case "admin_setup":
+      controls = info.has("admin") ? <Link className="btn primary" to="/admin/setup-list">Open the setup list</Link> : null;
+      break;
     default:
       controls = na.tab !== "overview" ? <Link className="btn" to={storyPath(change.id, na.tab)}>Open</Link> : null;
   }
@@ -167,7 +178,8 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
   // While a solution is up for review or waiting for clarification, the
   // Application Manager can always send it back to the Architect from here.
   const rerunnable = info.has("product_manager", "admin")
-    && ["approve_design", "approve_exact_change", "clarify"].includes(na.action ?? "");
+    && ["approve_design", "approve_exact_change", "clarify", "answer_issue", "decide_issue"].includes(na.action ?? "")
+    && lc.phase !== "delivery";
   return (
     <section className={`nextcard ${isDecision ? "decision" : "task"} ${lc.health}`} id="next-action" aria-label={isDecision ? "Decision needed" : "Next action"}>
       <div className="nextcard-kicker">{isDecision ? "Decision needed" : lc.health === "failed" ? "Needs attention" : "Next step"}</div>
@@ -175,8 +187,10 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
       {isDecision && (
         <dl className="nextcard-facts">
           <div><dt>Business priority</dt><dd>{change.priority}</dd></div>
-          {(na.action === "approve_design" || na.action === "approve_exact_change" || na.action === "approve_package") && (
-            <div><dt>Delivery risk</dt><dd>{risks.length ? `Could affect: ${risks.join("; ")}` : "No conflicts identified"}</dd></div>
+          {(na.action === "approve_design" || na.action === "approve_exact_change" || na.action === "approve_package"
+            || na.action === "decide_issue") && (
+            <div><dt>Open points</dt><dd>{openPoints.length === 0 ? "None open"
+              : `${openPoints.length} open${blockingPoints.length ? `, ${blockingPoints.length} blocking` : ""}`}</dd></div>
           )}
           {change.complexitySignal !== "Unknown" && <div><dt>Complexity</dt><dd>{change.complexitySignal} (JADE's estimate)</dd></div>}
         </dl>
@@ -186,6 +200,7 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
       {lc.openItems.length > 0 && lc.health !== "waiting_decision" && (
         <ul className="nextcard-items">{lc.openItems.map((i) => <li key={i}>{i}</li>)}</ul>
       )}
+      <WhatNeedsToHappen lifecycle={lc} changeId={change.id} skipPrimary title="Also open" />
       {(controls || rerunnable) && (
         <div className="btnrow nextcard-actions">
           {controls}

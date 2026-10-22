@@ -116,6 +116,15 @@ export interface AiRun {
   knowledge: { action: string; filename?: string; id?: string; sections?: string[] }[] | null;
   usage: { tokens?: Record<string, number> | null; rateCardEstimateUsd?: number | null; tokensBasis?: string } | null;
   cost_usd: number | null; cost_basis: string | null; error: string | null; started_at: string; finished_at: string | null;
+  /** Length of the agent's full final answer (kept for Administrators). */
+  output_chars?: number;
+  /** A quality signal for tuning the prompt; the answer is never cut. */
+  output_long?: boolean;
+}
+
+export interface AiRunOutput {
+  run_id: string; driver: string; story_id: string | null; status: string; error: string | null;
+  started_at: string; finished_at: string | null; output: string | null; output_chars: number; output_long: boolean;
 }
 
 export interface RoleHealth {
@@ -215,6 +224,9 @@ export const aiApi = {
   },
   async runs(): Promise<AiRun[]> {
     return request<AiRun[]>("/admin/ai/runs", { customerId: await customerId() });
+  },
+  async runOutput(runId: string): Promise<AiRunOutput> {
+    return request<AiRunOutput>(`/admin/ai/runs/${encodeURIComponent(runId)}/output`, { customerId: await customerId() });
   },
   async spend(): Promise<AiSpend> {
     return request<AiSpend>("/admin/ai/spend", { customerId: await customerId() });

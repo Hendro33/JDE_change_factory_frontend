@@ -826,3 +826,69 @@ a.iconbtn.on { color: var(--jade-deep); border-color: var(--jade); box-shadow: i
 .jdestatus.ok { border-left-color: var(--ok); } .jdestatus.stop { border-left-color: var(--stop); }
 .jdestatus.warn { border-left-color: var(--warn); } .jdestatus.grey { border-left-color: var(--line-strong); }
 .jdestatus .badge { font-size: 14px; }
+
+/* ---------------------------------------------------------------- */
+/* Shared work components (redesign step 1): What needs to happen,    */
+/* open points with owners, JADE's conclusion as before -> after.     */
+/* ---------------------------------------------------------------- */
+.wnh { margin-top: 16px; }
+.wnh-title, .issues-title, .result-title {
+  font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px;
+}
+.wnh-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.wnh-line { display: grid; grid-template-columns: minmax(110px, 160px) 1fr auto; gap: 12px; align-items: baseline;
+  padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; }
+.wnh-line.primary .wnh-text { font-weight: 700; }
+.wnh-line.blocking .wnh-who::before { content: "■ "; color: var(--stop); }
+.wnh-line.jade .wnh-who { color: var(--ai); }
+.wnh-who { font-weight: 700; color: var(--ink-soft); font-size: 13.5px; }
+.wnh-act { justify-self: end; }
+
+.issues { margin-top: 20px; }
+.issues-count { margin-left: 10px; font-weight: 700; color: var(--ink-soft); letter-spacing: 0; text-transform: none; font-size: 13px; }
+.issue-list { list-style: none; margin: 0; padding: 0; }
+.issue { padding: 12px 0 12px 14px; border-bottom: 1px solid var(--line); border-left: 3px solid var(--line); }
+.issue.blocks { border-left-color: var(--stop); }
+.issue.resolved { border-left-color: var(--jade); }
+.issue.k-jade { border-left-color: var(--ai-bg); }
+.issue-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+.issue-owner { font-size: 13.5px; font-weight: 700; color: var(--ink-soft); }
+.issue-title { font-weight: 650; max-width: 80ch; }
+.issue-consequence, .issue-note { color: var(--muted); font-size: 14px; max-width: 80ch; }
+.issue-proposal { font-size: 14px; margin-top: 4px; max-width: 80ch; }
+.issue-answer { font-size: 14px; margin-top: 6px; }
+.issue-answer .linkbtn { margin-left: 10px; font-size: 13px; color: var(--muted); }
+.issue-form { margin-top: 8px; max-width: 640px; }
+.issue-form textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 8px; margin-bottom: 8px; }
+.issue-actions { margin-top: 8px; }
+.issue-done { color: var(--ok); font-size: 13.5px; margin-top: 6px; }
+.issues-resolved { margin-top: 8px; }
+.issues-resolved summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 6px 0; }
+.issues-note { margin-top: 8px; }
+
+.result { margin-top: 4px; }
+.result-conclusion { font-size: 16px; font-weight: 600; line-height: 1.5; max-width: 80ch; margin: 0 0 12px; }
+.beforeafter { width: 100%; border-collapse: collapse; font-size: 14px; margin: 4px 0 12px; }
+.beforeafter th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+  font-weight: 700; padding: 6px 8px; border-bottom: 1px solid var(--line-strong); }
+.beforeafter td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.beforeafter .ba-arrow { color: var(--jade); font-weight: 800; width: 1%; }
+.result-uncertainty { background: var(--warn-bg); border-radius: var(--radius); padding: 10px 14px; font-size: 14px; max-width: 80ch; }
+.result-uncertainty ul { margin: 4px 0 0; padding-left: 18px; }
+
+.setuptask { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.setuptask-title { font-weight: 700; }
+.setuptask ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+
+@media (max-width: 640px) {
+  .wnh-line { grid-template-columns: 1fr; gap: 2px; }
+  .wnh-act { justify-self: start; margin-top: 4px; }
+  .beforeafter thead { display: none; }
+  .beforeafter td { display: block; border: 0; padding: 2px 0; }
+  .beforeafter tr { display: block; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .beforeafter .ba-arrow { display: none; }
+}
+.runoutput { margin-top: 6px; }
+.runoutput summary { cursor: pointer; font-size: 13px; color: var(--jade-dark); }
+.runoutput-text { white-space: pre-wrap; word-break: break-word; max-height: 420px; overflow: auto; background: var(--wash);
+  padding: 10px; border-radius: 8px; font-size: 12.5px; max-width: 720px; }

@@ -9,6 +9,7 @@ import {
 } from "../../components/design";
 import { ExactChangeSummary } from "./NextActionCard";
 import { ROUTE_LABEL, cleanAgentText, type StoryCtx } from "./storyContext";
+import { IssueList, ResultSummary } from "../../components/work";
 
 /**
  * The Solution: one coherent proposal the Application Manager can judge -- what
@@ -66,14 +67,16 @@ export function SolutionTab({ ctx }: { ctx: StoryCtx }) {
     ...(manifest?.documents.length ? [`${manifest.documents.length} customer document${manifest.documents.length > 1 ? "s" : ""}`] : []),
     ...(decision.alternativesConsidered.length ? [`${decision.alternativesConsidered.length} simpler option${decision.alternativesConsidered.length > 1 ? "s" : ""} considered and ruled out`] : []),
   ];
+  // Evidence gaps are listed once, with their owners, under Open points.
   const uncertainty = [
-    ...(manifest?.gaps ?? []).map((g) => g.description),
     ...(manifest?.contradictions ?? []),
     ...(manifest?.confidence_limitations ?? []),
     ...(lc?.openItems ?? []),
   ];
   return (
     <div className="solution vr-pilot">
+      <ResultSummary change={change} />
+      <IssueList change={change} onChange={() => ctx.reload()} empty="No open points: nothing is waiting on anyone." />
       <SolutionArchitectureMap change={change} decision={decision} spec={spec} domain={info.domainName(change.businessDomainId)} mapping={ctx.process?.mapping} />
       <IntegrityPanel decision={decision} />
       <ReviewDetail title="Full solution rationale">

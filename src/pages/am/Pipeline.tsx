@@ -58,10 +58,14 @@ export function Pipeline({ onOpenChange, navFilter, navToken }: { onOpenChange: 
       c.changeApproval?.status === "approved" ? <span className="badge ok">Approved</span>
         : c.exactChange ? <span className="badge warn">Waiting on you</span>
         : <span className="badge grey">Not proposed</span> },
-    { key: "test", header: "Test", render: (c) =>
-      c.testResult?.outcome === "pass" ? <span className="badge ok">Passed</span>
-        : c.testResult?.outcome === "fail" ? <span className="badge stop">Failed</span>
-        : <span className="badge grey">Not run</span> },
+    { key: "test", header: "Test", render: (c) => {
+      // The validation step of the canonical lifecycle -- the same state the story page shows.
+      const v = c.lifecycle?.deliverySteps.find((s) => s.id === "validation");
+      return v?.state === "done" ? <span className="badge ok">Passed</span>
+        : v?.state === "failed" ? <span className="badge stop">Needs attention</span>
+        : v?.state === "current" ? <span className="badge info">In progress</span>
+        : <span className="badge grey">Not run</span>;
+    } },
     { key: "status", header: "Phase / health", render: (c) => <><PhaseLabel lifecycle={c.lifecycle} /><HealthIndicator lifecycle={c.lifecycle} /></> },
     { key: "next", header: "Next action", render: (c) => c.lifecycle?.nextAction.summary ?? "—" },
     { key: "priority", header: "Priority", render: (c) => <PriorityBadge priority={c.priority} /> },

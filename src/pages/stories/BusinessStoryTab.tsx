@@ -8,6 +8,7 @@ import { Details, ErrorState, Fact, Section, businessNeed, formatDateTime, useSe
 import { Link, useLocation } from "../../router";
 import { StoryProcessPanel } from "../StoryProcess";
 import type { StoryCtx } from "./storyContext";
+import { IssueList } from "../../components/work";
 
 const IMPACT_FIELDS: [keyof import("../../types/domain").BusinessImpact, string][] = [
   ["financialImpact", "Financial"], ["operationalReach", "Operational"], ["riskCompliance", "Risk & compliance"],
@@ -76,6 +77,8 @@ export function BusinessStoryTab({ ctx }: { ctx: StoryCtx }) {
             </Fact>
             <ClassificationFacts change={change} onSaved={ctx.reload} />
           </div>
+
+          <IssueList change={change} onChange={() => ctx.reload()} kinds={["business"]} title="Questions for the business" />
 
           <Section title="User story">
             <p className="userstory">{us.statement}</p>

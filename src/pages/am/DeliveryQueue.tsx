@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
-import type { Change, DeliveryQueueEntry, LifecycleState } from "../../types/domain";
-import { Loading, PIPELINE_STATES, PipelineFlow, StateBadge } from "../../components/ui";
+import type { Change, DeliveryQueueEntry } from "../../types/domain";
+import { Loading } from "../../components/ui";
+import { HealthIndicator, PhaseLabel } from "../../components/design";
+import { Link } from "../../router";
+import { AM_STAGES, inAmStage } from "./workflow";
 
 /**
  * The Delivery Queue (Increment: Continuous Delivery Flow) — the set
@@ -9,9 +12,15 @@ import { Loading, PIPELINE_STATES, PipelineFlow, StateBadge } from "../../compon
  *
  * Deliberately NOT a Sprint board: no capacity, no start/end dates, no
  * planning ceremony. Just an ordered list one human decision
- * (Application Manager approval, on Backlog Review) adds entries
- * to, plus whatever status/owner/blocked information is known.
+ * (Application Manager approval, on Backlog Review) adds entries to.
+ *
+ * Every state shown here is the story's canonical lifecycle (phase, health
+ * and next action) -- the same words as the story page and every other
+ * list. The queue entry's own stored status is never advanced, so it is not
+ * shown as the state.
  */
+const FLOW = AM_STAGES.filter((s) => ["architecture", "approved", "delivery", "validation", "asbuilt", "completed"].includes(s.key));
+
 export function DeliveryQueuePage({ onOpenChange }: { onOpenChange: (id: string) => void }) {
   const [entries, setEntries] = useState<DeliveryQueueEntry[] | null>(null);
   const [changesById, setChangesById] = useState<Map<string, Change>>(new Map());
@@ -21,18 +30,14 @@ export function DeliveryQueuePage({ onOpenChange }: { onOpenChange: (id: string)
     api.listChanges().then((all) => setChangesById(new Map(all.map((c) => [c.id, c]))));
   }, []);
 
-  const countIn = (s: LifecycleState) =>
-    Array.from(changesById.values()).filter((c) => c.state === s).length;
+  const queued = (entries ?? []).map((e) => changesById.get(e.changeId)).filter((c): c is Change => !!c);
 
   return (
     <>
       <div className="pagehead">
         <div>
           <h1>Delivery Queue</h1>
-          <div className="sub">
-            The approved work Jade is authorised to deliver, in order — no capacity plan or
-            start/end date, just an ordered queue and its current state.
-          </div>
+          <div className="sub">The approved work JADE is authorised to deliver, in order, and where each story is now.</div>
         </div>
         <div className="meta">{entries?.length ?? 0} queued</div>
       </div>
@@ -41,28 +46,27 @@ export function DeliveryQueuePage({ onOpenChange }: { onOpenChange: (id: string)
         <div className="stack">
           <section className="panel">
             <h2>Where everything sits</h2>
-            <div className="sub" style={{ marginBottom: 12 }}>
-              Every stage after approval, and how many changes are in it right now — the same
-              population this queue draws from, not just what's still waiting to start.
+            <div className="statrow">
+              {FLOW.map((s) => (
+                <Link key={s.key} to={s.to} className="statcard">
+                  <span className="stat-value">{queued.filter((c) => inAmStage(c, s.key)).length}</span>
+                  <span className="stat-label">{s.label}</span>
+                </Link>
+              ))}
             </div>
-            <PipelineFlow
-              states={PIPELINE_STATES}
-              counts={Object.fromEntries(PIPELINE_STATES.map((s) => [s, countIn(s)]))}
-            />
+            <p className="hint" style={{ marginTop: 8 }}>Counts of the queued stories in each stage, from the same lifecycle as the story pages.</p>
           </section>
 
           {entries.length === 0 ? (
             <div className="empty">
-              Nothing queued yet. Once the Application Manager approves a change on Backlog
-              Review, it appears here.
+              Nothing queued yet. Once the Application Manager approves a story on Backlog Review, it appears here.
             </div>
           ) : (
             <section className="panel">
               <table className="data">
                 <thead>
                   <tr>
-                    <th>#</th><th>Change</th><th>Title</th><th>Status</th>
-                    <th>Owner / agent</th><th>Blocked</th><th>Added by</th><th>Added</th>
+                    <th>#</th><th>Story</th><th>Phase</th><th>Health</th><th>Next action</th><th>With</th><th>Added</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -71,18 +75,13 @@ export function DeliveryQueuePage({ onOpenChange }: { onOpenChange: (id: string)
                     return (
                       <tr key={e.changeId} className="clickable" onClick={() => onOpenChange(e.changeId)}>
                         <td className="mono">{e.position}</td>
-                        <td className="mono">{e.changeId}</td>
-                        <td>{change?.title ?? <span className="notstated">unknown</span>}</td>
-                        <td>
-                          {e.status === "queued" && <span className="badge grey">Queued</span>}
-                          {e.status === "in_progress" && <span className="badge info">In progress</span>}
-                          {e.status === "blocked" && <span className="badge stop">Blocked</span>}
-                          {change && <span style={{ marginLeft: 6 }}><StateBadge state={change.state} /></span>}
-                        </td>
-                        <td>{e.currentOwner || <span className="notstated">unassigned</span>}</td>
-                        <td>{e.blockedReason || "—"}</td>
-                        <td>{e.addedBy}</td>
-                        <td>{new Date(e.addedAt).toLocaleDateString("en-GB")}</td>
+                        <td><div>{change?.title ?? e.title ?? <span className="notstated">unknown</span>}</div>
+                          <div className="mono muted">{e.changeId}</div></td>
+                        <td>{change ? <PhaseLabel lifecycle={change.lifecycle} /> : e.phaseLabel || "—"}</td>
+                        <td>{change ? <HealthIndicator lifecycle={change.lifecycle} /> : e.healthLabel || "—"}</td>
+                        <td>{change?.lifecycle?.nextAction.summary ?? e.nextAction ?? "—"}</td>
+                        <td>{change?.lifecycle?.nextAction.ownerLabel || e.nextActionOwner || "—"}</td>
+                        <td>{new Date(e.addedAt).toLocaleDateString("en-GB")}<div className="muted small">by {e.addedBy}</div></td>
                       </tr>
                     );
                   })}

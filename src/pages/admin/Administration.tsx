@@ -18,6 +18,7 @@ import { AgentConfiguration } from "./AgentConfiguration";
 import { BusinessDomains } from "../BusinessDomains";
 import { ProcessFramework } from "./ProcessFramework";
 import { ErpLandscape } from "./ErpLandscape";
+import { SetupList } from "./SetupList";
 
 interface AdminSection {
   key: string;
@@ -32,6 +33,9 @@ interface AdminSection {
  * the job; the engine itself is visible under Operations.
  */
 const SECTIONS: AdminSection[] = [
+  { key: "setup-list", label: "Setup list", what: "Gaps in this customer's setup, each listed once with every story it affects.", tabs: [
+    { key: "list", label: "Setup list", render: () => <SetupList /> },
+  ] },
   { key: "organisation", label: "Organisation", what: "The customer, its people and their roles.", tabs: [
     { key: "customer", label: "Customer", render: () => <CustomerSetup /> },
     { key: "users", label: "Users & roles", render: () => <Users /> },

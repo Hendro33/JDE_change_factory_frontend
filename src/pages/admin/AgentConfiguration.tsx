@@ -212,6 +212,7 @@ export function AgentConfiguration({ part = "all" }: { part?: "config" | "operat
                   <td>
                     <span className={`badge ${r.status === "completed" ? "ok" : r.status === "running" ? "info" : "stop"}`}>{r.status}</span>
                     {r.error && <div className="hint">{r.error}</div>}
+                    {(r.output_chars ?? 0) > 0 && <RunOutput runId={r.run_id} chars={r.output_chars ?? 0} long={!!r.output_long} />}
                   </td>
                   <td>
                     {r.configured_model ?? "—"}
@@ -232,6 +233,24 @@ export function AgentConfiguration({ part = "all" }: { part?: "config" | "operat
         )}
       </section>}
     </div>
+  );
+}
+
+/** The agent's full final answer, exactly as given -- for troubleshooting and assessing the agent. */
+function RunOutput({ runId, chars, long }: { runId: string; chars: number; long: boolean }) {
+  const [text, setText] = useState<string | null>(null);
+  const [failed, setFailed] = useState("");
+  return (
+    <details className="runoutput" onToggle={(e) => {
+      if ((e.target as HTMLDetailsElement).open && text === null) {
+        aiApi.runOutput(runId).then((o) => setText(o.output ?? "")).catch(() => setFailed("The answer could not be loaded."));
+      }
+    }}>
+      <summary>Full answer ({chars.toLocaleString()} characters){long && <span className="badge warn" style={{ marginLeft: 6 }}
+        title="A quality signal for tuning the prompt; the answer is kept in full.">long</span>}</summary>
+      {failed ? <p className="hint">{failed}</p> : text === null ? <p className="hint">Loading…</p>
+        : <pre className="mono runoutput-text">{text}</pre>}
+    </details>
   );
 }
 

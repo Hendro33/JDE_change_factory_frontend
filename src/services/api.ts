@@ -21,6 +21,7 @@ import type {
   CompanyUsersOut,
   CustomerProfile,
   DeliveryQueueEntry,
+  SetupTask,
   DomainReview,
   DashboardThresholds,
   DashboardThresholdsUpdateInput,
@@ -107,6 +108,8 @@ export const API_ENDPOINTS = {
   requestRequirementReconsideration: "POST /changes/{id}/domain-review/request-reconsideration",
 
   listDeliveryQueue: "GET /delivery-queue",
+  resolveIssue: "POST /changes/{id}/issues/{issueId}/resolution",
+  getSetupList: "GET /setup-list",
 
   getCustomerProfile: "GET /admin/customer-profile",
   getErpLandscape: "GET /admin/erp-landscape",
@@ -321,6 +324,14 @@ export interface ChangeFactoryApi {
 
   /** The set of approved changes Jade is authorised to work on, in queue order. */
   listDeliveryQueue(): Promise<DeliveryQueueEntry[]>;
+
+  /**
+   * Record an answer or resolution on one of a story's open points. It never
+   * changes the story or the design by itself; the next Architect run uses it.
+   */
+  resolveIssue(changeId: string, issueId: string, input: { status: "answered" | "resolved" | "reopened"; answer?: string }): Promise<Change>;
+  /** The Administrator's setup list (Administrators and Application Managers). */
+  getSetupList(): Promise<SetupTask[]>;
 
   /* -------------------------------------------------------------- */
   /* Administration — Customer Setup, ERP / JDE Landscape, Agents,    */

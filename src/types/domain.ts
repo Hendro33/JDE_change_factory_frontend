@@ -183,6 +183,91 @@ export interface ArchitectDecision {
   dependenciesAndConflicts: string[];
   rollbackStrategy: string;
   decidedAt: string;
+  /** The readable result: conclusion, changes, owned issues, uncertainty. */
+  result?: AgentResult | null;
+}
+
+/* ---------------------------------------------------------------- */
+/* Shared information model (usability redesign, step 1)             */
+/* ---------------------------------------------------------------- */
+export type ValueStatus = "verified" | "not_yet_verified" | "proposed";
+
+export interface ResultChange {
+  what: string;
+  current: string;
+  proposed: string;
+  status: ValueStatus;
+}
+
+export interface ResultIssue {
+  title: string;
+  consequence: string;
+  owner: string;
+  who: string;
+  action: string;
+  blocks: boolean;
+  proposedAnswer: string;
+}
+
+/** What an agent run concluded, in the same parts for every agent. */
+export interface AgentResult {
+  conclusion: string;
+  changes: ResultChange[];
+  issues: ResultIssue[];
+  uncertainty: string[];
+  /** Derived by JADE from an older result that had no result block. */
+  derived: boolean;
+}
+
+export type IssueKind = "jade" | "business" | "decision" | "setup" | "delivery";
+
+export interface IssueResolution {
+  issueId: string;
+  issueTitle: string;
+  issueKind: string;
+  status: "answered" | "resolved";
+  answer: string;
+  by: string;
+  byUserId?: string | null;
+  at: string;
+}
+
+/** One open point with an owner. */
+export interface Issue {
+  id: string;
+  kind: IssueKind;
+  title: string;
+  consequence: string;
+  owner: ActionOwner;
+  ownerLabel: string;
+  action: string;
+  actionId?: string | null;
+  blocks: boolean;
+  proposedAnswer: string;
+  source: "architect" | "design_evidence" | "delivery_gate" | "lifecycle";
+  tab: WorkspaceTab;
+  resolution?: IssueResolution | null;
+}
+
+/** One line of "What needs to happen". */
+export interface WorkLine {
+  owner: ActionOwner;
+  who: string;
+  text: string;
+  action?: string | null;
+  tab: WorkspaceTab;
+  blocking: boolean;
+  primary: boolean;
+}
+
+/** GET /setup-list — one Administrator task per setup gap, with the stories it affects. */
+export interface SetupTask {
+  id: string;
+  title: string;
+  action: string;
+  blocks: boolean;
+  detail: string;
+  stories: { id: string; title: string; blocks: boolean }[];
 }
 
 /** Design doc Section 6.2 / 7.3.1. */
@@ -701,6 +786,14 @@ export interface DeliveryQueueEntry {
   addedBy: string;
   addedAt: string;
   note: string;
+  /** From the story's canonical lifecycle (the stored status above is never advanced). */
+  title?: string;
+  phase?: Phase | null;
+  phaseLabel?: string;
+  health?: Health | null;
+  healthLabel?: string;
+  nextAction?: string;
+  nextActionOwner?: string;
 }
 
 /** The central object of the application. */
@@ -826,6 +919,10 @@ export interface Lifecycle {
   deliverySteps: LifecycleStep[];
   openItems: string[];
   route?: string | null;
+  /** Every open point with its owner; the next action already follows the blockers. */
+  issues: Issue[];
+  /** At most five lines, the next action first. */
+  whatNext: WorkLine[];
 }
 
 /** GET /work — what needs the signed-in person, from the canonical lifecycle. */

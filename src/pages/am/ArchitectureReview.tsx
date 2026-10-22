@@ -16,6 +16,7 @@ import { ConfirmDialog, Loading, PriorityBadge, Provenance } from "../../compone
 import type { Navigate, NavTarget } from "../../types/nav";
 import { JourneyBar } from "./JourneyBar";
 import { ExactChangeFacts, isChangeSet } from "../../components/ConfigurationItems";
+import { IssueList, ResultSummary, WhatNeedsToHappen } from "../../components/work";
 
 /**
  * Architecture Review — Gate 2. The Architect has already analysed the
@@ -39,6 +40,16 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
   // before the next refresh confirms it.
   const [requested, setRequested] = useState<Set<string>>(new Set());
   const isWorking = (c: Change) => c.lifecycle?.nextAction.owner === "jade" || requested.has(c.id);
+
+  // A proposal whose open points block authorisation says who it waits for.
+  const blockedBy = (c: Change) => {
+    const lc = c.lifecycle;
+    if (!lc || lc.phase !== "solution_review" || c.changeApproval) return "";
+    if (lc.health === "blocked" && (lc.nextAction.action === "answer_issue" || lc.nextAction.action === "decide_issue"
+      || lc.nextAction.action === "admin_setup")) return lc.nextAction.ownerLabel || "an answer";
+    if (lc.nextAction.action === "rerun_solutioning" && (lc.issues ?? []).some((i) => i.resolution)) return "the reassessed design";
+    return "";
+  };
 
   const reload = () => {
     api.listChanges().then((all) => {
@@ -101,6 +112,7 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
       isWorking(c) ? <JadeWorking>Architect at work</JadeWorking>
         : c.changeApproval?.status === "approved" ? <span className="badge ok">Approved</span>
         : c.changeApproval?.status === "rejected" ? <span className="badge stop">Rejected</span>
+        : blockedBy(c) ? <span className="badge stop">Waiting for {blockedBy(c)}</span>
         : c.exactChange ? <span className="badge warn">Awaiting your decision</span>
         : <span className="badge grey">Not proposed yet</span> },
     { key: "priority", header: "Priority", render: (c) => <PriorityBadge priority={c.priority} /> },
@@ -111,11 +123,8 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
   );
 
   // Awaiting-decision items first — that's the actual work on this screen.
-  const sorted = [...filtered].sort((a, b) => {
-    const aw = a.exactChange && !a.changeApproval ? 0 : 1;
-    const bw = b.exactChange && !b.changeApproval ? 0 : 1;
-    return aw - bw;
-  });
+  const awaiting = (c: Change) => !!c.exactChange && !c.changeApproval && !blockedBy(c);
+  const sorted = [...filtered].sort((a, b) => Number(!awaiting(a)) - Number(!awaiting(b)));
 
   const open = changes?.find((c) => c.id === openId) ?? null;
   const ec = open?.exactChange;
@@ -137,7 +146,8 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
           </div>
         </div>
         <div className="meta">
-          {changes?.filter((c) => c.exactChange && !c.changeApproval).length ?? 0} awaiting your decision
+          {changes?.filter(awaiting).length ?? 0} awaiting your decision
+          {(changes?.filter((c) => !!blockedBy(c)).length ?? 0) > 0 && <> · {changes!.filter((c) => !!blockedBy(c)).length} waiting for an answer</>}
         </div>
       </div>
 
@@ -192,6 +202,14 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
             </section>
           )}
 
+          {open.architectDecision && (
+            <section className="panel">
+              <ResultSummary change={open} />
+              <WhatNeedsToHappen lifecycle={open.lifecycle} changeId={open.id} />
+              <IssueList change={open} onChange={(c) => setChanges((cur) => cur?.map((x) => x.id === c.id ? c : x) ?? cur)}
+                         empty="No open points: nothing is waiting on anyone." />
+            </section>
+          )}
           {architectDecision && <><SolutionArchitectureMap change={open} decision={architectDecision} spec={implementationSpec} domain={info.domainName(open.businessDomainId)} mapping={mapping} /><IntegrityPanel decision={architectDecision} /></>}
           <StoryRatingsPanel key={open.id} change={open} mode="technical" />
           {architectDecision ? (
@@ -352,10 +370,19 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
                       {decisionError}
                     </div>
                   )}
+                  {blockedBy(open) && (
+                    <div className="callout" style={{ marginTop: 16 }}>
+                      <strong>Waiting for {blockedBy(open)}</strong>
+                      Approving this exact change becomes available once the open points that block it are answered
+                      (see above). JADE then reassesses the solution with the answers.
+                    </div>
+                  )}
                   <div className="btnrow" style={{ marginTop: 16 }}>
-                    <button className="btn primary" onClick={() => setDialog("approve")} disabled={busy}>
-                      Approve exact change
-                    </button>
+                    {!blockedBy(open) && (
+                      <button className="btn primary" onClick={() => setDialog("approve")} disabled={busy}>
+                        Approve exact change
+                      </button>
+                    )}
                     <button className="btn danger" onClick={() => setDialog("reject")} disabled={busy}>
                       Reject exact change
                     </button>

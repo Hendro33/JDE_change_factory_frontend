@@ -11,6 +11,7 @@ import type {
   CompanyUsersOut,
   CustomerProfile,
   DeliveryQueueEntry,
+  SetupTask,
   DomainReview,
   DashboardThresholds,
   DashboardThresholdsUpdateInput,
@@ -548,6 +549,19 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
   async listDeliveryQueue(): Promise<DeliveryQueueEntry[]> {
     const customerId = await this.activeCustomerId();
     return request<DeliveryQueueEntry[]>("/delivery-queue", { customerId });
+  }
+
+  async resolveIssue(changeId: string, issueId: string,
+                     input: { status: "answered" | "resolved" | "reopened"; answer?: string }): Promise<Change> {
+    const customerId = await this.activeCustomerId();
+    return request<Change>(`/changes/${encodeURIComponent(changeId)}/issues/${encodeURIComponent(issueId)}/resolution`, {
+      method: "POST", customerId, body: { status: input.status, answer: input.answer ?? "" },
+    });
+  }
+
+  async getSetupList(): Promise<SetupTask[]> {
+    const customerId = await this.activeCustomerId();
+    return request<SetupTask[]>("/setup-list", { customerId });
   }
 
   async getCustomerProfile(): Promise<CustomerProfile> {
