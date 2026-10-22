@@ -164,6 +164,10 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
   }
 
   const isDecision = na.kind === "decision";
+  // While a solution is up for review or waiting for clarification, the
+  // Application Manager can always send it back to the Architect from here.
+  const rerunnable = info.has("product_manager", "admin")
+    && ["approve_design", "approve_exact_change", "clarify"].includes(na.action ?? "");
   return (
     <section className={`nextcard ${isDecision ? "decision" : "task"} ${lc.health}`} id="next-action" aria-label={isDecision ? "Decision needed" : "Next action"}>
       <div className="nextcard-kicker">{isDecision ? "Decision needed" : lc.health === "failed" ? "Needs attention" : "Next step"}</div>
@@ -182,7 +186,16 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
       {lc.openItems.length > 0 && lc.health !== "waiting_decision" && (
         <ul className="nextcard-items">{lc.openItems.map((i) => <li key={i}>{i}</li>)}</ul>
       )}
-      {controls && <div className="btnrow nextcard-actions">{controls}</div>}
+      {(controls || rerunnable) && (
+        <div className="btnrow nextcard-actions">
+          {controls}
+          {rerunnable && (
+            <button className="btn" disabled={busy} onClick={() => act(() => api.retriggerArchitectureReview(change.id))}>
+              {busy ? "Starting…" : "Run the Architect again"}
+            </button>
+          )}
+        </div>
+      )}
       {isDecision && (
         <Link className="asklink" to={storyPath(change.id, na.tab === "story" ? "story" : "solution", "ask")}>
           Ask JADE about this {na.tab === "story" ? "story" : "solution"}…

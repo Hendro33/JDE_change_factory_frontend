@@ -170,7 +170,14 @@ export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<
                 <h2 style={{ marginBottom: 4 }}>{open.title}</h2>
                 <div className="mono" style={{ color: "var(--muted)" }}>{open.id}</div>
               </div>
-              <PriorityBadge priority={open.priority} />
+              <div className="btnrow" style={{ alignItems: "center" }}>
+                <PriorityBadge priority={open.priority} />
+                {info.has("product_manager", "admin") && !(open.changeApproval?.status === "approved") && (
+                  <button className="btn" disabled={isWorking(open)} onClick={() => startRerun(open.id)}>
+                    {isWorking(open) ? "Architect at work…" : "Run the Architect again"}
+                  </button>
+                )}
+              </div>
             </div>
           </section>
 
