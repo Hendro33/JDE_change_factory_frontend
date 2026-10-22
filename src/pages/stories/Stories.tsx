@@ -29,6 +29,14 @@ export function StoriesPage() {
   const info = useSessionInfo();
   const { query } = useLocation();
   const { data, error, reload } = useAsync(() => api.listChanges(), []);
+  // While JADE is turning requests into stories, refresh so the list shows it.
+  const busyRows = (data ?? []).some((c) => ["receiving", "improving", "checking"].includes(c.processingStage ?? ""));
+  useEffect(() => {
+    if (!busyRows) return;
+    const t = setInterval(reload, 5000);
+    return () => clearInterval(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busyRows]);
   const [jira, setJira] = useState<JiraConnectionStatus | null>(null);
   const [retrieving, setRetrieving] = useState(false);
   const [retrieved, setRetrieved] = useState<JiraSyncResult | null>(null);
@@ -96,6 +104,20 @@ export function StoriesPage() {
     } catch (e) { setWithdrawError(e); } finally { setWithdrawing(false); }
   }
 
+  const [starting, setStarting] = useState(false);
+  async function startAnalysis() {
+    setStarting(true); setWithdrawError(null);
+    const ids = [...visibleSelected];
+    const refused: string[] = [];
+    for (const id of ids) {
+      try { await api.enhanceStory(id); } catch { refused.push(id); }
+    }
+    const ok = ids.length - refused.length;
+    setWithdrawResult(`JADE is turning ${ok} request${ok === 1 ? "" : "s"} into user stories. This takes a few minutes each; `
+      + "the list updates by itself." + (refused.length ? ` Not started: ${refused.join(", ")} (already running or no longer a request).` : ""));
+    setSelected(new Set()); setStarting(false); reload();
+  }
+
   async function retrieve() {
     setRetrieving(true); setRetrieveError(null);
     try { setRetrieved(await api.syncJiraIntegration()); reload(); } catch (e) { setRetrieveError(e); } finally { setRetrieving(false); }
@@ -126,7 +148,10 @@ export function StoriesPage() {
           <strong>{visibleSelected.length} selected</strong>
           {!withdrawOpen ? (
             <>
-              <button className="btn" onClick={() => setWithdrawOpen(true)}>Withdraw…</button>
+              <button className="btn primary" disabled={starting} onClick={startAnalysis}>
+                {starting ? "Starting…" : `Create user stories (${visibleSelected.length})`}
+              </button>
+              <button className="btn" disabled={starting} onClick={() => setWithdrawOpen(true)}>Withdraw…</button>
               <button className="linkbutton" onClick={() => setSelected(new Set())}>Clear selection</button>
             </>
           ) : (
@@ -140,8 +165,8 @@ export function StoriesPage() {
             </>
           )}
           <span className="hint" style={{ flexBasis: "100%" }}>
-            Withdrawn requests leave this list and are kept on record with your name and reason. A Jira ticket stays as it
-            is in Jira and is not imported again.
+            Create user stories: JADE analyses each selected request and turns it into a user story for its Domain Owner.
+            Withdrawn requests leave this list and are kept on record with your name and reason; the Jira ticket is not imported again.
           </span>
         </div>
       )}
