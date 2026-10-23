@@ -62,7 +62,6 @@ export function ChangeView({ changeId, tab }: { changeId: string; tab?: string }
       <div className="crumbs">
         <Link to="/am">Application Management</Link> <span aria-hidden="true">/</span> <Link to={back.to}>{back.label}</Link>{" "}
         <span aria-hidden="true">/</span> <span className="mono">{change.id}</span>
-        <span className="crumbs-aside"><Link to={storyPath(change.id)}>Business view</Link></span>
       </div>
       <header className="storyheader compact">
         <h1 className="titlebar">{storyTitle(change)}</h1>

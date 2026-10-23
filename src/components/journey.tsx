@@ -341,10 +341,13 @@ export function ProcessSwimlane({ process, storyId, criteria = [], business, emp
 
 export function JadeAtWorkLine({ lifecycle }: { lifecycle?: Lifecycle | null }) {
   if (!lifecycle || lifecycle.nextAction.owner !== "jade") return null;
+  // One short line (review 23 Oct): what JADE is doing, in two or three words.
+  const short = lifecycle.phase === "solutioning" || lifecycle.phase === "solution_review" ? "JADE is architecting…"
+    : lifecycle.phase === "understand" ? "JADE is writing the user story…" : lifecycle.nextAction.summary;
   return (
-    <div className="jadeatwork" aria-live="polite">
+    <div className="jadeatwork" aria-live="polite" title={lifecycle.nextAction.summary}>
       <span className="facet" aria-hidden="true"><i /><i /><i /></span>
-      <span className="jadeatwork-text">{lifecycle.nextAction.summary}</span>
+      <span className="jadeatwork-text">{short}</span>
       {lifecycle.activity && <span className="jadeatwork-now">{lifecycle.activity}</span>}
     </div>
   );

@@ -109,9 +109,9 @@ export function NextActionCard({ ctx, inApp = false, listedKinds }: { ctx: Story
   /* ---------------- JADE is working ---------------- */
   if (na.owner === "jade") {
     return (
-      <section className="nextcard working" id="next-action" aria-label="Next action">
+      <section className="working-line" id="next-action" aria-label="Next action">
         <JadeAtWorkLine lifecycle={lc} />
-        <div className="nextcard-note">No action is required from you. This page updates by itself.</div>
+        <span className="muted explain">No action is required from you. This page updates by itself.</span>
       </section>
     );
   }
@@ -210,11 +210,7 @@ export function NextActionCard({ ctx, inApp = false, listedKinds }: { ctx: Story
           )}
         </div>
       )}
-      {isDecision && (
-        <Link className="asklink" to={workPath(change.id, na.tab === "story" ? "story" : "solution", info.appManagement, "ask")}>
-          Ask JADE about this {na.tab === "story" ? "story" : "solution"}…
-        </Link>
-      )}
+      {/* Ask JADE is the bar right below this card (said once). */}
       {error !== null && <ErrorState error={error} title="Not done" />}
       {dialog && (
         <ConfirmDialog

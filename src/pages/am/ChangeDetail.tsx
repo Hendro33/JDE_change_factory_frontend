@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { Link, storyPath } from "../../router";
 import { api } from "../../services/api";
 import { ownersOf } from "../BusinessDomains";
 import { ExecutionPanel } from "../../components/ExecutionPanel";
@@ -146,6 +147,7 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
 
       <div className="detailgrid">
         <div className="stack recordlist">
+          {embedded && <div className="recpart recpart-link"><Link to={storyPath(change.id)}>What the business sees for this story</Link></div>}
           <RecordPart title="Original request" summary={`${change.source}${change.sourceReference ? ` · ${change.sourceReference}` : ""}`}>
             <Provenance kind="plain" label="As submitted by the requester">
               <div style={{ fontSize: 13.5 }}>{change.originalRequest}</div>

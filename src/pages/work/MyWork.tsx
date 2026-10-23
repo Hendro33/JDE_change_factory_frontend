@@ -22,16 +22,17 @@ export const ACTION_VERB: Record<string, string> = {
   record_applied: "Record applied in DEV", run_or_record_test: "Test and record",
   run_agents_or_record: "Run the agents or apply it", agents_running: "Follow the agents", reconcile_item: "Reconcile",
   reconcile_technical: "Resolve", reconcile_functional: "Resolve", assign_domain: "Place in a domain", clarify: "Answer question",
+  confirm_no_change: "Review and confirm", authorise_handoff: "Review solution", accept_outcome: "Check and accept", answer_issue: "Answer question", decide_issue: "Decide",
 };
 
-function greeting(): string {
+export function greeting(): string {
   const h = new Date().getHours();
   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
 
 /** One row of the queue: what, where it is, how long it has waited, and the one button. */
-function QueueRow({ c }: { c: Change }) {
+export function QueueRow({ c }: { c: Change }) {
   const info = useSessionInfo();
   const na = c.lifecycle!.nextAction;
   // Straight into the screen where this person acts (finding 1).

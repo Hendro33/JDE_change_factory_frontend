@@ -88,16 +88,12 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
   const readyForDelivery = openReview?.stage === "ready_for_application_manager";
 
   return (
-    <div className="vr-pilot">
-      <div className="pagehead">
-        <div>
-          <h1>Backlog Review</h1>
-          <div className="sub">
-            Decide which approved stories are ready for delivery.
-          </div>
-        </div>
-        <div className="meta">{filtered.length} {filtered.length === 1 ? "story" : "stories"} in view</div>
+    <div className="vr-pilot backlogpage">
+      <div className="pagetitle">
+        <h1>Backlog Review</h1>
+        <span className="qcount">{filtered.length} {filtered.length === 1 ? "story" : "stories"}</span>
       </div>
+      <p className="muted explain">Decide which approved stories JADE works on next. Approval adds a story to the delivery queue; it does not authorise any change in JD Edwards.</p>
 
       <ReviewFlow steps={["Compare approved stories", "Review selected work", "Authorise delivery"]} />
       {backlog && backlog.length > 0 && (
@@ -120,7 +116,7 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
       )}
 
       {!backlog ? <Loading what="the backlog" /> : (
-        <section className="panel vr-backlog-grid" aria-label="Backlog grid"><div className="vr-section-meta"><h2>{filterStage === "ready_for_application_manager" ? "Approved backlog" : "Backlog context"}</h2><span>Select a story to review its delivery decision</span></div>
+        <section className="vr-backlog-grid" aria-label="Backlog">
           <ChangeGrid
             changes={filtered}
             columns={columns}

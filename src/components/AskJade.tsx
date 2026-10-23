@@ -61,9 +61,8 @@ export function AskJadePanel({
   currentStory?: UserStory;
 }) {
   const { hash } = useLocation();
-  // Until it is used, Ask JADE is one bar (it opens from a link to #ask too).
-  const [open, setOpen] = useState(turns.length > 0);
-  useEffect(() => { if (hash === "ask") setOpen(true); }, [hash]);
+  // A link to #ask puts the cursor in the bar.
+  useEffect(() => { if (hash === "ask") document.getElementById("askjade-question")?.focus(); }, [hash]);
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,31 +81,31 @@ export function AskJadePanel({
     }
   }
 
-  if (!open && turns.length === 0) {
-    return (
-      <div className="askbar">
-        <button className="btn" onClick={() => setOpen(true)} aria-expanded={false}>{title}</button>
-        <span className="muted explain">Ask why, challenge it, or add what JADE missed. Nothing changes by itself.</span>
-      </div>
-    );
-  }
-
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? turns : turns.slice(-1);
+  // Ask JADE sits at the top, next to the next step (design: "stays on every story
+  // and every solution, and becomes more prominent"): one bar to type into; the
+  // latest exchange below it, earlier ones on request.
   return (
-    <section className="panel askpanel">
-      <h2>{title}</h2>
-      <div className="sub askjade-intro" style={{ marginBottom: 12 }}>
-        Ask why, question something, or add what JADE missed. Answers never change anything by themselves; new
-        information comes back as a proposed update for you to review.
-      </div>
-
+    <section className="askjade" id="ask" aria-label={title}>
+      <form className="askjade-bar" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+        <span className="facet" aria-hidden="true"><i /><i /><i /></span>
+        <label htmlFor="askjade-question" className="sr-only">{title}</label>
+        <input id="askjade-question" type="text" value={question} autoComplete="off"
+          placeholder={`${title}: why this, what if, or what JADE missed…`}
+          onChange={(e) => setQuestion(e.target.value)} />
+        <button className="btn primary small" type="submit" disabled={busy || !question.trim()}>{busy ? "Asking…" : "Ask"}</button>
+      </form>
+      <div className="muted explain askjade-intro">Answers never change anything by themselves; new information comes back as a proposed update for you to review.</div>
+      {error && <div className="callout" style={{ borderColor: "var(--stop)", margin: "8px 0" }}>{error}</div>}
       {turns.length > 0 && (
-        <div className="stack" style={{ marginBottom: 16 }}>
-          {turns.map((t) => (
-            <div key={t.turnId} style={{ borderLeft: "3px solid var(--line-strong)", paddingLeft: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>{t.askedBy} asked</div>
-              <div style={{ fontSize: 13.5, marginBottom: 6 }}>{t.question}</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--jade-dark)" }}>JADE</div>
-              <div style={{ fontSize: 13.5 }}>{t.answer}</div>
+        <div className="askjade-turns">
+          {turns.length > 1 && <button className="linkbtn" onClick={() => setShowAll(!showAll)}>
+            {showAll ? "Show only the latest" : `${turns.length - 1} earlier question${turns.length === 2 ? "" : "s"}`}</button>}
+          {shown.map((t) => (
+            <div key={t.turnId} className="askjade-turn">
+              <div className="askjade-q"><strong>{t.askedBy}:</strong> {t.question}</div>
+              <div className="askjade-a"><strong>JADE:</strong> {t.answer}</div>
               {t.kind === "proposed_amendment" && t.proposedUserStory && (
                 <div className="callout" style={{ marginTop: 8 }}>
                   <strong>JADE proposes an update to the story</strong>
@@ -125,23 +124,6 @@ export function AskJadePanel({
           ))}
         </div>
       )}
-
-      <div className="field">
-        <label htmlFor="askjade-question" className="sr-only">{title}</label>
-        <textarea
-          id="askjade-question"
-          value={question}
-          style={{ minHeight: 64 }}
-          placeholder="e.g. Why is the risk medium? Explain this without JD Edwards terms. Weekends should also be excluded."
-          onChange={(e) => setQuestion(e.target.value)}
-        />
-      </div>
-      {error && <div className="callout" style={{ borderColor: "var(--stop)", marginBottom: 12 }}>{error}</div>}
-      <div className="btnrow">
-        <button className="btn primary" disabled={busy || !question.trim()} onClick={submit}>
-          {busy ? "Asking JADE…" : "Ask JADE"}
-        </button>
-      </div>
     </section>
   );
 }

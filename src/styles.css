@@ -1135,3 +1135,79 @@ body:not(.help-on) :is(.explain, .pageheader .lede, .pagehead .sub, .section-des
 .handoff { margin: 4px 0; } .handoff > summary { cursor: pointer; font-size: 13.5px; }
 .step.skipped .step-dot { background: var(--wash); color: var(--muted); border-color: var(--line-strong); }
 .step.skipped .step-label { color: var(--muted); }
+
+/* The Application Manager's cockpit (review 23 Oct) */
+.cockpit-greeting { font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--jade-dark); margin: 4px 0 10px; }
+.cockpit-top { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 14px; margin-bottom: 14px; }
+.hero { background: var(--panel); border: 1px solid var(--line); border-left: 6px solid var(--brand); border-radius: var(--radius); padding: 16px 20px; display: flex; flex-direction: column; justify-content: center; }
+.hero-value { font-size: 56px; font-weight: 800; line-height: 1; color: var(--ink); }
+.hero-label { font-size: 16px; font-weight: 700; margin-top: 4px; }
+.hero-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.kpi-tile { padding: 14px 16px; border-right: 1px solid var(--line); display: flex; flex-direction: column; justify-content: center; }
+.kpi-tile:last-child { border-right: 0; }
+.kpi-tile dt { font-size: 13px; color: var(--ink-soft); }
+.kpi-tile .kpi-value { margin: 4px 0 0; font-size: 28px; font-weight: 800; color: var(--ink); }
+.kpi-tile.stop .kpi-value { color: var(--stop); }
+.kpi-tile .kpi-def { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.flow { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px 8px; margin-bottom: 18px; }
+.flow .minihead { margin-top: 0; }
+.flow-bars { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.flow-col { display: flex; flex-direction: column; align-items: stretch; text-decoration: none; color: var(--ink); border-radius: 8px; padding: 4px; }
+.flow-col:hover, .flow-col:focus-visible { background: var(--wash); outline: none; }
+.flow-col:focus-visible { box-shadow: var(--focus); }
+.flow-n { font-size: 20px; font-weight: 800; text-align: center; }
+.flow-track { height: 72px; display: flex; align-items: flex-end; justify-content: center; border-bottom: 1px solid var(--line-strong); }
+.flow-fill { width: 60%; min-height: 0; background: var(--jade); border-radius: 4px 4px 0 0; }
+.flow-col.zero .flow-n, .flow-col.zero .flow-label { color: var(--muted); }
+.flow-label { font-size: 12.5px; text-align: center; margin-top: 6px; line-height: 1.25; }
+.flow-blocked { font-size: 12px; text-align: center; color: var(--stop); font-weight: 700; min-height: 1.3em; }
+.cockpit-links { margin-top: 14px; font-size: 14px; }
+@media (max-width: 900px) { .cockpit-top { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpi-tile:nth-child(2) { border-right: 0; } }
+@media (max-width: 640px) { .flow-bars { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+/* Backlog Review in the Jade look (review 23 Oct): slim filters, light table header */
+.backlogpage .filterbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 10px; margin-bottom: 10px; }
+.backlogpage .filterbar .field { flex: 0 1 220px; margin: 0; }
+.backlogpage .filterbar .field label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.backlogpage .filterbar .field:first-child { flex: 1 1 260px; }
+.backlogpage .vr-backlog-grid { margin: 0 0 20px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.backlogpage .vr-backlog-grid .data { min-width: 860px; }
+.backlogpage .vr-backlog-grid .data th { background: var(--wash); color: var(--ink-soft); font-size: 11.5px; border-bottom: 1px solid var(--line-strong); }
+.backlogpage .vr-backlog-grid .data td { padding: 12px; }
+.backlogpage .vr-grid-story { color: var(--ink); font-weight: 700; }
+
+/* JADE at work: one slim line (review 23 Oct) */
+.working-line { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; }
+.jadeatwork { display: inline-flex !important; padding: 6px 14px !important; border-radius: 999px !important; font-size: 14px !important;
+  background: var(--jade-pale) !important; color: var(--jade-deep) !important; border: 1px solid #CFE6DA; }
+.jadeatwork .jadeatwork-now { color: var(--jade-dark) !important; font-size: 12.5px !important; }
+.jadeatwork .facet i { background: var(--jade); }
+.recpart-link { padding: 10px 16px; font-size: 14px; }
+
+/* Story facts: counts with what each needs (review 23 Oct) */
+.storyfacts { margin: 4px 0 18px; }
+.factchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.factchip { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 130px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--panel); font: inherit; text-align: left; cursor: pointer; color: var(--ink); }
+.factchip:hover:not(:disabled) { border-color: var(--line-strong); background: var(--wash); }
+.factchip:focus-visible { outline: none; box-shadow: var(--focus); }
+.factchip:disabled { cursor: default; color: var(--muted); }
+.factchip.on { border-color: var(--jade); background: var(--jade-pale); }
+.factchip.act { border-left: 4px solid var(--brand); }
+.factchip-label { font-size: 12px; color: var(--ink-soft); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.factchip-value { font-size: 15px; font-weight: 700; }
+.factchip-action { font-size: 12.5px; color: #6B5200; font-weight: 700; }
+.factbody { margin-top: 10px; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.issue-options { font-size: 14px; margin: 4px 0; }
+
+/* Ask JADE at the top (design: more prominent, next to the next step) */
+.askjade { margin: 0 0 16px; }
+.askjade-bar { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line-strong); border-radius: 999px; padding: 6px 6px 6px 16px; }
+.askjade-bar:focus-within { border-color: var(--jade); box-shadow: var(--focus); }
+.askjade-bar input { flex: 1; border: 0; outline: none; font: inherit; font-size: 15px; background: transparent; min-width: 0; padding: 6px 0; }
+.askjade-bar .facet i { background: var(--jade); opacity: .8; animation: none; }
+.askjade-turns { margin-top: 8px; display: grid; gap: 8px; }
+.askjade-turn { border-left: 3px solid var(--jade); padding: 4px 0 4px 12px; font-size: 14px; }
+.askjade-a { margin-top: 2px; }
+.backlogpage .filterbar .field { flex: 0 1 260px; }

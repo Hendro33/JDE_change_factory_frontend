@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { api } from "../../services/api";
-import type { UserStory } from "../../types/domain";
+import type { Change, UserStory } from "../../types/domain";
+import { StoryRatingsPanel } from "../../components/StoryRatings";
 import { AskJadePanel } from "../../components/AskJade";
 import { ClassificationFacts } from "../../components/Classification";
 import { DocumentCitations, RequestDocuments } from "../../components/RequestDocuments";
@@ -50,12 +51,32 @@ export function BusinessStoryTab({ ctx }: { ctx: StoryCtx }) {
     } catch (e) { setError(e); } finally { setBusy(false); }
   }
 
-  const impacts = IMPACT_FIELDS.filter(([k]) => (change.businessImpact[k] ?? "").trim());
+  // An impact the agents marked "Not stated" is not stated: counted and shown as such.
+  const impacts = IMPACT_FIELDS.filter(([k]) => { const v = (change.businessImpact[k] ?? "").trim(); return v && !/^not stated\b/i.test(v); });
   const processes = ctx.process?.mapping?.status === "confirmed" ? ctx.process.mapping.refs : [];
   const benefit = businessNeed(change);
 
   return (
     <div className="storytab">
+      {domainReview && (
+          <AskJadePanel
+            currentStory={us}
+            title="Ask JADE about this story"
+            turns={domainReview.conversation}
+            onAsk={async (question) => { ctx.setDomainReview(await api.askAboutRequirement(change.id, { question })); }}
+            renderAmendmentActions={(turn) => canRevise ? (
+              <button className="btn primary" onClick={() => {
+                setForm(JSON.parse(JSON.stringify(turn.proposedUserStory)));
+                setNote(`From Ask JADE: "${turn.question}"`); setEditing(true);
+                document.getElementById("revise")?.scrollIntoView();
+              }}>Review as a story change</button>
+            ) : (
+              <button className="btn" onClick={async () => {
+                ctx.setDomainReview(await api.requestRequirementReconsideration(change.id, { note: `Flagged from Ask JADE: "${turn.question}"` }));
+              }}>Ask the Domain Owner to reconsider</button>
+            )}
+          />
+      )}
       {!us ? (
         <Section title="The request">
           <p className="lead">{change.originalRequest}</p>
@@ -64,8 +85,6 @@ export function BusinessStoryTab({ ctx }: { ctx: StoryCtx }) {
         </Section>
       ) : (
         <div className="storygrid">
-          <IssueList change={change} onChange={() => ctx.reload()} kinds={["business"]} title="Questions for the business" />
-
           <Section title="User story">
             <p className="userstory">{us.statement}</p>
             {us.businessContext && <p>{us.businessContext}</p>}
@@ -92,21 +111,7 @@ export function BusinessStoryTab({ ctx }: { ctx: StoryCtx }) {
             <ClassificationFacts change={change} onSaved={ctx.reload} />
           </div>
 
-          {(() => {
-            const parts = [benefit && "benefit", impacts.length && "impact", us.businessRules.length && "rules",
-              us.assumptions.length && "assumptions", us.openQuestions.length && "open questions"].filter(Boolean) as string[];
-            if (parts.length === 0) return null;
-            return (
-              <Details summary={`Benefit, impact and assumptions (${parts.join(", ")})`} open={us.openQuestions.length > 0}>
-                {benefit && <><h3 className="minihead">Expected benefit</h3><p>{benefit}</p></>}
-                {impacts.length > 0 && <><h3 className="minihead">Business impact</h3>
-                  <dl className="facts">{impacts.map(([k, label]) => <Fragment key={k}><dt>{label}</dt><dd>{change.businessImpact[k]}</dd></Fragment>)}</dl></>}
-                {us.businessRules.length > 0 && <><h3 className="minihead">Business rules</h3><ul className="compactlist">{us.businessRules.map((r, i) => <li key={i}>{r}</li>)}</ul></>}
-                {us.assumptions.length > 0 && <><h3 className="minihead">Assumptions</h3><ul className="compactlist">{us.assumptions.map((a, i) => <li key={i}>{a}</li>)}</ul></>}
-                {us.openQuestions.length > 0 && <><h3 className="minihead">Open questions</h3><ul className="compactlist">{us.openQuestions.map((q, i) => <li key={i}>{q}</li>)}</ul></>}
-              </Details>
-            );
-          })()}
+          <StoryFacts ctx={ctx} benefit={benefit ?? ""} impacts={impacts} />
           {us.testScript.length > 0 && (
             <Details summary={`Business test script (${us.testScript.length} steps)`}>
               <table className="data"><thead><tr><th>#</th><th>Action</th><th>Expected result</th></tr></thead>
@@ -145,27 +150,7 @@ export function BusinessStoryTab({ ctx }: { ctx: StoryCtx }) {
         </Section>
       )}
 
-      {domainReview && (
-        <div id="ask">
-          <AskJadePanel
-            currentStory={us}
-            title="Ask JADE about this story"
-            turns={domainReview.conversation}
-            onAsk={async (question) => { ctx.setDomainReview(await api.askAboutRequirement(change.id, { question })); }}
-            renderAmendmentActions={(turn) => canRevise ? (
-              <button className="btn primary" onClick={() => {
-                setForm(JSON.parse(JSON.stringify(turn.proposedUserStory)));
-                setNote(`From Ask JADE: "${turn.question}"`); setEditing(true);
-                document.getElementById("revise")?.scrollIntoView();
-              }}>Review as a story change</button>
-            ) : (
-              <button className="btn" onClick={async () => {
-                ctx.setDomainReview(await api.requestRequirementReconsideration(change.id, { note: `Flagged from Ask JADE: "${turn.question}"` }));
-              }}>Ask the Domain Owner to reconsider</button>
-            )}
-          />
-        </div>
-      )}
+
 
       {us && (
         <Details id="process" open={hash === "process"} summary={`Business process — ${processes.length
@@ -239,5 +224,57 @@ function MoveDomain({ ctx }: { ctx: StoryCtx }) {
       {owner && <span className="hint">The story goes to that domain's owner and starts its review again.</span>}
       {error !== null && <ErrorState error={error} title="Not moved" />}
     </div>
+  );
+}
+
+type FactKey = "benefit" | "impact" | "rules" | "assumptions" | "questions";
+
+/**
+ * Benefit, impact, rules, assumptions and questions as counts with what each
+ * needs (review 23 Oct): the text opens on click. They come from JADE's story
+ * agents, written from the request; the Domain Owner answers the questions and
+ * confirms the rest by approving the story. Nothing to act on, nothing shown.
+ */
+function StoryFacts({ ctx, benefit, impacts }: { ctx: StoryCtx; benefit: string; impacts: [keyof Change["businessImpact"], string][] }) {
+  const { change } = ctx;
+  const us = change.userStory!;
+  const [open, setOpen] = useState<FactKey | null>(null);
+  const inReview = change.lifecycle?.phase === "story_review";
+  const questions = (change.lifecycle?.issues ?? []).filter((i) => i.kind === "business");
+  const openQ = questions.filter((i) => !i.resolution).length;
+  const r = change.ratings;
+  const ratingState = (x?: { proposed?: string | null; confirmed?: string | null; status: string }) =>
+    !x ? "" : x.confirmed ? `${x.confirmed} · confirmed` : x.proposed ? `${x.proposed} · proposed` : "not rated";
+  const needsRating = inReview && !!r && (r.businessBenefit.status !== "confirmed" || r.businessImpact.status !== "confirmed");
+  const facts: { key: FactKey; label: string; value: string; action?: string }[] = [
+    { key: "benefit", label: "Benefit", value: ratingState(r?.businessBenefit) || (benefit ? "stated" : "not stated"),
+      action: needsRating && r?.businessBenefit.status !== "confirmed" ? "Domain Owner confirms" : undefined },
+    { key: "impact", label: "Impact", value: `${ratingState(r?.businessImpact) || "not rated"} · ${impacts.length} of 5 stated`,
+      action: needsRating && r?.businessImpact.status !== "confirmed" ? "Domain Owner confirms" : undefined },
+    { key: "rules", label: "Business rules", value: String(us.businessRules.length) },
+    { key: "assumptions", label: "Assumptions", value: String(us.assumptions.length),
+      action: inReview && us.assumptions.length ? "agreed by approving" : undefined },
+    { key: "questions", label: "Questions", value: questions.length ? `${openQ} of ${questions.length} open` : "0",
+      action: openQ ? "Domain Owner answers" : undefined },
+  ];
+  return (
+    <section className="storyfacts" aria-label="Benefit, impact, rules, assumptions and questions">
+      <div className="factchips" role="group">
+        {facts.map((f) => (
+          <button key={f.key} className={`factchip${open === f.key ? " on" : ""}${f.action ? " act" : ""}`} aria-expanded={open === f.key}
+            onClick={() => setOpen(open === f.key ? null : f.key)} disabled={f.value === "0"}>
+            <span className="factchip-label">{f.label}</span>
+            <span className="factchip-value">{f.value}</span>
+            {f.action && <span className="factchip-action"><span aria-hidden="true">◆</span> {f.action}</span>}
+          </button>
+        ))}
+      </div>
+      <p className="muted explain">Written by JADE's story agents from the request. The Domain Owner answers the questions and confirms the ratings; approving the story agrees the rules and assumptions. Answers go to the Architect.</p>
+      {open === "benefit" && <div className="factbody">{benefit ? <p>{benefit}</p> : <p className="muted">No benefit stated in the request.</p>}<StoryRatingsPanel change={change} mode={inReview ? "business" : "read"} onChanged={ctx.reload} /></div>}
+      {open === "impact" && <div className="factbody">{impacts.length ? <dl className="facts">{impacts.map(([k, label]) => <Fragment key={k}><dt>{label}</dt><dd>{change.businessImpact[k]}</dd></Fragment>)}</dl> : <p className="muted">The request states no impact.</p>}</div>}
+      {open === "rules" && <div className="factbody"><ul className="compactlist">{us.businessRules.map((x, i) => <li key={i}>{x}</li>)}</ul></div>}
+      {open === "assumptions" && <div className="factbody"><ul className="compactlist">{us.assumptions.map((x, i) => <li key={i}>{x}</li>)}</ul></div>}
+      {open === "questions" && <div className="factbody"><IssueList change={change} onChange={() => ctx.reload()} kinds={["business"]} title="Questions for the business" /></div>}
+    </section>
   );
 }

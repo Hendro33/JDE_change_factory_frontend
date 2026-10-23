@@ -168,7 +168,8 @@ function IssueRow({ issue, change, onChange, statedAbove }: { issue: Issue; chan
       {/* Already the next step at the top of the page: its actions stay here, its text is not repeated. */}
       <div className="issue-title">{statedAbove && !r ? <span className="muted">The next step above</span> : issue.title}</div>
       {issue.consequence && !statedAbove && <div className="issue-consequence">{issue.consequence}</div>}
-      {issue.proposedAnswer && !r && <div className="issue-proposal"><strong>JADE proposes: </strong>{issue.proposedAnswer}</div>}
+      {issue.kind === "business" && issue.source === "architect" && issue.action && !r && !statedAbove && <div className="issue-options"><strong>Options: </strong>{issue.action}</div>}
+      {issue.proposedAnswer && !r && <div className="issue-proposal"><strong>JADE recommends: </strong>{issue.proposedAnswer}</div>}
       {issue.kind === "jade" && <div className="issue-note">JADE handles this itself; nobody needs to act.</div>}
       {issue.source === "delivery_gate" && !statedAbove && <div className="issue-note">{issue.action} This clears by itself once the cause is fixed.</div>}
       {r && (
@@ -188,7 +189,7 @@ function IssueRow({ issue, change, onChange, statedAbove }: { issue: Issue; chan
             <div className="btnrow">
               <button className="btn primary small" disabled={busy || !answer.trim()} onClick={() => record("answered")}>
                 {busy ? "Recording…" : "Record answer"}</button>
-              {issue.proposedAnswer && <button className="btn small" disabled={busy} onClick={() => setAnswer(issue.proposedAnswer)}>Use JADE's proposal</button>}
+              {issue.proposedAnswer && <button className="btn small" disabled={busy} onClick={() => setAnswer(issue.proposedAnswer)}>Use JADE's recommendation</button>}
               <button className="btn small quiet" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
             </div>
           </div>

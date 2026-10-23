@@ -51,7 +51,7 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
   if (!decision && !change.exactChange) {
     return (
       <div className="solutionview">
-        <JadeAtWorkLine lifecycle={lc} />
+        {standalone && <JadeAtWorkLine lifecycle={lc} />}
         {lc?.nextAction.owner !== "jade" && (
           <EmptyState title={(lc?.phaseIndex ?? 0) < 2 ? "Solutioning starts once the story is admitted to architecture" : "No solution proposed yet"}>
             {ctx.run?.stage === "failed" ? "The last analysis did not finish. See the next step above." : lc?.nextAction.summary}
@@ -71,8 +71,17 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
 
   return (
     <div className="solutionview">
-      <JadeAtWorkLine lifecycle={lc} />
+      {/* The next-step line above already says JADE is at work; said once. */}
+      {standalone && <JadeAtWorkLine lifecycle={lc} />}
       <DecisionPanel ctx={ctx} showWaiting={standalone} />
+        <AskJadePanel
+          title="Ask JADE about this solution"
+          turns={ctx.run?.conversation ?? []}
+          onAsk={async (question) => { ctx.setRun(await api.askAboutSolution(change.id, { question })); }}
+          renderRecommendReanalysisActions={() => info.has("product_manager", "admin") ? (
+            <button className="btn primary" disabled={busy || lc?.nextAction.owner === "jade"} onClick={rerun}>Run the Architect again</button>
+          ) : null}
+        />
 
       <section className="panel solution-main">
         {route && <div className="route-line"><span className="route-title">{route.title}</span><span className="muted"> · {route.summary}</span></div>}
@@ -131,16 +140,6 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
         </Details>
       )}
 
-      <div id="ask">
-        <AskJadePanel
-          title="Discuss the solution with JADE"
-          turns={ctx.run?.conversation ?? []}
-          onAsk={async (question) => { ctx.setRun(await api.askAboutSolution(change.id, { question })); }}
-          renderRecommendReanalysisActions={() => info.has("product_manager", "admin") ? (
-            <button className="btn primary" disabled={busy || lc?.nextAction.owner === "jade"} onClick={rerun}>Run the Architect again</button>
-          ) : null}
-        />
-      </div>
 
       {ctx.domainReview && (
         <Details summary="Discuss the requirement">
