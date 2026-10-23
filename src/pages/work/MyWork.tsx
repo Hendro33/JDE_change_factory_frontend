@@ -27,23 +27,27 @@ function greeting(): string {
   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
-function WorkItem({ c }: { c: Change }) {
+function age(iso: string): string {
+  const d = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 86400000));
+  return d === 0 ? "today" : d === 1 ? "1 day" : `${d} days`;
+}
+
+/** One row of the queue: what, where it is, how long it has waited, and the one button. */
+function QueueRow({ c }: { c: Change }) {
   const info = useSessionInfo();
   const na = c.lifecycle!.nextAction;
-  // Gate decisions open on their own screen (User Story Review, Backlog Review, ...).
   const gate = na.action ? gateFor(na.action, c.id) : undefined;
   const to = gate?.to ?? storyPath(c.id, na.tab, "next-action");
   return (
-    <li className={`workitem ${na.kind}`}>
-      <div className="workitem-main">
-        <div className="workitem-kicker">{na.kind === "decision" ? "Decision" : "To do"} · {c.lifecycle!.phaseLabel}{gate ? ` · ${gate.screen}` : ""}</div>
-        <Link className="workitem-title" to={storyPath(c.id)}>{storyTitle(c)}</Link>
-        <div className="workitem-summary">{na.summary}</div>
-        <div className="workitem-meta"><ImpactIndicator change={c} /> · {info.domainName(c.businessDomainId) ?? "No domain yet"} · <span className="mono">{c.id}</span></div>
-      </div>
-      <Link className={`btn ${na.kind === "decision" ? "primary" : ""}`} to={to}>
-        {ACTION_VERB[na.action ?? ""] ?? "Open"}
-      </Link>
+    <li className={`qrow ${na.kind}`}>
+      <span className="qrow-kind">{na.kind === "decision" ? <><span aria-hidden="true">◆</span> Decision</> : <><span aria-hidden="true">○</span> To do</>}</span>
+      <span className="qrow-main">
+        <Link className="qrow-title" to={storyPath(c.id)}>{storyTitle(c)}</Link>
+        <span className="qrow-sub">{na.summary}</span>
+      </span>
+      <span className="qrow-meta"><span>{c.lifecycle!.phaseLabel} · {age(c.updatedAt) === "today" ? "since today" : `waiting ${age(c.updatedAt)}`}</span><span className="muted qrow-domain">{info.domainName(c.businessDomainId) ?? "No domain"}</span></span>
+      <span className="qrow-prio"><ImpactIndicator change={c} /></span>
+      <Link className={`btn small ${na.kind === "decision" ? "primary" : ""}`} to={to}>{ACTION_VERB[na.action ?? ""] ?? "Open"}</Link>
     </li>
   );
 }
@@ -87,8 +91,9 @@ export function MyWorkPage() {
   return (
     <div className="mywork">
       <PageHeader eyebrow={`${greeting()}, ${firstName}`}
-        title={count === 0 ? "Nothing needs you right now" : `${count} thing${count === 1 ? "" : "s"} need${count === 1 ? "s" : ""} your attention`}
-        subtitle={work.roles.length ? `As ${work.roles.map((r) => ROLE_LABEL[r] ?? r).join(", ")} on this customer.` : "You have no role on this customer yet; ask an administrator."} />
+        title={count === 0 ? "Nothing needs you right now" : `${count} thing${count === 1 ? "" : "s"} need${count === 1 ? "s" : ""} you`}
+      />
+      {!work.roles.length && <p className="callout">You have no role on this customer yet; ask an administrator.</p>}
 
       {openTests.length > 0 && (
         <Section title="Assigned acceptance tests">
@@ -106,33 +111,44 @@ export function MyWorkPage() {
           {storyCount === 0 ? (
             <EmptyState title="You're up to date">When a story needs your decision or action, it appears here and in the bell at the top.</EmptyState>
           ) : (
-            <ul className="worklist">
-              {decisions.map((c) => <WorkItem key={c.id} c={c} />)}
-              {otherTasks.map((c) => <WorkItem key={c.id} c={c} />)}
-              {newRequests.length > 0 && (
-                <li className="workitem task">
-                  <div className="workitem-main">
-                    <div className="workitem-kicker">To do · Understand</div>
-                    <Link className="workitem-title" to="/stories?phase=understand">{newRequests.length} new request{newRequests.length === 1 ? "" : "s"} to analyse</Link>
-                    <div className="workitem-summary">Start JADE's analysis to turn {newRequests.length === 1 ? "it" : "them"} into user stories.</div>
-                    <div className="workitem-meta">{newRequests.slice(0, 3).map((c) => storyTitle(c)).join(" · ")}{newRequests.length > 3 ? " …" : ""}</div>
-                  </div>
-                  <Link className="btn" to="/stories?phase=understand">Open requests</Link>
-                </li>
-              )}
-            </ul>
+            <>
+              {decisions.length > 0 && <>
+                <h2 className="qhead">Your decisions <span className="qcount">{decisions.length}</span></h2>
+                <ul className="queue">{decisions.map((c) => <QueueRow key={c.id} c={c} />)}</ul>
+              </>}
+              {(otherTasks.length > 0 || newRequests.length > 0) && <>
+                <h2 className="qhead">Your tasks <span className="qcount">{otherTasks.length + (newRequests.length ? 1 : 0)}</span></h2>
+                <ul className="queue">
+                  {otherTasks.map((c) => <QueueRow key={c.id} c={c} />)}
+                  {newRequests.length > 0 && (
+                    <li className="qrow task">
+                      <span className="qrow-kind"><span aria-hidden="true">○</span> To do</span>
+                      <span className="qrow-main">
+                        <Link className="qrow-title" to="/stories?phase=understand">{newRequests.length} new request{newRequests.length === 1 ? "" : "s"} to analyse</Link>
+                        <span className="qrow-sub">{newRequests.slice(0, 3).map((c) => storyTitle(c)).join(" · ")}{newRequests.length > 3 ? " …" : ""}</span>
+                      </span>
+                      <span className="qrow-meta"><span>Understand</span></span>
+                      <span className="qrow-prio" />
+                      <Link className="btn small" to="/stories?phase=understand">Open requests</Link>
+                    </li>
+                  )}
+                </ul>
+              </>}
+            </>
           )}
 
           {jadeWorking.length > 0 && (
-            <Section title="JADE is working on" quiet>
+            <details className="qmore">
+              <summary>JADE is working on {jadeWorking.length}</summary>
               <ul className="quietlist">{jadeWorking.map((c) => (
                 <li key={c.id}><Link to={storyPath(c.id)}>{storyTitle(c)}</Link><JadeWorking>{c.lifecycle?.nextAction.summary}</JadeWorking></li>
               ))}</ul>
-            </Section>
+            </details>
           )}
 
           {work.waitingOnOthers.length > 0 && (
-            <Section title="Waiting on others" quiet>
+            <details className="qmore">
+              <summary>Waiting on others {work.waitingOnOthers.length}</summary>
               <ul className="quietlist">{work.waitingOnOthers.slice(0, 8).map((c) => (
                 <li key={c.id}><Link to={storyPath(c.id)}>{storyTitle(c)}</Link>
                   <span className="muted"> — {!info.appManagement && ["product_manager", "cnc_operator", "admin"].includes(c.lifecycle?.nextAction.owner ?? "")
@@ -140,7 +156,7 @@ export function MyWorkPage() {
                     : `${c.lifecycle?.nextAction.ownerLabel}: ${c.lifecycle?.nextAction.summary}`}</span></li>
               ))}</ul>
               {work.waitingOnOthers.length > 8 && <Link to="/stories?health=attention">All {work.waitingOnOthers.length}</Link>}
-            </Section>
+            </details>
           )}
         </div>
 

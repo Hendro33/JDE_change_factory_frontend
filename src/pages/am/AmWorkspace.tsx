@@ -1,11 +1,10 @@
 import { useEffect } from "react";
 import { ValidationWorkspace } from "../validation/Validation";
 import { Link, match, navigate, useLocation } from "../../router";
-import { EmptyState, Tabs, useSessionInfo } from "../../components/design";
+import { EmptyState, useSessionInfo } from "../../components/design";
 import { Dashboard } from "./Dashboard";
 import { ApprovalBacklog } from "./ApprovalBacklog";
 import { ArchitectureReview } from "./ArchitectureReview";
-import { DeliveryQueuePage } from "./DeliveryQueue";
 import { Pipeline } from "./Pipeline";
 import { ChangeView } from "./ChangeView";
 import { AsBuiltWorkbench, ProcessWorkbench, TechnicalWorkbench } from "./Workbenches";
@@ -20,12 +19,8 @@ const GROUPS: { label: string; items: { to: string; label: string; stage?: strin
   ] },
   { label: "Delivery", items: [
     { to: "/am/delivery", label: "Delivery" },
-    { to: "/am/changes?stage=validation", label: "Validation", stage: "validation" },
+    { to: "/am/validation", label: "Validation & release" },
     { to: "/am/as-built", label: "As-Built" },
-  ] },
-  { label: "Release", items: [
-    { to: "/am/validation", label: "Validation & release handoff" },
-    { to: "/am/changes?stage=release", label: "Ready for Release / CNC", stage: "release" },
   ] },
 ];
 
@@ -65,12 +60,12 @@ export function AmWorkspace() {
   else if (path === "/am/process") page = <ProcessWorkbench />;
   else if (match("/am/architecture-review", path) && query.get("view") === "design") page = <TechnicalWorkbench design />;
   else if (match("/am/architecture-review", path)) page = <ArchitectureReview {...target} onNavigate={legacyNavigate} />;
-  else if (["/am/delivery", "/am/delivery-queue", "/am/technical"].includes(path) || (path === "/am/changes" && (!query.get("stage") || query.get("stage") === "active"))) page = <>
-    <Tabs label="Delivery sections" active={path === "/am/technical" ? "technical" : path === "/am/delivery-queue" ? "queue" : "active"}
-      hrefFor={(k) => `${k === "technical" ? "/am/technical" : k === "queue" ? "/am/delivery-queue" : "/am/delivery"}${query.get("story") ? `?story=${encodeURIComponent(query.get("story")!)}` : ""}`}
-      tabs={[{key: "active", label: "Delivery"}, {key: "queue", label: "Delivery Queue"}, {key: "technical", label: "Technical Work"}]} />
-    {path === "/am/technical" ? <TechnicalWorkbench /> : path === "/am/delivery-queue" ? <DeliveryQueuePage onOpenChange={openChange} /> : <Pipeline onOpenChange={openChange} {...target} navFilter={{...target.navFilter, stage: "active"}} />}
-  </>;
+  // One delivery queue: the former Delivery Queue and Technical Work lists redirect to it,
+  // and a story's technical work opens on its own Delivery tab.
+  else if (path === "/am/delivery-queue") page = <Redirect to="/am/delivery" />;
+  else if (path === "/am/technical") page = <Redirect to={query.get("story")
+    ? `/am/changes/${encodeURIComponent(query.get("story")!)}/delivery` : "/am/delivery?stage=active"} />;
+  else if (path === "/am/delivery") page = <Pipeline onOpenChange={openChange} {...target} />;
   else if (match("/am/as-built", path)) page = <AsBuiltWorkbench />;
   else if (match("/am/changes", path)) page = <Pipeline onOpenChange={openChange} {...target} />;
   else if ((m = match("/am/changes/:id/:tab?", path))) page = <ChangeView key={m.id} changeId={m.id} tab={m.tab} />;
@@ -79,7 +74,7 @@ export function AmWorkspace() {
   const stage = query.get("stage");
   const isOn = (it: { to: string; stage?: string }) =>
     it.to === "/am/architecture-review" && path === "/am/process" ? true :
-    it.to === "/am/delivery" && (["/am/delivery", "/am/delivery-queue", "/am/technical"].includes(path) || (path === "/am/changes" && (!stage || stage === "active" || stage === "all"))) ? true :
+    it.to === "/am/delivery" && (path === "/am/delivery" || path === "/am/changes") ? true :
     it.stage ? path === "/am/changes" && stage === it.stage : path === it.to.split("?")[0];
 
   return (

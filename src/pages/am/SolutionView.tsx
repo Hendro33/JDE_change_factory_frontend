@@ -76,17 +76,22 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
         {route && <div className="route-line"><span className="route-title">{route.title}</span><span className="muted"> · {route.summary}</span></div>}
         <ResultSummary change={change} hideConclusion={DECISIONS.has(lc?.nextAction.action ?? "") && info.has("product_manager", "admin")} />
         {basis && <p className="designbasis">{basis} <Link to={changePath(change.id, "evidence")}>Design basis</Link></p>}
-        {standalone && <WhatNeedsToHappen lifecycle={lc} changeId={change.id} />}
+        {standalone && <WhatNeedsToHappen lifecycle={lc} changeId={change.id} skipPrimary title="Also open" limit={3} />}
         <IssueList change={change} onChange={() => ctx.reload()} empty="No open points: nothing is waiting on anyone." />
       </section>
 
-      <section className="panel">
-        <ProcessSwimlane process={ctx.process} storyId={change.id} criteria={change.userStory?.acceptanceCriteria ?? []}
-          empty="No current or proposed process map is recorded for this change. Add them under “Process mapping and maps” below; JADE uses them in the next design." />
-        <Details summary="Process mapping and maps" id="process-edit">
+      {ctx.process && (latestMap(ctx.process.maps.to_be.versions) || latestMap(ctx.process.maps.as_is.versions)) ? (
+        <section className="panel">
+          <ProcessSwimlane process={ctx.process} storyId={change.id} criteria={change.userStory?.acceptanceCriteria ?? []} />
+          <Details summary="Process mapping and maps" id="process-edit">
+            <StoryProcessPanel storyId={change.id} onChanged={ctx.reload} />
+          </Details>
+        </section>
+      ) : (
+        <Details summary="Business process — no map recorded (JADE uses one in the next design if you add it)" id="process-edit">
           <StoryProcessPanel storyId={change.id} onChanged={ctx.reload} />
         </Details>
-      </section>
+      )}
 
       {decision && (
         <Details summary="Why this solution" id="why">
@@ -150,7 +155,7 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
         <div className="btnrow rerun-row">
           <button className="btn" disabled={busy || lc?.nextAction.owner === "jade"} onClick={rerun}>
             {lc?.nextAction.owner === "jade" ? "The Architect is at work…" : busy ? "Starting…" : "Run the Architect again"}</button>
-          <span className="hint">Earlier designs and the conversation are kept.</span>
+          <span className="hint explain">Earlier designs and the conversation are kept.</span>
         </div>
       )}
       {error !== null && <ErrorState error={error} title="Not started" />}
@@ -264,4 +269,8 @@ function DecisionPanel({ ctx, showWaiting }: { ctx: StoryCtx; showWaiting: boole
       )}
     </section>
   );
+}
+
+function latestMap<T>(versions: T[] | undefined): T | undefined {
+  return versions && versions.length ? versions[versions.length - 1] : undefined;
 }

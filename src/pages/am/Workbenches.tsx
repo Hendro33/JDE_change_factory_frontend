@@ -1,4 +1,3 @@
-import { ReviewDetail } from "../../components/visualReview";
 import { inAmStage } from "./workflow";
 import { KnowledgePage } from "../knowledge/Knowledge";
 import { useEffect, useState, type ReactNode } from "react";
@@ -43,7 +42,7 @@ function Workbench({ title, intro, at, filter, empty, render }: {
     <div className="stack vr-pilot">
       <section className="panel">
         <h1 style={{ marginTop: 0 }}>{title}</h1>
-        <ReviewDetail title="About this workspace"><p className="hint">{intro}</p></ReviewDetail>
+        <p className="hint explain">{intro}</p>
         {loadError !== null && <ErrorState error={loadError} title="The stories could not be loaded" />}
         {changes.length === 0 ? <p className="notstated">{empty}</p> : (
           <div className="btnrow" role="tablist" aria-label="Stories">{changes.map((c) => (

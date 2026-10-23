@@ -19,15 +19,10 @@ export function ProgressTab({ ctx }: { ctx: StoryCtx }) {
 
   return (
     <div className="progress">
-      <Section title="Where it is">
-        <p className="lead"><strong>{lc.phaseLabel}</strong> <HealthIndicator lifecycle={lc} /></p>
-        {lc.nextAction.kind !== "none" || lc.nextAction.owner === "jade" ? (
-          <p>{lc.nextAction.summary}{lc.nextAction.ownerLabel && lc.nextAction.owner !== "jade" ? <span className="muted"> — with {lc.nextAction.ownerLabel}</span> : null}</p>
-        ) : <p>{lc.nextAction.summary}</p>}
-        {info.appManagement && (lc.phaseIndex ?? 0) >= 2 && (
-          <p><Link to={changePath(change.id, "delivery")}>Delivery detail in Application Management</Link></p>
-        )}
-      </Section>
+      {/* The phase and the next step are on the card above; only the link to the delivery detail stays here. */}
+      {info.appManagement && (lc.phaseIndex ?? 0) >= 2 && (
+        <p><Link to={changePath(change.id, "delivery")}>Delivery detail in Application Management</Link></p>
+      )}
 
       {lc.outcomeCard && <OutcomeCardView change={change} lifecycle={lc} onChanged={() => ctx.reload()} />}
 

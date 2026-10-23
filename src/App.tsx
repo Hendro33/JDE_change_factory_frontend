@@ -124,6 +124,22 @@ function AdminGate({ children }: { children: JSX.Element }) {
   return <EmptyState title="Administration is for administrators">Setting up and maintaining Jade is done by the Jade Administrator of this customer.</EmptyState>;
 }
 
+/**
+ * The one "?" per page: explanations, hints and "about this screen" text are
+ * hidden on the work screens until asked for (remembered per browser).
+ */
+function HelpToggle() {
+  const [on, setOn] = useState<boolean>(() => { try { return localStorage.getItem("jade_help") === "on"; } catch { return false; } });
+  useEffect(() => {
+    document.body.classList.toggle("help-on", on);
+    try { localStorage.setItem("jade_help", on ? "on" : "off"); } catch { /* storage unavailable */ }
+  }, [on]);
+  return (
+    <button className={`iconbtn helpbtn${on ? " on" : ""}`} aria-pressed={on} onClick={() => setOn((v) => !v)}
+            title={on ? "Hide explanations" : "Show explanations"} aria-label={on ? "Hide explanations" : "Show explanations"}>?</button>
+  );
+}
+
 function Routes() {
   const { path } = useLocation();
   useEffect(() => { if (path === "/") navigate("/work", { replace: true }); }, [path]);
@@ -209,6 +225,7 @@ function MainApp({ onSignedOut, onSetupFinished }: { onSignedOut: () => void; on
           </nav>
           <div className="appbar-tools">
             <GlobalSearch />
+            <HelpToggle />
             {info?.admin && (
               <Link to="/admin" className={`iconbtn${section === "admin" ? " on" : ""}`} aria-label="Administration" title="Administration"
                     aria-current={section === "admin" ? "page" : undefined}>

@@ -129,7 +129,7 @@ export function NextActionCard({ ctx, inApp = false }: { ctx: StoryCtx; inApp?: 
         <div className="nextcard-kicker">Waiting for: {withAm ? "Application Management" : na.ownerLabel || "someone else"}</div>
         <div className="nextcard-summary">{withAm ? `The approved story is with the Application Manager (${lc.phaseLabel}).` : na.summary}</div>
         <div className="nextcard-note">You can follow progress here; nothing is needed from you.</div>
-        {!withAm && <WhatNeedsToHappen lifecycle={lc} changeId={change.id} skipPrimary title="Also open" />}
+        {!withAm && <WhatNeedsToHappen lifecycle={lc} changeId={change.id} skipPrimary title="Also open" limit={3} />}
       </section>
     );
   }
@@ -141,7 +141,9 @@ export function NextActionCard({ ctx, inApp = false }: { ctx: StoryCtx; inApp?: 
   // needed and opens the right screen on this story.
   const gate = na.action ? gateFor(na.action, change.id, inApp) : undefined;
   let controls: ReactNode = null;
-  if (gate) controls = <Link className="btn primary" to={gate.to}>{inApp && gate.screen === "the decision below" ? "Go to the decision" : `Open in ${gate.screen}`}</Link>;
+  // No button to the screen the person is already on.
+  if (gate && gate.to.split("#")[0] === location.pathname) controls = null;
+  else if (gate) controls = <Link className="btn primary" to={gate.to}>{inApp && gate.screen === "the decision below" ? "Go to the decision" : `Open in ${gate.screen}`}</Link>;
   else switch (na.action) {
     case "start_analysis":
       controls = <button className="btn primary" disabled={busy} onClick={() => act(() => api.enhanceStory(change.id))}>{busy ? "Starting…" : "Start analysis"}</button>;
@@ -193,23 +195,11 @@ export function NextActionCard({ ctx, inApp = false }: { ctx: StoryCtx; inApp?: 
     <section className={`nextcard ${isDecision ? "decision" : "task"} ${lc.health}`} id="next-action" aria-label={isDecision ? "Decision needed" : "Next action"}>
       <div className="nextcard-kicker">{isDecision ? "Decision needed" : lc.health === "failed" ? "Needs attention" : "Next step"}</div>
       <div className="nextcard-summary">{na.summary}</div>
-      {isDecision && (
-        <dl className="nextcard-facts">
-          <div><dt>Business priority</dt><dd>{change.priority}</dd></div>
-          {(na.action === "approve_design" || na.action === "approve_exact_change" || na.action === "approve_package"
-            || na.action === "decide_issue") && (
-            <div><dt>Open points</dt><dd>{openPoints.length === 0 ? "None open"
-              : `${openPoints.length} open${blockingPoints.length ? `, ${blockingPoints.length} blocking` : ""}`}</dd></div>
-          )}
-          {change.complexitySignal !== "Unknown" && <div><dt>Complexity</dt><dd>{change.complexitySignal} (JADE's estimate)</dd></div>}
-        </dl>
-      )}
       {na.effect && <p className="nextcard-effect"><strong>{isDecision ? "If approved: " : "What happens: "}</strong>{na.effect}</p>}
-      {isDecision && copy?.ifRejected && <p className="nextcard-effect muted"><strong>If not: </strong>{copy.ifRejected}</p>}
       {lc.openItems.length > 0 && lc.health !== "waiting_decision" && (
         <ul className="nextcard-items">{lc.openItems.map((i) => <li key={i}>{i}</li>)}</ul>
       )}
-      <WhatNeedsToHappen lifecycle={lc} changeId={change.id} skipPrimary title="Also open" />
+      <WhatNeedsToHappen lifecycle={lc} changeId={change.id} skipPrimary title="Also open" limit={3} />
       {(controls || rerunnable) && (
         <div className="btnrow nextcard-actions">
           {controls}

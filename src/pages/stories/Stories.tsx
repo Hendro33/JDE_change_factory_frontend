@@ -41,6 +41,7 @@ export function StoriesPage() {
   const [retrieving, setRetrieving] = useState(false);
   const [retrieved, setRetrieved] = useState<JiraSyncResult | null>(null);
   const [retrieveError, setRetrieveError] = useState<unknown>(null);
+  const [moreFilters, setMoreFilters] = useState(false);
   useEffect(() => { api.getJiraIntegrationStatus().then(setJira).catch(() => setJira(null)); }, []);
   const canEdit = info.roles.some((r) => r !== "dashboard_viewer");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -164,7 +165,7 @@ export function StoriesPage() {
               <button className="linkbutton" onClick={() => setWithdrawOpen(false)}>Cancel</button>
             </>
           )}
-          <span className="hint" style={{ flexBasis: "100%" }}>
+          <span className="hint explain" style={{ flexBasis: "100%" }}>
             Create user stories: JADE analyses each selected request and turns it into a user story for its Domain Owner.
             Withdrawn requests leave this list and are kept on record with your name and reason; the Jira ticket is not imported again.
           </span>
@@ -183,6 +184,7 @@ export function StoriesPage() {
           {info.domains.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           <option value="none">Not placed yet</option>
         </select>
+        {(moreFilters || health || owner || priority || changeType) ? <>
         <select aria-label="Health" value={health} onChange={(e) => setQueryParam("health", e.target.value)}>
           <option value="">Any health</option>
           {HEALTH_FILTERS.map((h) => <option key={h.key} value={h.key}>{h.label}</option>)}
@@ -203,6 +205,7 @@ export function StoriesPage() {
           <option value="">Any type</option>
           {CHANGE_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
+        </> : <button className="linkbutton" onClick={() => setMoreFilters(true)}>More filters</button>}
         {filtered && <button className="linkbutton" onClick={() => navigate(`/stories${view === "board" ? "?view=board" : ""}`, { replace: true })}>Clear filters</button>}
         <div className="viewswitch" role="group" aria-label="View">
           <button className={view === "list" ? "on" : ""} aria-pressed={view === "list"} onClick={() => setQueryParam("view", null)}>List</button>

@@ -5,10 +5,10 @@ export const AM_STAGES = [
   { key: "architecture", label: "Awaiting Architecture Review", to: "/am/architecture-review" },
   { key: "approved", label: "Approved for Delivery", to: "/am/delivery?queue=approved" },
   { key: "delivery", label: "In Delivery", to: "/am/delivery?queue=delivery" },
-  { key: "validation", label: "Awaiting Validation", to: "/am/changes?stage=validation" },
+  { key: "validation", label: "Awaiting Validation", to: "/am/delivery?stage=validation" },
   { key: "asbuilt", label: "Awaiting As-Built", to: "/am/as-built?queue=asbuilt" },
-  { key: "release", label: "Ready for Release / CNC", to: "/am/changes?stage=release" },
-  { key: "completed", label: "Completed", to: "/am/changes?stage=completed" },
+  { key: "release", label: "Ready for Release / CNC", to: "/am/delivery?stage=release" },
+  { key: "completed", label: "Completed", to: "/am/delivery?stage=completed" },
 ] as const;
 export type AmStage = typeof AM_STAGES[number]["key"];
 

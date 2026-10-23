@@ -71,9 +71,9 @@ export function WorkItemsList({ items, business, renderAction, title = "Who does
       ) : groups.map(({ g, rows }) => (
         <div key={g} className="workgroup-block">
           <div className="workgroup-label">{GROUP_WORD[g]}</div>
-          <ol className="worklist">
+          <ol className="wi-list">
             {rows.map((w) => (
-              <li key={w.id} className={`workitem s-${w.state}`}>
+              <li key={w.id} className={`wi-row s-${w.state}`}>
                 <span className="wi-state"><span aria-hidden="true">{STATE_ICON[w.state]}</span> {STATE_WORD[w.state]}</span>
                 <span className="wi-main">
                   <span className="wi-title">{w.title}</span>

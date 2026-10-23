@@ -1,7 +1,6 @@
-import { ReviewDetail } from "../../components/visualReview";
 import { HealthIndicator, PhaseLabel } from "../../components/design";
-import { Link, navigate, setQueryParam } from "../../router";
-import { AM_STAGES, inAmStage } from "./workflow";
+import { navigate, setQueryParam } from "../../router";
+import { inAmStage, type AmStage } from "./workflow";
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type { Change } from "../../types/domain";
@@ -17,57 +16,50 @@ import { Loading, PriorityBadge } from "../../components/ui";
  */
 type StagePreset = "active" | "validation" | "release" | "completed" | "all";
 
-const STAGE_COPY: Record<StagePreset, { title: string; sub: string }> = {
-  active: { title: "Delivery", sub: "Architecture-approved work, from implementation preparation through execution." },
-  validation: { title: "Validation", sub: "Changes in canonical validation, including tests in progress or needing attention." },
-  release: { title: "Ready for Release / CNC", sub: "Delivered stories with completed JADE records, ready for external release / CNC handover. Production promotion remains outside JADE." },
-  completed: { title: "Completed", sub: "Stories the canonical lifecycle records as delivered or resolved without a change." },
-  all: { title: "Delivery", sub: "Approved changes, and exactly how far each one has actually got." },
-};
+/** One delivery queue (step 3): the former Delivery, Delivery Queue and Technical Work lists, as stage filters of one list. */
+const CHIPS: { key: StagePreset; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "active", label: "In delivery" },
+  { key: "validation", label: "Validation" },
+  { key: "release", label: "Ready for release" },
+  { key: "completed", label: "Completed" },
+];
 
 function presetFrom(navFilter: Record<string, string> | undefined): StagePreset {
   const s = navFilter?.stage;
   return s === "active" || s === "validation" || s === "release" || s === "completed" ? s : "all";
 }
 
-export function Pipeline({ onOpenChange, navFilter, navToken }: { onOpenChange: (id: string) => void } & NavTarget) {
+function inPreset(c: Change, preset: StagePreset): boolean {
+  if (preset === "active") return inAmStage(c, "approved") || inAmStage(c, "delivery");
+  if (preset === "all") return ["approved", "delivery", "validation", "asbuilt"].some((s) => inAmStage(c, s as AmStage));
+  return inAmStage(c, preset);
+}
+
+export function Pipeline({ onOpenChange: _open, navFilter, navToken }: { onOpenChange: (id: string) => void } & NavTarget) {
   const [changes, setChanges] = useState<Change[] | null>(null);
+  const [queue, setQueue] = useState<Map<string, number>>(new Map());
   const [preset, setPreset] = useState<StagePreset>(() => presetFrom(navFilter));
 
   useEffect(() => {
-    api.listChanges().then((all) =>
-      setChanges(all)
-    );
+    api.listChanges().then(setChanges);
+    api.listDeliveryQueue().then((q) => setQueue(new Map(q.map((e) => [e.changeId, e.position])))).catch(() => undefined);
   }, []);
 
   useEffect(() => { setPreset(presetFrom(navFilter)); }, [navToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scoped = (changes ?? []).filter((c) => !navFilter?.story || c.id === navFilter.story).filter((c) => {
     if (navFilter?.queue === "approved" || navFilter?.queue === "delivery") return inAmStage(c, navFilter.queue);
-    if (preset === "active") return inAmStage(c, "approved") || inAmStage(c, "delivery");
-    if (preset === "all") return ["architecture", "approved", "delivery", "validation", "asbuilt", "completed"].some((s) => inAmStage(c, s as Parameters<typeof inAmStage>[1]));
-    return inAmStage(c, preset);
+    return inPreset(c, preset);
   });
 
-
   const columns: GridColumn[] = [
-    { key: "id", header: "Change", render: (c) => <span className="mono">{c.id}</span>, sortValue: (c) => c.id },
-    { key: "title", header: "Description", render: (c) => c.title, sortValue: (c) => c.title },
+    { key: "pos", header: "#", render: (c) => <span className="mono muted">{queue.get(c.id) ?? "—"}</span>, sortValue: (c) => queue.get(c.id) ?? 9999 },
+    { key: "title", header: "Change", render: (c) => <><div className="qrow-title">{c.title}</div><div className="mono muted small">{c.id}</div></>, sortValue: (c) => c.title },
     { key: "route", header: "Route", render: (c) => c.architectDecision?.recommendedRoute ?? <span className="notstated">not decided</span> },
-    { key: "changeApproved", header: "Exact change approved", render: (c) =>
-      c.changeApproval?.status === "approved" ? <span className="badge ok">Approved</span>
-        : c.exactChange ? <span className="badge warn">Waiting on you</span>
-        : <span className="badge grey">Not proposed</span> },
-    { key: "test", header: "Test", render: (c) => {
-      // The validation step of the canonical lifecycle -- the same state the story page shows.
-      const v = c.lifecycle?.deliverySteps.find((s) => s.id === "validation");
-      return v?.state === "done" ? <span className="badge ok">Passed</span>
-        : v?.state === "failed" ? <span className="badge stop">Needs attention</span>
-        : v?.state === "current" ? <span className="badge info">In progress</span>
-        : <span className="badge grey">Not run</span>;
-    } },
-    { key: "status", header: "Phase / health", render: (c) => <><PhaseLabel lifecycle={c.lifecycle} /><HealthIndicator lifecycle={c.lifecycle} /></> },
-    { key: "next", header: "Next action", render: (c) => c.lifecycle?.nextAction.summary ?? "—" },
+    { key: "status", header: "Phase", render: (c) => <><PhaseLabel lifecycle={c.lifecycle} /> <HealthIndicator lifecycle={c.lifecycle} /></> },
+    { key: "next", header: "Next", render: (c) => <>{c.lifecycle?.nextAction.summary ?? "—"}{c.lifecycle?.nextAction.ownerLabel
+      ? <div className="muted small">{c.lifecycle.nextAction.ownerLabel}</div> : null}</> },
     { key: "priority", header: "Priority", render: (c) => <PriorityBadge priority={c.priority} /> },
   ];
 
@@ -75,54 +67,38 @@ export function Pipeline({ onOpenChange, navFilter, navToken }: { onOpenChange: 
     scoped, columns, (c) => `${c.id} ${c.title}`
   );
 
-  const copy = STAGE_COPY[preset];
-
   return (
     <div className="vr-pilot">
-      <div className="pagehead">
-        <div>
-          <h1>{copy.title}</h1>
-          <div className="sub">{copy.sub}</div>
-        </div>
-        <div className="meta">{scoped.length} in this view</div>
+      <div className="pagetitle">
+        <h1>Delivery</h1>
+        <span className="qcount">{scoped.length}</span>
       </div>
 
-      {!changes ? <Loading what="the pipeline" /> : (
+      {!changes ? <Loading what="the delivery queue" /> : (
         <div className="stack">
-          <ReviewDetail title="All Application Management queues">
-            <div className="btnrow">{AM_STAGES.map((s) => <Link className="btn small" key={s.key} to={s.to}>{s.label} · {(changes ?? []).filter((c) => inAmStage(c, s.key)).length}</Link>)}</div>
-          </ReviewDetail>
-
-          <div className="panel filterbar">
-            <div className="field">
-              {navFilter?.queue && <p>{navFilter.queue === "approved" ? "Approved for Delivery" : "In Delivery"} · <button className="linkish" onClick={() => setQueryParam("queue", "")}>Show all delivery</button></p>}
-              <label htmlFor="stagepreset">Stage</label>
-              <select id="stagepreset" value={preset} onChange={(e) => navigate(`/am/changes?stage=${e.target.value}`)}>
-                <option value="all">All active + completed</option>
-                <option value="active">Active Changes</option>
-                <option value="validation">Validation</option>
-                <option value="release">Ready for Release / CNC</option>
-                <option value="completed">Completed</option>
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="pipelinesearch">Search</label>
-              <input id="pipelinesearch" type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by ID or title" />
-            </div>
+          <div className="filterchips" role="group" aria-label="Stage">
+            {CHIPS.map((ch) => {
+              const on = !navFilter?.queue && preset === ch.key;
+              return (
+                <button key={ch.key} className={`chip${on ? " on" : ""}`} aria-pressed={on}
+                  onClick={() => navigate(ch.key === "all" ? "/am/delivery" : `/am/delivery?stage=${ch.key}`)}>
+                  {ch.label} <span className="muted">{changes.filter((c) => inPreset(c, ch.key)).length}</span>
+                </button>
+              );
+            })}
+            <label className="sr-only" htmlFor="pipelinesearch">Search</label>
+            <input id="pipelinesearch" className="chipsearch" type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ID or title" />
+            {navFilter?.queue && <button className="linkbtn" onClick={() => setQueryParam("queue", "")}>Clear filter</button>}
           </div>
-
-          <section className="panel">
-            <h2>Changes in this view</h2>
-            <ChangeGrid
-              changes={filtered}
-              columns={columns}
-              onRowClick={onOpenChange}
-              emptyMessage="No changes in this queue."
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSortChange={onSortChange}
-            />
-          </section>
+          <ChangeGrid
+            changes={filtered}
+            columns={columns}
+            onRowClick={(id) => navigate(`/am/changes/${encodeURIComponent(id)}/delivery`)}
+            emptyMessage="Nothing here. Stories appear once the Application Manager approves them on Backlog Review."
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSortChange={onSortChange}
+          />
         </div>
       )}
     </div>

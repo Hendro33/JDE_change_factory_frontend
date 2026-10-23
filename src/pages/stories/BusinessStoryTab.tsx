@@ -64,6 +64,20 @@ export function BusinessStoryTab({ ctx }: { ctx: StoryCtx }) {
         </Section>
       ) : (
         <div className="storygrid">
+          <IssueList change={change} onChange={() => ctx.reload()} kinds={["business"]} title="Questions for the business" />
+
+          <Section title="User story">
+            <p className="userstory">{us.statement}</p>
+            {us.businessContext && <p>{us.businessContext}</p>}
+            <DocumentCitations citations={us.documentCitations} />
+          </Section>
+
+          <Section title="Acceptance criteria">
+            {us.acceptanceCriteria.length === 0 ? <p className="muted">None yet. The story cannot pass JADE's quality check without testable criteria.</p> : (
+              <ul className="checklist">{us.acceptanceCriteria.map((ac) => <li key={ac.id}><span className="mono muted">{ac.id}</span> {ac.text}</li>)}</ul>
+            )}
+          </Section>
+
           <div className="storygrid-facts">
             <Fact label="Business domain">
               {info.domainName(change.businessDomainId) ?? <span className="muted">Not placed yet</span>}
@@ -78,36 +92,21 @@ export function BusinessStoryTab({ ctx }: { ctx: StoryCtx }) {
             <ClassificationFacts change={change} onSaved={ctx.reload} />
           </div>
 
-          <IssueList change={change} onChange={() => ctx.reload()} kinds={["business"]} title="Questions for the business" />
-
-          <Section title="User story">
-            <p className="userstory">{us.statement}</p>
-            {us.businessContext && <p>{us.businessContext}</p>}
-            <DocumentCitations citations={us.documentCitations} />
-          </Section>
-
-          {benefit && <Section title="Expected benefit"><p>{benefit}</p></Section>}
-
-          <Section title="Business impact">
-            {impacts.length === 0 ? <p className="muted">The requester did not state the business impact. That is missing information, not zero impact.</p> : (
-              <dl className="facts">{impacts.map(([k, label]) => <Fragment key={k}><dt>{label}</dt><dd>{change.businessImpact[k]}</dd></Fragment>)}</dl>
-            )}
-          </Section>
-
-          <Section title="Acceptance criteria">
-            {us.acceptanceCriteria.length === 0 ? <p className="muted">None yet. The story cannot pass JADE's quality check without testable criteria.</p> : (
-              <ul className="checklist">{us.acceptanceCriteria.map((ac) => <li key={ac.id}><span className="mono muted">{ac.id}</span> {ac.text}</li>)}</ul>
-            )}
-          </Section>
-
-          {us.businessRules.length > 0 && <Section title="Business rules"><ul className="compactlist">{us.businessRules.map((r, i) => <li key={i}>{r}</li>)}</ul></Section>}
-          <Section title="Assumptions">
-            {us.assumptions.length ? <ul className="compactlist">{us.assumptions.map((a, i) => <li key={i}>{a}</li>)}</ul> : <p className="muted">None.</p>}
-          </Section>
-          <Section title="Open questions">
-            {us.openQuestions.length ? <ul className="compactlist">{us.openQuestions.map((q, i) => <li key={i}>{q}</li>)}</ul> : <p className="muted">None.</p>}
-          </Section>
-
+          {(() => {
+            const parts = [benefit && "benefit", impacts.length && "impact", us.businessRules.length && "rules",
+              us.assumptions.length && "assumptions", us.openQuestions.length && "open questions"].filter(Boolean) as string[];
+            if (parts.length === 0) return null;
+            return (
+              <Details summary={`Benefit, impact and assumptions (${parts.join(", ")})`} open={us.openQuestions.length > 0}>
+                {benefit && <><h3 className="minihead">Expected benefit</h3><p>{benefit}</p></>}
+                {impacts.length > 0 && <><h3 className="minihead">Business impact</h3>
+                  <dl className="facts">{impacts.map(([k, label]) => <Fragment key={k}><dt>{label}</dt><dd>{change.businessImpact[k]}</dd></Fragment>)}</dl></>}
+                {us.businessRules.length > 0 && <><h3 className="minihead">Business rules</h3><ul className="compactlist">{us.businessRules.map((r, i) => <li key={i}>{r}</li>)}</ul></>}
+                {us.assumptions.length > 0 && <><h3 className="minihead">Assumptions</h3><ul className="compactlist">{us.assumptions.map((a, i) => <li key={i}>{a}</li>)}</ul></>}
+                {us.openQuestions.length > 0 && <><h3 className="minihead">Open questions</h3><ul className="compactlist">{us.openQuestions.map((q, i) => <li key={i}>{q}</li>)}</ul></>}
+              </Details>
+            );
+          })()}
           {us.testScript.length > 0 && (
             <Details summary={`Business test script (${us.testScript.length} steps)`}>
               <table className="data"><thead><tr><th>#</th><th>Action</th><th>Expected result</th></tr></thead>
@@ -169,15 +168,14 @@ export function BusinessStoryTab({ ctx }: { ctx: StoryCtx }) {
       )}
 
       {us && (
-        <Section id="process" title="Business process"
-          description="Where this story sits in the business: the confirmed processes and the as-is and to-be maps. Maps support the story; the story stays the anchor.">
+        <Details id="process" open={hash === "process"} summary={`Business process — ${processes.length
+          ? processes.map((r) => r.path[r.path.length - 1]?.name).join(", ") : ctx.process?.framework ? "not confirmed yet" : "no process framework active"}`}>
           <StoryProcessPanel storyId={change.id} onChanged={ctx.reload} />
-        </Section>
+        </Details>
       )}
 
-      <Section title="Source">
-        <p>{change.source}{change.sourceReference ? ` · ${change.sourceReference}` : ""} · received {formatDateTime(change.createdAt)}</p>
-        <Details summary="View the original request" open={!us}>
+      <Section>
+        <Details summary={`Original request — ${change.source}${change.sourceReference ? ` · ${change.sourceReference}` : ""} · received ${formatDateTime(change.createdAt)}`} open={!us}>
           <blockquote className="original">{change.originalRequest}</blockquote>
           {change.sourceMetadata && Object.keys(change.sourceMetadata).length > 0 && (
             <dl className="facts">{Object.entries(change.sourceMetadata).map(([k, v]) => (

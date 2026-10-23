@@ -943,8 +943,8 @@ a.iconbtn.on { color: var(--jade-deep); border-color: var(--jade); box-shadow: i
 .workitems { margin: 4px 0 8px; }
 .workgroup-block { margin-bottom: 14px; }
 .workgroup-label { font-size: 13px; font-weight: 800; color: var(--ink-soft); margin: 6px 0; }
-.worklist, .workgroups { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
-.workitem, .workgroup { display: grid; grid-template-columns: 130px 1fr minmax(150px, 220px) auto; gap: 12px; align-items: baseline;
+.wi-list, .workgroups { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.wi-row, .workgroup { display: grid; grid-template-columns: 130px 1fr minmax(150px, 220px) auto; gap: 12px; align-items: baseline;
   padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; }
 .workgroup { grid-template-columns: 130px 1fr minmax(150px, 260px); }
 .wi-state { font-weight: 700; font-size: 13.5px; color: var(--muted); white-space: nowrap; }
@@ -1024,9 +1024,54 @@ a.iconbtn.on { color: var(--jade-deep); border-color: var(--jade); box-shadow: i
 .amend-diff .add { color: var(--ok); } .amend-diff .del { color: var(--stop); text-decoration: line-through; }
 
 @media (max-width: 760px) {
-  .workitem, .workgroup { grid-template-columns: 1fr; gap: 2px; }
+  .wi-row, .workgroup { grid-template-columns: 1fr; gap: 2px; }
   .osteps { grid-template-columns: 1fr; }
   .handoff-controls { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) { .facet i { animation: none; opacity: 1; } }
 .swim { margin-top: 24px; }
+
+/* ---------------------------------------------------------------- */
+/* Step 3: compact queues, explanations behind "?", fewer cards.     */
+/* ---------------------------------------------------------------- */
+.qhead { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 18px 0 6px; }
+.qcount { display: inline-block; min-width: 22px; padding: 0 7px; border-radius: 999px; background: var(--wash); color: var(--ink); text-align: center; margin-left: 6px; letter-spacing: 0; }
+.queue { list-style: none; margin: 0 0 8px; padding: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.qrow { display: grid; grid-template-columns: 96px minmax(0, 1fr) 200px 120px auto; gap: 14px; align-items: center; padding: 11px 16px; border-top: 1px solid var(--line); }
+.qrow:first-child { border-top: 0; }
+.qrow-kind { font-size: 12.5px; font-weight: 800; color: var(--muted); white-space: nowrap; }
+.qrow.decision .qrow-kind { color: #7A6200; }
+.qrow-main { display: flex; flex-direction: column; min-width: 0; }
+.qrow-title { font-weight: 700; color: var(--ink); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qrow-title:hover { text-decoration: underline; color: var(--jade-deep); }
+.qrow-sub { font-size: 13.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qrow-meta { display: flex; flex-direction: column; font-size: 13px; }
+.qmore { margin-top: 14px; }
+.qmore > summary { cursor: pointer; font-weight: 700; color: var(--ink-soft); padding: 6px 0; }
+@media (max-width: 900px) {
+  .qrow { grid-template-columns: 1fr auto; }
+  .qrow-kind, .qrow-meta, .qrow-prio { display: none; }
+}
+/* Explanations: hidden until the "?" is pressed. Data and status are never in these. */
+body:not(.help-on) :is(.explain, .pageheader .lede, .pagehead .sub, .section-desc, .nextcard-note, .swim-legend, .issues-note,
+  .askjade-intro, .handoff-note, .storyprocess-intro) { display: none !important; }
+.helpbtn { font-weight: 800; font-size: 17px; }
+.helpbtn.on { background: var(--brand); color: var(--brand-ink); }
+
+/* Step 3: compact page title, stage chips, Ask JADE as one bar */
+.pagetitle { display: flex; align-items: baseline; gap: 10px; margin: 4px 0 14px; }
+.pagetitle h1 { margin: 0; font-size: 24px; }
+.filterchips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.chip { border: 1px solid var(--line-strong); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 14px; cursor: pointer; min-height: 32px; }
+.chip.on { background: var(--jade-pale); border-color: var(--jade); color: var(--jade-deep); font-weight: 700; }
+.chip:focus-visible { outline: none; box-shadow: var(--focus); }
+.chipsearch { margin-left: auto; min-width: 200px; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 8px; font: inherit; }
+.askbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+@media (max-width: 640px) { .chipsearch { margin-left: 0; width: 100%; } }
+.flowstrip { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 8px; }
+.flowstrip a { color: var(--ink-soft); text-decoration: none; font-size: 14px; white-space: nowrap; }
+.flowstrip a strong { color: var(--ink); font-size: 16px; margin-right: 2px; }
+.flowstrip a:hover { color: var(--jade-dark); text-decoration: underline; }
+.flowstrip a.zero { color: var(--muted); }
+.flowstrip a.zero strong { color: var(--muted); font-weight: 600; }
+.qrow-domain { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

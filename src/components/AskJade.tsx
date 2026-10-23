@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useLocation } from "../router";
 import type { ConversationTurn, UserStory } from "../types/domain";
 
 /** What a proposed update would change, compared with the story as it is. */
@@ -59,6 +60,10 @@ export function AskJadePanel({
   /** The story as it is, so a proposed update shows what it would change. */
   currentStory?: UserStory;
 }) {
+  const { hash } = useLocation();
+  // Until it is used, Ask JADE is one bar (it opens from a link to #ask too).
+  const [open, setOpen] = useState(turns.length > 0);
+  useEffect(() => { if (hash === "ask") setOpen(true); }, [hash]);
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,10 +82,19 @@ export function AskJadePanel({
     }
   }
 
+  if (!open && turns.length === 0) {
+    return (
+      <div className="askbar">
+        <button className="btn" onClick={() => setOpen(true)} aria-expanded={false}>{title}</button>
+        <span className="muted explain">Ask why, challenge it, or add what JADE missed. Nothing changes by itself.</span>
+      </div>
+    );
+  }
+
   return (
-    <section className="panel">
+    <section className="panel askpanel">
       <h2>{title}</h2>
-      <div className="sub" style={{ marginBottom: 12 }}>
+      <div className="sub askjade-intro" style={{ marginBottom: 12 }}>
         Ask why, question something, or add what JADE missed. Answers never change anything by themselves; new
         information comes back as a proposed update for you to review.
       </div>

@@ -239,13 +239,13 @@ export function ExecutionPanel({
     <div style={{ marginTop: 16 }}>
       <h3 style={{ margin: "0 0 8px" }}>Delivery in DEV</h3>
       {changeSet ? (
-        <p className="hint" style={{ marginTop: 0 }}>
+        <p className="hint explain" style={{ marginTop: 0 }}>
           JADE's agents apply the approved items in DEV, in order — through AIS or in the JD Edwards web client — and read each one
           back live: only exactly the approved values count. You apply and record only the items marked for a person (or an agent
           item no agent can apply right now), and reconcile any item an agent stopped on.
         </p>
       ) : (
-        <p className="hint" style={{ marginTop: 0 }}>
+        <p className="hint explain" style={{ marginTop: 0 }}>
           Apply exactly the approved value in DEV yourself, then record it here: JADE reads it back live through the customer's
           JD Edwards connection and records it only if it is exactly what was approved.
         </p>
@@ -561,13 +561,10 @@ export function ExecutionPanel({
       <ReconciliationLog title="Reconciliations of the change" rows={execution?.writeReconciliations ?? []} write />
       <ReconciliationLog title="Reconciliations of the test run" rows={execution?.testReconciliations ?? []} write={false} />
 
-      <div style={{ marginTop: 12 }}>
-        <strong>Would the delivery gate accept this change being recorded now?</strong>{" "}
-        {preflight && (
-          <span className={`badge ${preflight.executable ? "ok" : "stop"}`}>
-            {preflight.executable ? "Yes" : "No"}
-          </span>
-        )}
+      <details className="drawer" style={{ marginTop: 12 }}>
+        <summary>Delivery gate check{preflight ? ` — ${preflight.executable ? "would accept a recording now"
+          : `would not accept a recording now (${preflight.checks.filter((c) => !c.ok).length} of ${preflight.checks.length} checks fail)`}` : ""}</summary>
+        <strong className="sr-only">Would the delivery gate accept this change being recorded now?</strong>
         {preflightError && <div className="notstated">{preflightError}</div>}
         {preflight && (
           <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13.5 }}>
@@ -583,7 +580,7 @@ export function ExecutionPanel({
         <div className="hint" style={{ marginTop: 6 }}>
           The gate re-runs every check above at the moment a step is recorded.
         </div>
-      </div>
+      </details>
     </div>
   );
 }

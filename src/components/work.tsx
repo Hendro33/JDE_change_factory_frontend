@@ -39,7 +39,7 @@ export function canResolve(issue: Issue, has: (...r: CompanyRole[]) => boolean):
 /* What needs to happen                                                 */
 /* ------------------------------------------------------------------ */
 
-export function WhatNeedsToHappen({ lifecycle, changeId, controls, title = "What needs to happen", skipPrimary }: {
+export function WhatNeedsToHappen({ lifecycle, changeId, controls, title = "What needs to happen", skipPrimary, limit }: {
   lifecycle?: Lifecycle | null;
   changeId: string;
   /** The control for the primary line (the next action's own button), if the caller has one. */
@@ -47,15 +47,22 @@ export function WhatNeedsToHappen({ lifecycle, changeId, controls, title = "What
   title?: string;
   /** When the caller already shows the next action itself (the decision card). */
   skipPrimary?: boolean;
+  /** Show at most this many lines; the rest open on request (blocking lines first). */
+  limit?: number;
 }) {
+  const [all, setAll] = useState(false);
   const lines = (lifecycle?.whatNext ?? []).filter((l) => !(skipPrimary && l.primary));
   if (lines.length === 0) return null;
+  const ordered = limit ? [...lines].sort((a, b) => Number(!!b.primary) - Number(!!a.primary) || Number(!!b.blocking) - Number(!!a.blocking)) : lines;
+  const shown = limit && !all ? ordered.slice(0, limit) : ordered;
+  const hidden = ordered.length - shown.length;
   return (
     <section className="wnh" aria-label={title}>
       <h3 className="wnh-title">{title}</h3>
       <ol className="wnh-list">
-        {lines.map((l, i) => <WorkLineRow key={i} line={l} changeId={changeId} controls={l.primary ? controls : undefined} />)}
+        {shown.map((l, i) => <WorkLineRow key={i} line={l} changeId={changeId} controls={l.primary ? controls : undefined} />)}
       </ol>
+      {hidden > 0 && <button className="linkbtn" onClick={() => setAll(true)}>{hidden} more…</button>}
     </section>
   );
 }
