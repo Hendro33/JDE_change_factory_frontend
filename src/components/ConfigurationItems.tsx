@@ -76,7 +76,7 @@ function appliedBadge(it: ConfigurationItem) {
 export function ConfigurationItemsTable({ items, showDelivery = true }: { items: ConfigurationItem[]; showDelivery?: boolean }) {
   return (
     <div className="tablewrap" style={{ marginTop: 8 }}>
-      <table className="data" style={{ fontSize: 13 }}>
+      <table className="data" style={{ fontSize: 12.5 }}>
         <thead>
           <tr>
             <th>#</th><th>Change</th><th>Sets</th><th>Before (read at approval)</th>

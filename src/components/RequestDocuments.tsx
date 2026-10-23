@@ -213,7 +213,7 @@ export function DocumentCitations({ citations }: { citations?: DocumentCitation[
   if (!citations || citations.length === 0) return null;
   return (
     <div style={{ marginTop: 14 }} data-testid="document-citations">
-      <h3 style={{ fontSize: 13.5, margin: "0 0 6px" }}>Based on documents</h3>
+      <h3 style={{ fontSize: 15, margin: "0 0 6px" }}>Based on documents</h3>
       <table className="data">
         <tbody>
           {citations.map((c, i) => (

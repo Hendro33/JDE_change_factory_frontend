@@ -56,7 +56,7 @@ export function RecordView({ rec }: { rec: AsBuiltRecord }) {
           <p>Package revision {tech.revision} approved by {tech.approval?.approved_by}. Objects: {tech.objects.map((o: any) => `${o.object_name} (${o.object_type})`).join(", ")}.</p>
           {(tech.milestones ?? []).length > 0 && <ul>{tech.milestones.map((m: any, i: number) => (
             <li key={i}>{String(m.milestone).replace(/_/g, " ")}{m.actor ? ` by ${m.actor}` : ""}{m.omw_project ? ` (OMW project ${m.omw_project})` : ""}{m.build_reference ? ` (${m.build_reference})` : ""}</li>))}</ul>}
-          <details><summary>Exact change (diff)</summary><pre className="mono" style={{ fontSize: 12, overflowX: "auto" }}>{tech.diff}</pre></details>
+          <details><summary>Exact change (diff)</summary><pre className="mono" style={{ fontSize: 12.5, overflowX: "auto" }}>{tech.diff}</pre></details>
           {tech.cnc_activation && <p>CNC activation of {tech.cnc_activation.package_name} by {tech.cnc_activation.by} ({tech.cnc_activation.evidence_reference}).</p>}
         </>) : func ? (<>
           <p>Exact change <span className="mono">{func.change_id}</span> ({func.capability_id}), {func.environment}: <span className="mono">{func.operation.tool}</span>{" "}

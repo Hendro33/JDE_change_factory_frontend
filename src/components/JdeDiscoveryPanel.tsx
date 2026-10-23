@@ -88,7 +88,7 @@ function Readiness({ groups, ready }: { groups: ReadinessGroup[]; ready: boolean
             <span className={`badge ${g.satisfied ? "ok" : "stop"}`}>{g.satisfied ? "satisfied" : "blocked"}</span>
             <ul style={{ listStyle: "none", paddingLeft: 0, margin: "4px 0 0" }}>
               {g.items.map((i) => (
-                <li key={i.id} style={{ fontSize: 13 }}>
+                <li key={i.id} style={{ fontSize: 12.5 }}>
                   <span className={`badge ${i.satisfied ? "ok" : i.required === false ? "grey" : "stop"}`}>
                     {i.satisfied ? "ok" : i.required === false ? "not required" : "missing"}</span> {i.label}
                   <span className="hint"> ({(i.kind ?? "").replace(/_/g, " ")}) -- {i.detail}</span>
@@ -170,7 +170,7 @@ function ReadsEditor({ reads, onChange, view }: { reads: ApprovedRead[]; onChang
   const upd = (i: number, patch: Partial<ApprovedRead>) => onChange(reads.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   return (
     <div>
-      <table className="data" style={{ fontSize: 13 }}>
+      <table className="data" style={{ fontSize: 12.5 }}>
         <thead><tr><th>Capability</th><th>Exact targets (comma-separated)</th><th>Columns returned</th><th>Columns that may be filtered</th><th></th></tr></thead>
         <tbody>{reads.map((r, i) => {
           const cap = view.capabilities.find((c) => c.capabilityId === r.capabilityId);
@@ -246,7 +246,7 @@ function SampleRead({ view, busy, run }: { view: JdeProfileView; busy: boolean; 
       {preview && (
         <div aria-label="Sample read request preview" style={{ marginTop: 6 }}>
           <div className="mono" style={{ fontSize: 12.5 }}>{preview.method} {preview.url}</div>
-          <pre className="mono" style={{ fontSize: 12, overflowX: "auto", margin: "4px 0" }}>{JSON.stringify(preview.body, null, 2)}</pre>
+          <pre className="mono" style={{ fontSize: 12.5, overflowX: "auto", margin: "4px 0" }}>{JSON.stringify(preview.body, null, 2)}</pre>
           <div className="hint mono">request sha256 {preview.request_sha256} · {preview.mode}</div>
           <div className="hint">{preview.note} The run is refused if what would be sent differs from this approved read.</div>
         </div>

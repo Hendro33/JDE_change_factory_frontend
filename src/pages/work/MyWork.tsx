@@ -10,6 +10,7 @@ import {
 import { Link, storyPath } from "../../router";
 import { workLink } from "../../services/workLink";
 import { waitingLabel } from "../../services/metrics";
+import { recentStories } from "../../services/recent";
 
 /** The verb on each item's button: what the person will actually do. */
 export const ACTION_VERB: Record<string, string> = {
@@ -151,6 +152,7 @@ export function MyWorkPage() {
   const problems = integrations.filter((i) => !i.connected);
   const isBusiness = info.has("domain_owner");
   const isApp = info.appManagement;
+  const recent = recentStories(info.session.activeCustomerId);
 
   return (
     <div className="mywork home">
@@ -177,6 +179,12 @@ export function MyWorkPage() {
       ) : isApp ? <AppManagerHome work={work} onChanged={reload} />
         : isBusiness ? <DomainOwnerHome work={work} onChanged={reload} />
         : <AreaQueue rows={work.needsYou} questions={work.questions} newRequests={[]} onChanged={reload} />}
+      {/* Kept from the former side panel (register P1): a new request and the stories opened lately. */}
+      <footer className="home-foot">
+        <Link to="/stories/new">New request</Link>
+        {recent.length > 0 && <><span className="muted"> · Recently opened: </span>
+          {recent.slice(0, 5).map((r, i) => <span key={r.id}>{i > 0 && ", "}<Link to={storyPath(r.id)}>{r.title}</Link></span>)}</>}
+      </footer>
     </div>
   );
 }

@@ -150,7 +150,7 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
           {embedded && <div className="recpart recpart-link"><Link to={storyPath(change.id)}>What the business sees for this story</Link></div>}
           <RecordPart title="Original request" summary={`${change.source}${change.sourceReference ? ` · ${change.sourceReference}` : ""}`}>
             <Provenance kind="plain" label="As submitted by the requester">
-              <div style={{ fontSize: 13.5 }}>{change.originalRequest}</div>
+              <div style={{ fontSize: 15 }}>{change.originalRequest}</div>
             </Provenance>
           </RecordPart>
 
@@ -178,12 +178,12 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
                 <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                   {domainReview.domainOwnerApproval && (
                     <Provenance kind="human" label={`Domain Owner approved by ${domainReview.domainOwnerApproval.approvedBy}`}>
-                      <div style={{ fontSize: 13.5 }}>{domainReview.domainOwnerApproval.note || <span className="notstated">no reason recorded</span>}</div>
+                      <div style={{ fontSize: 15 }}>{domainReview.domainOwnerApproval.note || <span className="notstated">no reason recorded</span>}</div>
                     </Provenance>
                   )}
                   {domainReview.applicationManagerApproval && (
                     <Provenance kind="human" label={`Application Manager approved into the Delivery Queue by ${domainReview.applicationManagerApproval.approvedBy}`}>
-                      <div style={{ fontSize: 13.5 }}>{domainReview.applicationManagerApproval.note || <span className="notstated">no reason recorded</span>}</div>
+                      <div style={{ fontSize: 15 }}>{domainReview.applicationManagerApproval.note || <span className="notstated">no reason recorded</span>}</div>
                     </Provenance>
                   )}
                 </div>
@@ -199,8 +199,8 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
           {change.userStory && (
             <RecordPart title="User story" summary={`${change.userStory.acceptanceCriteria.length} acceptance criteria`}>
               <Provenance kind="ai" label="Written by Jade — reviewed and approved by a person below">
-                <p style={{ margin: "0 0 10px", fontSize: 14.5, fontWeight: 700 }}>{change.userStory.statement}</p>
-                <p style={{ margin: 0, fontSize: 13.5 }}>{change.userStory.businessContext}</p>
+                <p style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 700 }}>{change.userStory.statement}</p>
+                <p style={{ margin: 0, fontSize: 15 }}>{change.userStory.businessContext}</p>
               </Provenance>
               <DocumentCitations citations={change.userStory.documentCitations} />
               {change.userStory.acceptanceCriteria.length > 0 && (
@@ -222,7 +222,7 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
                 kind={change.storyApproval.status === "approved" ? "human" : "plain"}
                 label={`${change.storyApproval.status === "approved" ? "Approved" : "Rejected"} by ${change.storyApproval.approvedBy} · ${new Date(change.storyApproval.approvedAt!).toLocaleString("en-GB")}`}
               >
-                <div style={{ fontSize: 13.5 }}>
+                <div style={{ fontSize: 15 }}>
                   {change.storyApproval.note || <span className="notstated">no reason recorded</span>}
                 </div>
               </Provenance>
@@ -232,7 +232,7 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
           {change.architectDecision && (
             <RecordPart title="Architect decision" summary={change.architectDecision.recommendedRoute}>
               <Provenance kind="ai" label={`Recommended route: ${change.architectDecision.recommendedRoute} · confidence ${Math.round(change.architectDecision.confidence * 100)}%`}>
-                <p style={{ margin: "0 0 10px", fontSize: 13.5 }}>
+                <p style={{ margin: "0 0 10px", fontSize: 15 }}>
                   {change.architectDecision.existingFunctionalityFound}
                 </p>
                 {change.architectDecision.alternativesConsidered.length > 0 && (
@@ -295,11 +295,11 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
                     kind="human"
                     label={`Exact change ${change.changeApproval.status} by ${change.changeApproval.approvedBy} · ${new Date(change.changeApproval.approvedAt!).toLocaleString("en-GB")}${change.lifecycle?.authorisation?.renewable ? ` — now: ${change.lifecycle.authorisation.label.toLowerCase()}` : ""}`}
                   >
-                    <div style={{ fontSize: 13.5 }}>
+                    <div style={{ fontSize: 15 }}>
                       {change.changeApproval.note || <span className="notstated">no note recorded</span>}
                     </div>
                     {change.changeApproval.status === "approved" && (
-                      <div className="mono" style={{ fontSize: 12, marginTop: 8, color: "var(--muted)" }}>
+                      <div className="mono" style={{ fontSize: 12.5, marginTop: 8, color: "var(--muted)" }}>
                         Bound to hash {change.changeApproval.changeHash} — if what is recorded as delivered
                         differs by even one character, it is refused.
                       </div>
@@ -347,7 +347,7 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
                     kind="executed"
                     label={`Test ${change.testResult.outcome === "pass" ? "passed" : "failed"} · ${change.testResult.ranAt ? new Date(change.testResult.ranAt).toLocaleString("en-GB") : ""}`}
                   >
-                    <div style={{ fontSize: 13.5 }}>{change.testResult.detail ?? "No further detail recorded."}</div>
+                    <div style={{ fontSize: 15 }}>{change.testResult.detail ?? "No further detail recorded."}</div>
                   </Provenance>
                 </div>
               ) : (
@@ -359,7 +359,7 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
           {change.humanValidation && (
             <RecordPart title="Human validation" summary={`by ${change.humanValidation.validatedBy}`}>
               <Provenance kind="human" label={`Validated by ${change.humanValidation.validatedBy} · ${new Date(change.humanValidation.validatedAt).toLocaleString("en-GB")}`}>
-                <div style={{ fontSize: 13.5 }}>{change.humanValidation.note}</div>
+                <div style={{ fontSize: 15 }}>{change.humanValidation.note}</div>
               </Provenance>
             </RecordPart>
           )}

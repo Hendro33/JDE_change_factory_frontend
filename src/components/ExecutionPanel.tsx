@@ -483,7 +483,7 @@ export function ExecutionPanel({
             )}
             <div className="stack" style={{ marginTop: 12 }}>
               <div className="field">
-                <span style={{ display: "block", fontWeight: 700, marginBottom: 6, fontSize: 14 }}>Result</span>
+                <span style={{ display: "block", fontWeight: 700, marginBottom: 6, fontSize: 15 }}>Result</span>
                 <label style={{ display: "inline", fontWeight: 400, marginRight: 16 }}>
                   <input type="radio" name={`test-${changeId}`} checked={testPassed === "passed"} onChange={() => setTestPassed("passed")} /> Passed
                 </label>
@@ -582,7 +582,7 @@ export function ExecutionPanel({
         <strong className="sr-only">Would the delivery gate accept this change being recorded now?</strong>
         {preflightError && <div className="notstated">{preflightError}</div>}
         {preflight && (
-          <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13.5 }}>
+          <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 15 }}>
             {preflight.checks.filter((c) => !compact || !c.ok).map((c) => (
               <li key={c.check}>
                 <span style={{ color: c.ok ? "var(--ok)" : "var(--stop)" }}>{c.ok ? "✓" : "✗"}</span> {c.check}

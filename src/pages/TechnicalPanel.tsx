@@ -169,7 +169,7 @@ export function PackageActions({ storyId, p, roles, onChanged }: { storyId: stri
             <strong>Record the build</strong>
             Build the checked-in objects in DEV and record the result. A failed build goes to a repair: a new package revision.
             <div className="field" style={{ marginTop: 8 }}>
-              <span style={{ display: "block", fontWeight: 700, marginBottom: 6, fontSize: 14 }}>Result</span>
+              <span style={{ display: "block", fontWeight: 700, marginBottom: 6, fontSize: 15 }}>Result</span>
               <label style={{ display: "inline", fontWeight: 400, marginRight: 16 }}><input type="radio" name={`build-${p.revision}`} checked={buildOutcome === "succeeded"} onChange={() => setBuildOutcome("succeeded")} /> Succeeded</label>
               <label style={{ display: "inline", fontWeight: 400 }}><input type="radio" name={`build-${p.revision}`} checked={buildOutcome === "failed"} onChange={() => setBuildOutcome("failed")} /> Failed</label>
             </div>
@@ -221,8 +221,8 @@ export function PackageActions({ storyId, p, roles, onChanged }: { storyId: stri
                 <tbody>{plan.map((t) => (
                   <tr key={t.name}>
                     <td>{t.name}<div className="hint">{t.kind}{t.event ? ` · ${t.event}` : ""}</div>
-                      <div className="hint mono" style={{ fontSize: 12 }}>inputs {JSON.stringify(t.inputs)}</div></td>
-                    <td className="mono" style={{ fontSize: 12 }}>{JSON.stringify(t.expected)}</td>
+                      <div className="hint mono" style={{ fontSize: 12.5 }}>inputs {JSON.stringify(t.inputs)}</div></td>
+                    <td className="mono" style={{ fontSize: 12.5 }}>{JSON.stringify(t.expected)}</td>
                     <td>
                       <select aria-label={`Result of ${t.name}`} value={results[t.name]?.passed ?? ""} onChange={(e) => setResult(t.name, { passed: e.target.value as "" | "passed" | "failed" })}>
                         <option value="">Choose…</option><option value="passed">Passed</option><option value="failed">Failed</option>
@@ -324,8 +324,8 @@ export function PackageCard({ storyId, p, roles, onChanged }: { storyId: string;
       <table className="data"><thead><tr><th>Test</th><th>Kind</th><th>Inputs</th><th>Expected</th><th>Result</th></tr></thead>
         <tbody>{c.test_plan.map((t) => {
           const r = a?.verification?.results.find((x) => x.name === t.name);
-          return (<tr key={t.name}><td>{t.name}</td><td>{t.kind}</td><td className="mono" style={{ fontSize: 12 }}>{JSON.stringify(t.inputs)}</td>
-            <td className="mono" style={{ fontSize: 12 }}>{JSON.stringify(t.expected)}</td>
+          return (<tr key={t.name}><td>{t.name}</td><td>{t.kind}</td><td className="mono" style={{ fontSize: 12.5 }}>{JSON.stringify(t.inputs)}</td>
+            <td className="mono" style={{ fontSize: 12.5 }}>{JSON.stringify(t.expected)}</td>
             <td>{r ? <span className={`badge ${r.passed ? "ok" : "stop"}`}>{r.passed ? "passed" : "failed"}</span> : <span className="notstated">not recorded</span>}
               {r?.note && <div className="hint">{r.note}</div>}</td></tr>);
         })}</tbody></table>

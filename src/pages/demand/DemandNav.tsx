@@ -1,6 +1,6 @@
 import { Tabs } from "../../components/design";
 import { useLocation } from "../../router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { navigate, storyPath } from "../../router";
 
 /**
@@ -32,9 +32,12 @@ export function DemandNav() {
  */
 export function ReviewRedirect() {
   const { query } = useLocation();
-  const story = query.get("story");
+  // The target is fixed on the first render: once the redirect lands, this component sees the new
+  // location before it unmounts, and must not redirect a second time (register P2).
+  const [to] = useState(() => { const story = query.get("story"); return story ? storyPath(story) : "/stories?phase=story_review"; });
   useEffect(() => {
-    navigate(story ? storyPath(story, "story") : "/stories?phase=story_review", { replace: true });
-  }, [story]);
+    const t = setTimeout(() => navigate(to, { replace: true }), 0);
+    return () => clearTimeout(t);
+  }, [to]);
   return null;
 }

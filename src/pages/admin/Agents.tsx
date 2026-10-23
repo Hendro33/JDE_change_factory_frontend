@@ -449,8 +449,8 @@ function AgentDetail({ entry, status, agent, health, customerHealth, settings, i
                       <div className="mono sub">{c.capabilityId} · rev {c.revision}</div>
                     </td>
                     <td><CapabilityStatusBadge status={c.validation.status} /></td>
-                    <td style={{ fontSize: 13 }}>{c.validation.technicalValidation || <NotStated />}</td>
-                    <td style={{ fontSize: 13 }}>{c.validation.policyRestriction || <NotStated />}</td>
+                    <td style={{ fontSize: 12.5 }}>{c.validation.technicalValidation || <NotStated />}</td>
+                    <td style={{ fontSize: 12.5 }}>{c.validation.policyRestriction || <NotStated />}</td>
                   </tr>
                 ))}
               </tbody>

@@ -117,7 +117,7 @@ export function DesignEvidencePanel({ changeId, designCount, compact = false }: 
           {m.citations.length > 0 && (
             <div>
               <strong>Citations supporting the design</strong>
-              <ul style={{ paddingLeft: 18, fontSize: 13.5 }}>
+              <ul style={{ paddingLeft: 18, fontSize: 15 }}>
                 {m.citations.map((c, i) => (
                   <li key={i}>
                     <span className={`badge ${basisTone[c.basis] ?? "grey"}`}>{c.basis.replace(/_/g, " ")}</span>{" "}
@@ -133,7 +133,7 @@ export function DesignEvidencePanel({ changeId, designCount, compact = false }: 
           {(m.gaps.length > 0 || m.contradictions.length > 0 || m.confidence_limitations.length > 0) && (
             <div>
               <strong>Missing, stale or conflicting information</strong>
-              <ul style={{ paddingLeft: 18, fontSize: 13.5 }}>
+              <ul style={{ paddingLeft: 18, fontSize: 15 }}>
                 {m.gaps.map((g, i) => (
                   <li key={`g${i}`}><span className="badge warn">{g.kind}</span> {g.description}
                     {g.question && <div className="hint">Question: {g.question}</div>}
@@ -156,7 +156,7 @@ export function DesignEvidencePanel({ changeId, designCount, compact = false }: 
             <div>
               <button className="btn" onClick={() => setShowHistory(!showHistory)}>{showHistory ? "Hide" : "Show"} earlier baselines ({baselines.length - 1})</button>
               {showHistory && (
-                <ul style={{ paddingLeft: 18, fontSize: 13 }}>
+                <ul style={{ paddingLeft: 18, fontSize: 12.5 }}>
                   {baselines.slice(1).map((b) => (
                     <li key={b.baselineId}>Baseline {b.baselineRevision} ({b.trigger}, design {b.designRevision}) {new Date(b.createdAt).toLocaleString("en-GB")} — <span className="badge grey">{b.status}</span> {b.manifest.observations.length} observation(s)</li>
                   ))}

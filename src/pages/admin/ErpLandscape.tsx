@@ -723,7 +723,7 @@ function GateCoverage() {
       <div className="grid halves">
         <div>
           <strong>Checked before a delivery step or test is recorded</strong>
-          <ul style={{ fontSize: 13.5, paddingLeft: 18 }}>
+          <ul style={{ fontSize: 15, paddingLeft: 18 }}>
             <li>The story is approved, and linked to this company</li>
             <li>The exact change is approved by a role this company's approval policy allows, and has not expired</li>
             <li>The operation is byte-for-byte the one approved</li>
@@ -739,13 +739,13 @@ function GateCoverage() {
         </div>
         <div>
           <strong>Recorded here but not enforced</strong>
-          <ul style={{ fontSize: 13.5, paddingLeft: 18 }}>
+          <ul style={{ fontSize: 15, paddingLeft: 18 }}>
             <li>Never-touch notes and the free-text approver lists (reference only)</li>
             <li>Whether a test's declared side effects are true: they are declared by a person, not observed</li>
             <li>Technical check-in, build and verification results: recorded as stated by the person, with their evidence</li>
           </ul>
           <strong>Never done by JADE</strong>
-          <ul style={{ fontSize: 13.5, paddingLeft: 18 }}>
+          <ul style={{ fontSize: 15, paddingLeft: 18 }}>
             <li>Writing to JD Edwards: a person applies every change in DEV and records it</li>
             <li>Every capability except processing-option update and the technical package route: proposal only, for Human Implementation</li>
             <li>Change Sets (several dependent operations): refused</li>

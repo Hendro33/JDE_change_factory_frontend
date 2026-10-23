@@ -71,7 +71,7 @@ export function TechnicalTab({ ctx }: { ctx: StoryCtx }) {
       )}
 
       {info.has("admin") && <Details summary="Raw lifecycle (for support)" tone="technical">
-        <pre className="mono" style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>{JSON.stringify({ state: change.state, domainReviewStage: change.domainReviewStage,
+        <pre className="mono" style={{ whiteSpace: "pre-wrap", fontSize: 12.5 }}>{JSON.stringify({ state: change.state, domainReviewStage: change.domainReviewStage,
           architectureReviewStage: change.architectureReviewStage, processingStage: change.processingStage, lifecycle: change.lifecycle }, null, 2)}</pre>
       </Details>}
     </div>

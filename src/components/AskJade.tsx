@@ -112,7 +112,7 @@ export function AskJadePanel({
               {t.kind === "proposed_amendment" && t.proposedUserStory && (
                 <div className="callout" style={{ marginTop: 8 }}>
                   <strong>JADE proposes an update to the story</strong>
-                  <p style={{ margin: "4px 0 8px", fontSize: 13.5, fontWeight: 700 }}>{t.proposedUserStory.statement}</p>
+                  <p style={{ margin: "4px 0 8px", fontSize: 15, fontWeight: 700 }}>{t.proposedUserStory.statement}</p>
                   <AmendmentPreview current={currentStory} proposed={t.proposedUserStory} />
                   {renderAmendmentActions?.(t)}
                 </div>

@@ -169,7 +169,7 @@ export function StoryRefinement({ storyId, onChanged }: { storyId: string; onCha
       <p className="hint">JADE only proposes. Select findings, check the change to the approved story, and apply it as a new story revision.
         Applying one sends the solution back for reassessment and pauses existing approvals.</p>
       {v.findings.length === 0 ? <p className="notstated">No findings yet.</p> : (
-        <table className="grid" style={{ fontSize: 13 }}>
+        <table className="grid" style={{ fontSize: 12.5 }}>
           <thead><tr><th></th><th>Finding</th><th>Kind</th><th>From</th><th>Status</th><th></th></tr></thead>
           <tbody>{v.findings.map((f) => (
             <tr key={f.finding_id}>

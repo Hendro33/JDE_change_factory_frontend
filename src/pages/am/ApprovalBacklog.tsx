@@ -300,7 +300,7 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
           intro={
             <>
               <p style={{ marginTop: 0 }}><strong>{open.title}</strong> ({open.id})</p>
-              <p style={{ fontSize: 13.5, color: "var(--ink-soft)" }}>{open.userStory?.statement ?? open.originalRequest}</p>
+              <p style={{ fontSize: 15, color: "var(--ink-soft)" }}>{open.userStory?.statement ?? open.originalRequest}</p>
             </>
           }
           whatHappensNext="It's admitted to the Delivery Queue — the set of work Jade is authorised to deliver. The Architect then analyses it and proposes an exact change, which you approve separately on Architecture Review before anyone applies it in JD Edwards."
@@ -322,7 +322,7 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
           intro={
             <>
               <p style={{ marginTop: 0 }}><strong>{open.title}</strong> ({open.id})</p>
-              <p style={{ fontSize: 13.5, color: "var(--ink-soft)" }}>{open.userStory?.statement ?? open.originalRequest}</p>
+              <p style={{ fontSize: 15, color: "var(--ink-soft)" }}>{open.userStory?.statement ?? open.originalRequest}</p>
             </>
           }
           whatHappensNext="This is terminal — the change will not proceed and is never admitted to the Delivery Queue. This is different from a revision request: use this only when the work itself should not go ahead, not when the story just needs more detail."

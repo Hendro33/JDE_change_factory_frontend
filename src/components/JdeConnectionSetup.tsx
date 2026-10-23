@@ -195,7 +195,7 @@ export function JdeConnectionSetup() {
       {!editing && profile.configured && c && (
         <>
           <div style={{ marginBottom: 12 }}>
-            <span className={`badge ${ready ? "ok" : "stop"}`} style={{ fontSize: 13 }}>{ready ? "Agents can use this connection" : "Not ready"}</span>
+            <span className={`badge ${ready ? "ok" : "stop"}`} style={{ fontSize: 12.5 }}>{ready ? "Agents can use this connection" : "Not ready"}</span>
             {!ready && profile.connectionStatus && profile.connectionStatus.state !== "not_tested" && (
               <span className="hint"> {profile.connectionStatus.label}{profile.connectionStatus.detail ? `: ${profile.connectionStatus.detail}` : ""}</span>)}
             {!ready && profile.enableBlockers.length > 0 && <ul className="hint" style={{ margin: "6px 0 0" }}>{profile.enableBlockers.map((b) => <li key={b}>{b}</li>)}</ul>}
@@ -224,7 +224,7 @@ export function JdeConnectionSetup() {
             <table className="data" style={{ marginTop: 12 }} aria-label="Test results">
               <thead><tr><th>Test</th><th>Result</th><th>Detail</th></tr></thead>
               <tbody>{testRows.map((t) => (
-                <tr key={t.label}><td>{t.label}</td><td><span className={`badge ${tone[t.state] ?? "grey"}`}>{t.state}</span></td><td style={{ fontSize: 13 }}>{t.detail}</td></tr>
+                <tr key={t.label}><td>{t.label}</td><td><span className={`badge ${tone[t.state] ?? "grey"}`}>{t.state}</span></td><td style={{ fontSize: 12.5 }}>{t.detail}</td></tr>
               ))}</tbody>
             </table>
           )}

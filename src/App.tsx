@@ -325,7 +325,7 @@ function BuildVersions() {
     fetch(`${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/health`)
       .then((r) => r.json()).then((h) => setBackend(h.commit ?? "unknown")).catch(() => setBackend("unreachable"));
   }, []);
-  return <span className="mono" style={{ fontSize: 12 }}>Jade · frontend {__BUILD_COMMIT__} · backend {backend}</span>;
+  return <span className="mono" style={{ fontSize: 12.5 }}>Jade · frontend {__BUILD_COMMIT__} · backend {backend}</span>;
 }
 
 /**

@@ -3,7 +3,7 @@ import { api } from "../../services/api";
 import type { Change, CompanyRole, FeedbackReasonCode, NextAction } from "../../types/domain";
 import { ConfirmDialog } from "../../components/ui";
 import { ErrorState, JadeWorking, useSessionInfo } from "../../components/design";
-import { Link, storyPath } from "../../router";
+import { Link, storyPath, useLocation } from "../../router";
 import type { StoryCtx } from "./storyContext";
 import { WhatNeedsToHappen } from "../../components/work";
 import { JadeAtWorkLine } from "../../components/journey";
@@ -61,6 +61,7 @@ export function NextActionCard({ ctx, inApp = false, listedKinds }: { ctx: Story
   const { change, reload } = ctx;
   const info = useSessionInfo();
   const lc = change.lifecycle;
+  const onOutcomePage = /\/progress$/.test(useLocation().path);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -88,7 +89,7 @@ export function NextActionCard({ ctx, inApp = false, listedKinds }: { ctx: Story
   const decisionIntro = (
     <>
       <p style={{ marginTop: 0 }}><strong>{change.title}</strong> <span className="mono muted">{change.id}</span></p>
-      {story?.statement && <p className="muted" style={{ fontSize: 14 }}>{story.statement}</p>}
+      {story?.statement && <p className="muted" style={{ fontSize: 15 }}>{story.statement}</p>}
     </>
   );
 
@@ -194,7 +195,9 @@ export function NextActionCard({ ctx, inApp = false, listedKinds }: { ctx: Story
         {na.action === "decide_issue" ? "Decide" : "Answer the question"}</Link>;
       break;
     case "accept_outcome":
-      controls = <Link className="btn primary" to={storyPath(change.id, "progress", "outcome")}>
+      // On the outcome page itself the acceptance button below is the one action (register L3).
+      controls = onOutcomePage ? <a className="btn" href="#outcome">Go to the outcome below</a>
+        : <Link className="btn primary" to={storyPath(change.id, "progress", "outcome")}>
         {info.has("domain_owner") ? "Check and accept the outcome" : "Record the business acceptance"}</Link>;
       break;
     case "admin_setup":
