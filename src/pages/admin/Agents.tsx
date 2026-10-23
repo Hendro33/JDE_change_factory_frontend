@@ -89,7 +89,7 @@ const duration = (ms: number | null | undefined) =>
 function KeyMetrics({ spend, spendError, roleHealth, available, total }: {
   spend: AiSpend | null; spendError: string; roleHealth: RoleHealth[]; available: string[]; total: number;
 }) {
-  const needsAttention = (h?: RoleHealth) => !!h && !h.disabled && (h.state === "failed" || h.state === "not configured");
+  const needsAttention = (h?: RoleHealth) => !!h && !h.disabled && (h.state === "last run failed" || h.state === "not configured");
   const attention = roleHealth.filter((h) => needsAttention(h)).length;
   if (spendError) return <div className="callout" role="alert">{spendError}</div>;
   if (!spend) return <Loading what="the agent key figures" />;

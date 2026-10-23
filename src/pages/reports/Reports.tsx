@@ -48,6 +48,7 @@ export function ReportsPage() {
   const { data: metrics, error, loading: metricsLoading } = useAsync<FactoryMetrics>(() => api.getMetrics(period), [period]);
   const { data: allChanges } = useAsync(() => api.listChanges(), []);
   const { data: figures } = useAsync(() => api.getFigures(), []);
+  const { data: useful } = useAsync(() => api.getUsefulness(), []);
   const { data: thresholds } = useAsync(() => api.getDashboardThresholds().catch(() => DEFAULT_DASHBOARD_THRESHOLDS), []);
   const [queue, setQueue] = useState<DeliveryQueueEntry[]>([]);
   useEffect(() => { api.listDeliveryQueue().then(setQueue).catch(() => setQueue([])); }, []);
@@ -77,6 +78,13 @@ export function ReportsPage() {
       {/* The same figure strip as My Work and the AM home: current portfolio, same numbers (decision X1, register M6). */}
       {figures && <FigureStrip figures={figures} label="Now"
         tones={{ blocked: toneForValue(Number(figures.find((f) => f.key === "blocked")?.value ?? 0), thresholds ?? DEFAULT_DASHBOARD_THRESHOLDS) || undefined }} />}
+      {useful && (
+        <Section title="Is JADE useful?" description="Measured from recorded events: work JADE completed, not text it produced.">
+          <dl className="usefulness">{useful.map((u) => (
+            <div key={u.key} title={u.definition}><dt>{u.label}</dt><dd className="fig-value">{u.value}</dd><dd className="muted">{u.detail}</dd></div>
+          ))}</dl>
+        </Section>
+      )}
       {info.appManagement && <Section title="Where approved work stands" description="Approved stories by stage, now. Each stage opens its queue."><ApprovedWorkFlow changes={allChanges} /></Section>}
 
       <div className="reportgrid">

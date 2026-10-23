@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { deliveryApi } from "../../services/deliveryApi";
 import type { Change, WorkspaceTab } from "../../types/domain";
 import {
   Details, ErrorState, HealthIndicator, LifecycleStepper, Loading, Section, Tabs, formatDateTime, storyTitle, useSessionInfo,
@@ -112,7 +113,37 @@ function DeliveryView({ ctx, technical }: { ctx: StoryCtx; technical: boolean })
           </Section>
         </>
       ) : <DeliveryTab ctx={ctx} />}
+      {(lc?.handoffAuthorised || ctx.change.changeApproval?.status === "approved") && <FollowUp ctx={ctx} />}
     </div>
+  );
+}
+
+/** Register F4: an improvement raised after authorisation becomes a linked follow-up request, never silent scope growth. */
+function FollowUp({ ctx }: { ctx: StoryCtx }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState("");
+  const [error, setError] = useState<unknown>(null);
+  return (
+    <section className="followup">
+      {!open ? <button className="linkbtn" onClick={() => setOpen(true)}>Propose a follow-up improvement</button> : (
+        <div className="outcome-form">
+          <label htmlFor="fu-text">What should be improved later? It becomes a new request linked to this one; the authorised scope stays as it is.</label>
+          <textarea id="fu-text" rows={2} value={text} onChange={(e) => setText(e.target.value)} />
+          <div className="btnrow">
+            <button className="btn" disabled={busy || text.trim().length < 10} onClick={async () => {
+              setBusy(true); setError(null);
+              try { await deliveryApi.followUp(ctx.change.id, text.trim()); setDone("Follow-up request created."); setOpen(false); setText(""); ctx.reload(); }
+              catch (e) { setError(e); } finally { setBusy(false); }
+            }}>{busy ? "Creating…" : "Create follow-up request"}</button>
+            <button className="btn quiet" onClick={() => setOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {done && <p className="hint" role="status">{done}</p>}
+      {error !== null && <ErrorState error={error} title="Not created" />}
+    </section>
   );
 }
 

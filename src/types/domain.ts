@@ -1020,6 +1020,11 @@ export interface OutcomeCard {
   notAccepted?: OutcomeStep | null;
   whatToDoNow: string;
   /** Each acceptance criterion with how far it is verified (register C12). */
+  /** Closing the loop (register H3, H4, F4). Raw records: snake_case keys. */
+  requesterConfirmation?: { solved: boolean; note: string; by: string; on_behalf_of: string; at: string; new_request?: string } | null;
+  linkedRequests?: { kind: "not_solved" | "follow_up"; request_id: string; text: string; by: string; at: string }[];
+  jiraPosted?: number;
+  jiraFailed?: string[];
   criteria?: { text: string; state: string; verified: boolean }[];
   jiraKey: string;
   jiraUrl: string;

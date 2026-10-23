@@ -305,6 +305,11 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<ArchitectureReviewRun>(`/changes/${encodeURIComponent(changeId)}/architecture-review/conversation/${encodeURIComponent(turnId)}/apply`, { method: "POST", customerId });
   }
 
+  async getUsefulness(): Promise<{ key: string; label: string; value: number; detail: string; definition: string }[]> {
+    const customerId = await this.activeCustomerId();
+    return request("/insights/usefulness", { customerId });
+  }
+
   async getFigures(): Promise<Figure[]> {
     const customerId = await this.activeCustomerId();
     return request<Figure[]>("/figures", { customerId });

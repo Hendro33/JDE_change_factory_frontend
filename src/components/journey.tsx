@@ -20,6 +20,7 @@ import type { StoryProcessView, MapContent, MapStep, MapVersion } from "../servi
 import type { AcceptanceCriterion, Change, Lifecycle, OutcomeCard, WorkItem, WorkOwnerKind, WorkState } from "../types/domain";
 import { ErrorState, formatDateTime, useSessionInfo } from "./design";
 import { layers } from "./ProcessMapDiagram";
+import { Link, storyPath } from "../router";
 
 /* ------------------------------------------------------------------ */
 /* Work items                                                           */
@@ -198,8 +199,16 @@ export function OutcomeCardView({ change, lifecycle, onChanged }: { change: Chan
         </div>
       )}
       {error !== null && <ErrorState error={error} title="Not recorded" />}
+      <RequesterConfirmation change={change} card={card} onChanged={onChanged} />
+      {(card.linkedRequests?.length ?? 0) > 0 && (
+        <ul className="quietlist">{card.linkedRequests!.map((l) => (
+          <li key={l.request_id}>{l.kind === "not_solved" ? "Not solved — new request" : "Follow-up"} <Link to={storyPath(l.request_id)}>{l.request_id}</Link>
+            <span className="muted"> · {l.by}, {formatDateTime(l.at)}</span></li>))}</ul>
+      )}
 
       <div className="outcome-foot">
+        {(card.jiraPosted ?? 0) > 0 && <span className="hint">{card.jiraPosted} note{card.jiraPosted === 1 ? "" : "s"} written to the Jira ticket</span>}
+        {(card.jiraFailed?.length ?? 0) > 0 && <span className="hint" role="status">Jira write-back failed, retried automatically: {card.jiraFailed!.join("; ")}</span>}
         {card.jiraUrl && <a href={card.jiraUrl} target="_blank" rel="noreferrer">Jira {card.jiraKey}</a>}
         <button className="linkbtn" onClick={async () => {
           try { await navigator.clipboard.writeText(summaryText(change, card)); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch { /* clipboard unavailable */ }
@@ -356,6 +365,53 @@ export function JadeAtWorkLine({ lifecycle }: { lifecycle?: Lifecycle | null }) 
       <span className="facet" aria-hidden="true"><i /><i /><i /></span>
       <span className="jadeatwork-text">{short}</span>
       {lifecycle.activity && <span className="jadeatwork-now">{lifecycle.activity}</span>}
+    </div>
+  );
+}
+
+
+/** The requester confirms "solved" or "not solved" (register H4); "not solved" opens a linked request. */
+function RequesterConfirmation({ change, card, onChanged }: { change: Change; card: OutcomeCard; onChanged: (c: Change) => void }) {
+  const info = useSessionInfo();
+  const [mode, setMode] = useState<"none" | "solved" | "not">("none");
+  const [note, setNote] = useState("");
+  const [who, setWho] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const done = card.requesterConfirmation;
+  if (done) {
+    return <p className="outcome-now"><strong>Requester: </strong>{done.solved ? "solved" : `not solved — ${done.note}`}
+      <span className="muted"> ({done.on_behalf_of || done.by}, {formatDateTime(done.at)})</span></p>;
+  }
+  if (!card.businessAccepted.done || !(info.has("domain_owner") || info.has("product_manager", "admin"))) return null;
+  const needsName = !info.has("domain_owner");
+  async function send() {
+    setBusy(true); setError(null);
+    try {
+      onChanged(await deliveryApi.requesterConfirmation(change.id, { solved: mode === "solved", note, onBehalfOf: needsName ? who : "" }));
+      setMode("none");
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  }
+  return (
+    <div className="outcome-confirm">
+      {mode === "none" ? (
+        <div className="btnrow"><span className="muted">Did this solve the request?</span>
+          <button className="btn small" onClick={() => setMode("solved")}>Solved</button>
+          <button className="btn small" onClick={() => setMode("not")}>Not solved</button></div>
+      ) : (
+        <div className="outcome-form">
+          {needsName && <div className="field"><label htmlFor="rq-who">For the requester</label>
+            <input id="rq-who" value={who} onChange={(e) => setWho(e.target.value)} placeholder="e.g. Ellen Vos" /></div>}
+          <div className="field"><label htmlFor="rq-note">{mode === "not" ? "What is still not solved? (it becomes a new request)" : "Note (optional)"}</label>
+            <textarea id="rq-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} /></div>
+          <div className="btnrow">
+            <button className="btn strong" disabled={busy || (needsName && who.trim().length < 2) || (mode === "not" && note.trim().length < 5)} onClick={send}>
+              {busy ? "Recording…" : "Record"}</button>
+            <button className="btn quiet" onClick={() => setMode("none")}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {error !== null && <ErrorState error={error} title="Not recorded" />}
     </div>
   );
 }

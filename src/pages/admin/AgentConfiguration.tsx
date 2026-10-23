@@ -15,7 +15,8 @@ import { saveErrorMessage } from "../../services/saveErrors";
 import { Loading } from "../../components/ui";
 
 const STATE_TONE: Record<RoleHealth["state"], string> = {
-  "not configured": "warn", configured: "info", "connection tested": "info", working: "ok", disabled: "", failed: "stop",
+  "not configured": "warn", configured: "info", "connection tested": "info", "running now": "info",
+  "last run succeeded": "ok", "last run failed": "stop", disabled: "",
 };
 
 const REQUEST_DOCUMENTS = "request_documents";
@@ -77,19 +78,20 @@ export function AgentConfiguration({ part = "all" }: { part?: "config" | "operat
       <section className="panel">
         <h2>Agent health</h2>
         <p className="hint" style={{ marginTop: 0 }}>
-          From real configuration and run records. "Working" means the agent's last successful run was made with this
-          customer's own API key, as reported by the runtime — not a test and not a demo.
+          From real configuration and run records: whether the agent is configured, whether its last run succeeded
+          (with this customer's own key, as the runtime reported) and whether it is running right now.
         </p>
         <table className="data">
-          <thead><tr><th>Agent</th><th>State</th><th>Runs with</th><th>Last successful real run</th><th>Last run</th></tr></thead>
+          <thead><tr><th>Agent</th><th>Configured</th><th>Running now</th><th>Runs with</th><th>Last successful real run</th><th>Last run</th></tr></thead>
           <tbody>
             {health.map((h) => (
               <tr key={h.role} data-role={h.role}>
                 <td>{h.label}</td>
                 <td>
-                  <span className={`badge ${STATE_TONE[h.state]}`}>{h.state}</span>
+                  <span className={`badge ${STATE_TONE[h.state] ?? ""}`}>{h.state === "disabled" ? "disabled" : h.blockedReason ? "not configured" : "configured"}</span>
                   {h.blockedReason && <div className="hint">{h.blockedReason}</div>}
                 </td>
+                <td>{h.runningNow ? <span className="badge info">running now</span> : <span className="hint">no</span>}</td>
                 <td>
                   {h.pack ? <>{h.pack.packName} <span className="mono">r{h.pack.revision}</span><div className="hint mono">#{h.pack.sha256.slice(0, 12)}</div></> : "—"}
                   {h.configuredModel && <div className="hint">model {h.configuredModel}{h.activity ? ` (${h.activity.replace(/_/g, " ")})` : ""} · connection r{h.connectionRevision}</div>}

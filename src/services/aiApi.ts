@@ -143,7 +143,10 @@ export interface AiRunOutput {
 
 export interface RoleHealth {
   role: string; label: string;
-  state: "not configured" | "configured" | "connection tested" | "working" | "disabled" | "failed";
+  state: "not configured" | "configured" | "connection tested" | "running now" | "last run succeeded" | "last run failed" | "disabled";
+  /** Register J4: three separate facts. */
+  runningNow?: boolean;
+  lastRunSucceeded?: boolean | null;
   disabled: boolean; blockedReason: string | null; configured: boolean; connectionTested: boolean;
   connectionRevision: number | null; configuredModel: string | null; activity: string | null;
   pack: { role: string; packId: string; packName: string; revision: number; sha256: string } | null;

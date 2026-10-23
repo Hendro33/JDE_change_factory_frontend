@@ -40,4 +40,12 @@ export const deliveryApi = {
       method: "POST", customerId: await customerId(), body: { onBehalfOf: "", ...input },
     });
   },
+  /** Register H4: the requester confirms solved / not solved. */
+  async requesterConfirmation(id: string, input: { solved: boolean; note: string; onBehalfOf?: string }): Promise<Change> {
+    return request<Change>(`${base(id)}/requester-confirmation`, { method: "POST", customerId: await customerId(), body: { onBehalfOf: "", ...input } });
+  },
+  /** Register F4: a later improvement becomes a linked follow-up request. */
+  async followUp(id: string, text: string): Promise<Change> {
+    return request<Change>(`${base(id)}/follow-up`, { method: "POST", customerId: await customerId(), body: { text } });
+  },
 };

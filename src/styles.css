@@ -1317,3 +1317,11 @@ h2 { letter-spacing: -0.015em; }
 .home .emptystate, .outcome.complete { position: relative; }
 .home .emptystate::after, .outcome.complete::after { content: ""; display: block; height: 8px; margin-top: 14px; background: var(--brand);
   clip-path: polygon(0 60%, 8% 20%, 17% 70%, 26% 30%, 35% 55%, 45% 10%, 55% 60%, 65% 25%, 75% 70%, 85% 20%, 93% 55%, 100% 30%, 100% 100%, 0 100%); }
+
+/* Insights: usefulness measures (register M7). */
+.usefulness { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px 28px; margin: 0; }
+.usefulness dt { font-size: 13px; font-weight: 700; color: var(--ink-soft); }
+.usefulness dd { margin: 2px 0 0; }
+.outcome-confirm, .followup { margin-top: 12px; }
+.criteria-check { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.status-word.ok { color: var(--ok); }
