@@ -1236,3 +1236,4 @@ body:not(.help-on) :is(.explain, .pageheader .lede, .pagehead .sub, .section-des
 .bulkbar { position: sticky; top: 0; z-index: 4; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 .sidedrawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(640px, 100vw); overflow-y: auto; background: var(--canvas); border-left: 1px solid var(--line); box-shadow: var(--shadow-pop); padding: 16px; z-index: 40; }
 @media (max-width: 700px) { .sidedrawer { width: 100vw; } }
+.sidedrawer-backdrop { position: fixed; inset: 0; background: rgba(15, 20, 18, .25); z-index: 39; }

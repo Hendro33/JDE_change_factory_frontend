@@ -168,8 +168,9 @@ export function ApprovalBacklog({ navFilter, navToken }: NavTarget) {
         </section>
       )}
 
+      {open && <div className="sidedrawer-backdrop" onClick={() => setOpenId(null)} aria-hidden="true" />}
       {open && (
-        <aside className="sidedrawer" aria-label={`Review ${open.id}`}>
+        <aside className="sidedrawer" aria-label={`Review ${open.id}`} onKeyDown={(e) => { if (e.key === "Escape") setOpenId(null); }}>
         <div className="stack vr-selected-review">
           <div className="vr-section-meta"><h2>Selected story</h2><button className="linkish" onClick={() => setOpenId(null)}>Close</button></div>
           {open.backlogHold && (
