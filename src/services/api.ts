@@ -170,6 +170,8 @@ export interface CreateChangeInput {
   attachmentIds?: string[];
   priority?: Priority;
   changeType?: ChangeType;
+  /** JADE turns the request into a user story by itself unless false. */
+  startAnalysis?: boolean;
 }
 
 export interface ClassificationInput {
@@ -440,7 +442,7 @@ export interface ChangeFactoryApi {
    * configured pickup status, creates a durable Jade Change Request for
    * each one not already imported, then moves Jira to the configured
    * post-pickup status with the Jade id written back and an acceptance
-   * comment. Never triggers Receive -> Improve -> Check itself.
+   * comment. Routine automation then turns the new requests into stories.
    */
   syncJiraIntegration(): Promise<JiraSyncResult>;
 

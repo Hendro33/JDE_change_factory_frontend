@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./services/api";
 import { authApi } from "./services/httpApi";
+import { automationApi, type NotificationFeed } from "./services/automationApi";
 import type { BusinessDomain, CompanyRole, MyWork, Session } from "./types/domain";
 import { CustomerScope } from "./components/CustomerScope";
 import { SetupHandover } from "./components/SetupHandover";
@@ -60,34 +61,87 @@ function useDismiss(open: boolean, close: () => void) {
   return ref;
 }
 
+const HAPPENED_LABEL: Record<string, string> = {
+  decision: "Decision for you", task: "To do", completion: "Finished", exception: "Needs attention",
+};
+
+function timeAgo(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const h = Math.round(mins / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.round(h / 24);
+  return `${d} day${d === 1 ? "" : "s"} ago`;
+}
+
+/** "What happened": decisions, completions and exceptions, from the lifecycle (step 4). */
+function useNotificationFeed(): [NotificationFeed | null, (f: NotificationFeed) => void] {
+  const [feed, setFeed] = useState<NotificationFeed | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () => automationApi.notifications().then((f) => { if (alive) setFeed(f); }).catch(() => { /* bell keeps My Work only */ });
+    load();
+    const t = window.setInterval(load, 60000);
+    return () => { alive = false; window.clearInterval(t); };
+  }, []);
+  return [feed, setFeed];
+}
+
 function Notifications({ work }: { work: MyWork | null }) {
   const [open, setOpen] = useState(false);
   const ref = useDismiss(open, () => setOpen(false));
-  const { decisions, otherTasks, newRequests, count } = attentionOf(work);
+  const { decisions, otherTasks, newRequests, count: todo } = attentionOf(work);
   const items = [...decisions, ...otherTasks];
+  const [feed, setFeed] = useNotificationFeed();
+  const unread = feed?.unread ?? 0;
+  const count = todo + unread;
+  const happened = (feed?.items ?? []).slice(0, 6);
   return (
     <div className="notif" ref={ref}>
-      <button className="iconbtn" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)}
-              aria-label={`${count} item${count === 1 ? "" : "s"} need your attention`}>
+      <button className="iconbtn" aria-expanded={open} onClick={() => setOpen((o) => !o)}
+              aria-label={`${todo} item${todo === 1 ? "" : "s"} need your attention${unread ? `, ${unread} new update${unread === 1 ? "" : "s"}` : ""}`}>
         <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.84V3a1.5 1.5 0 0 0-3 0v1.16A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>
         {count > 0 && <span className="notif-count">{count}</span>}
       </button>
       {open && (
-        <div className="notif-menu" role="menu">
-          <div className="notif-head">{count === 0 ? "Nothing needs you right now" : `${count} thing${count === 1 ? "" : "s"} need${count === 1 ? "s" : ""} your attention`}</div>
-          {items.slice(0, 8).map((c) => (
-            <Link key={c.id} role="menuitem" className="notif-item" to={(c.lifecycle?.nextAction.action && gateFor(c.lifecycle.nextAction.action, c.id)?.to) || storyPath(c.id, c.lifecycle?.nextAction.tab, "next-action")} onClick={() => setOpen(false)}>
+        <div className="notif-menu" aria-label="Notifications">
+          <div className="notif-head">{todo === 0 ? "Nothing needs you right now" : `${todo} thing${todo === 1 ? "" : "s"} need${todo === 1 ? "s" : ""} your attention`}</div>
+          {items.slice(0, 5).map((c) => (
+            <Link key={c.id} className="notif-item" to={(c.lifecycle?.nextAction.action && gateFor(c.lifecycle.nextAction.action, c.id)?.to) || storyPath(c.id, c.lifecycle?.nextAction.tab, "next-action")} onClick={() => setOpen(false)}>
               <span className="notif-title">{c.lifecycle?.nextAction.kind === "decision" ? "Decision needed" : "To do"} · {c.lifecycle?.phaseLabel}</span>
               <span className="notif-story">{storyTitle(c)}</span>
             </Link>
           ))}
           {newRequests.length > 0 && (
-            <Link role="menuitem" className="notif-item" to="/stories?phase=understand" onClick={() => setOpen(false)}>
+            <Link className="notif-item" to="/stories?phase=understand" onClick={() => setOpen(false)}>
               <span className="notif-title">To do · Understand</span>
               <span className="notif-story">{newRequests.length} new request{newRequests.length === 1 ? "" : "s"} to analyse</span>
             </Link>
           )}
           <Link className="notif-all" to="/work" onClick={() => setOpen(false)}>Open My Work</Link>
+          {feed && (
+            <div className="notif-happened">
+              <div className="notif-subhead">
+                <span>What happened{unread > 0 ? ` · ${unread} new` : ""}</span>
+                {unread > 0 && <button className="linkbtn" onClick={() => automationApi.markRead().then(setFeed).catch(() => undefined)}>Mark all read</button>}
+              </div>
+              {happened.length === 0 && <p className="notif-empty">Nothing new. JADE tells you here when a decision is yours, when work finishes, and when something needs attention.</p>}
+              {happened.map((n) => (
+                <Link key={n.id} className={`notif-item notif-${n.kind}${n.unread ? " unread" : ""}`}
+                      to={n.storyId ? storyPath(n.storyId, n.tab ?? undefined) : "/work"} onClick={() => setOpen(false)}>
+                  <span className="notif-title">{n.unread && <span className="notif-dot" aria-label="new" />}{HAPPENED_LABEL[n.kind] ?? n.kind} · {timeAgo(n.at)}</span>
+                  <span className="notif-story">{n.title}</span>
+                  <span className="notif-text">{n.text}</span>
+                </Link>
+              ))}
+              <label className="notif-digest">
+                <input type="checkbox" checked={feed.digest === "daily"}
+                       onChange={(e) => automationApi.setDigest(e.target.checked ? "daily" : "off").then(setFeed).catch(() => undefined)} />
+                Also e-mail me a daily digest{feed.emailAvailable ? "" : " (e-mail is not set up on this server yet)"}
+              </label>
+            </div>
+          )}
         </div>
       )}
     </div>

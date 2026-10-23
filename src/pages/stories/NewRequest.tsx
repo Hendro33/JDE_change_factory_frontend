@@ -27,8 +27,10 @@ export function NewRequestPage() {
     try {
       const created = await api.createChange({ title: title.trim(), source, sourceReference: ref.trim(),
         originalRequest: request.trim(), attachmentIds: docs.map((d) => d.id), priority,
-        ...(changeType ? { changeType } : {}) });
-      if (analyse) {
+        ...(changeType ? { changeType } : {}), startAnalysis: analyse });
+      // Routine automation normally starts the analysis itself; the explicit
+      // start remains for a customer where it is switched off.
+      if (analyse && !created.processingStage) {
         try { await api.enhanceStory(created.id); } catch { /* shown as the next step on the story */ }
       }
       navigate(storyPath(created.id));

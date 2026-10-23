@@ -332,6 +332,7 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
         attachmentIds: input.attachmentIds ?? [],
         ...(input.priority ? { priority: input.priority } : {}),
         ...(input.changeType ? { changeType: input.changeType } : {}),
+        ...(input.startAnalysis === false ? { startAnalysis: false } : {}),
       },
     });
     // The API returns the ChangeRequest, not a Change -- fetch it back

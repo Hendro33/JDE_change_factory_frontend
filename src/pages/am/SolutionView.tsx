@@ -79,7 +79,7 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
           turns={ctx.run?.conversation ?? []}
           onAsk={async (question) => { ctx.setRun(await api.askAboutSolution(change.id, { question })); }}
           renderRecommendReanalysisActions={() => info.has("product_manager", "admin") ? (
-            <button className="btn primary" disabled={busy || lc?.nextAction.owner === "jade"} onClick={rerun}>Run the Architect again</button>
+            <button className="btn primary" disabled={busy || (lc?.nextAction.owner === "jade" && lc?.automation?.state !== "scheduled")} onClick={rerun}>Run the Architect again</button>
           ) : null}
         />
 
@@ -160,8 +160,8 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
 
       {info.has("product_manager", "admin") && change.changeApproval?.status !== "approved" && (
         <div className="btnrow rerun-row">
-          <button className="btn" disabled={busy || lc?.nextAction.owner === "jade"} onClick={rerun}>
-            {lc?.nextAction.owner === "jade" ? "The Architect is at work…" : busy ? "Starting…" : "Run the Architect again"}</button>
+          <button className="btn" disabled={busy || (lc?.nextAction.owner === "jade" && lc?.automation?.state !== "scheduled")} onClick={rerun}>
+            {lc?.nextAction.owner === "jade" && lc?.automation?.state !== "scheduled" ? "The Architect is at work…" : busy ? "Starting…" : "Run the Architect again"}</button>
           <span className="hint explain">Earlier designs and the conversation are kept.</span>
         </div>
       )}

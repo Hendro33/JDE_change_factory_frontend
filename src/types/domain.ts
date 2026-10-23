@@ -947,6 +947,16 @@ export interface Lifecycle {
   since?: string | null;
   /** While JADE works: what it is reading right now. */
   activity: string;
+  /** Routine work JADE starts by itself (step 4): scheduled, or capped (a person takes over). */
+  automation?: AutomationPlan | null;
+}
+
+export interface AutomationPlan {
+  kind: "intake" | "solutioning";
+  state: "scheduled" | "capped" | "off";
+  reason: string;
+  label: string;
+  dueAt?: string | null;
 }
 
 export type WorkOwnerKind = "agent" | "person" | "implementer" | "cnc" | "business" | "release" | "jade";

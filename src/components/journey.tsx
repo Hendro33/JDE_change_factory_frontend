@@ -342,7 +342,10 @@ export function ProcessSwimlane({ process, storyId, criteria = [], business, emp
 export function JadeAtWorkLine({ lifecycle }: { lifecycle?: Lifecycle | null }) {
   if (!lifecycle || lifecycle.nextAction.owner !== "jade") return null;
   // One short line (review 23 Oct): what JADE is doing, in two or three words.
-  const short = lifecycle.phase === "solutioning" || lifecycle.phase === "solution_review" ? "JADE is architecting…"
+  // Routine work about to start by itself (step 4) says so, not "at work".
+  const auto = lifecycle.automation?.state === "scheduled" ? lifecycle.automation : null;
+  const short = auto ? (auto.kind === "intake" ? "JADE starts the user story shortly…" : "JADE reassesses shortly…")
+    : lifecycle.phase === "solutioning" || lifecycle.phase === "solution_review" ? "JADE is architecting…"
     : lifecycle.phase === "understand" ? "JADE is writing the user story…" : lifecycle.nextAction.summary;
   return (
     <div className="jadeatwork" aria-live="polite" title={lifecycle.nextAction.summary}>
