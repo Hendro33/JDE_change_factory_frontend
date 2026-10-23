@@ -423,9 +423,20 @@ export function TechnicalWorkPanel({ storyId, roles, onChanged, designOnly = fal
       {!designOnly && <>
       <section className="panel">
         <h2 style={{ marginTop: 0 }}>Technical Agent runs</h2>
+        {view.stopped && (
+          <div className="callout" style={{ borderColor: view.stopped.changed.length ? "var(--warn)" : "var(--stop)", marginBottom: 8 }}>
+            <strong>The last run stopped: {view.stopped.label}</strong>
+            <div style={{ whiteSpace: "pre-wrap" }}>{view.stopped.explanation}</div>
+            {view.stopped.questions.map((q) => <div key={q} className="hint">Q: {q}</div>)}
+            <div className="hint">{view.stopped.changed.length
+              ? `Since then: ${view.stopped.changed.join("; ")}. A new run can use it.`
+              : "Nothing it needs has changed since. Provide what it asks for (a source export in Discovery, an answer on the story, or a new design); a new run is offered then."}</div>
+          </div>
+        )}
         {a?.design_approval && canRun && (
           <div className="btnrow" style={{ marginBottom: 8 }}>
-            <button className="btn small" disabled={busy} onClick={() => act(() => technicalApi.startRun(view.story_id, "prepare"))}>Start: prepare a package</button>
+            {(!view.stopped || view.stopped.changed.length > 0 || view.stopped.kind === "inconclusive") &&
+              <button className="btn small" disabled={busy} onClick={() => act(() => technicalApi.startRun(view.story_id, "prepare"))}>{view.stopped ? "Run again with what changed" : "Start: prepare a package"}</button>}
             {buildFailed && <button className="btn small primary" disabled={busy} onClick={() => act(() => technicalApi.startRun(view.story_id, "repair"))}>Start: repair the failed build</button>}
           </div>
         )}

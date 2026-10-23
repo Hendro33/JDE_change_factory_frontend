@@ -199,6 +199,8 @@ export interface ResultChange {
   current: string;
   proposed: string;
   status: ValueStatus;
+  /** False when the target value is not known yet (audit F03): "verified" speaks for the current value only. */
+  targetKnown?: boolean;
 }
 
 export interface ResultIssue {
@@ -217,6 +219,8 @@ export interface AgentResult {
   changes: ResultChange[];
   issues: ResultIssue[];
   uncertainty: string[];
+  /** The business projection: what changes in the business's work, no JD Edwards names (audit F08). */
+  businessSummary?: string;
   /** Derived by JADE from an older result that had no result block. */
   derived: boolean;
 }
@@ -246,7 +250,7 @@ export interface Issue {
   actionId?: string | null;
   blocks: boolean;
   proposedAnswer: string;
-  source: "architect" | "design_evidence" | "delivery_gate" | "lifecycle";
+  source: "architect" | "design_evidence" | "design_quality" | "delivery_gate" | "lifecycle" | "story";
   tab: WorkspaceTab;
   resolution?: IssueResolution | null;
 }
@@ -849,6 +853,8 @@ export interface Change {
    */
   businessDomainId?: string;
   domainReviewStage?: DomainReviewStage;
+  /** Backlog Review: held by the Application Manager (who, when, why). */
+  backlogHold?: BacklogHold | null;
 
   /** Live status of the solutioning (Architecture Review) run. */
   architectureReviewStage?: "analyzing" | "done" | "failed";
@@ -949,6 +955,23 @@ export interface Lifecycle {
   activity: string;
   /** Routine work JADE starts by itself (step 4): scheduled, or capped (a person takes over). */
   automation?: AutomationPlan | null;
+  /** A finished story whose record lacks a checkpoint the current workflow requires (stated, never invented). */
+  completionGaps?: string[];
+  /** Controls the backend would accept now, asked from the same gates the endpoints use (audit F02). */
+  allowedActions?: string[];
+  /** Why a control is not offered now, in the gate's own words. */
+  actionBlockers?: Record<string, string>;
+}
+
+export interface BacklogHold { by: string; at: string; reason: string }
+
+export interface BacklogCapacity {
+  inSolutioning: number;
+  monthSpendUsd: number;
+  monthlyBudgetUsd?: number | null;
+  architectRunsMeasured: number;
+  /** Measured average; null until Architect runs were measured (never guessed). */
+  averageArchitectRunUsd: number | null;
 }
 
 export interface AutomationPlan {

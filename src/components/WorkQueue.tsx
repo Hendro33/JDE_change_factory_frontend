@@ -11,7 +11,7 @@ import type { Change } from "../types/domain";
 
 export interface GridColumn {
   key: string;
-  header: string;
+  header: ReactNode;
   render: (c: Change) => ReactNode;
   /** Present only on sortable columns. */
   sortValue?: (c: Change) => string | number;

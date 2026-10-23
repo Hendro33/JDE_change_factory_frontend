@@ -18,6 +18,7 @@ export const ACTION_VERB: Record<string, string> = {
   approve_exact_change: "Review solution", approve_package: "Review implementation", record_cnc: "Record activation",
   finalise_asbuilt: "Review release", start_analysis: "Start analysis", rerun_solutioning: "Run solutioning",
   start_technical_prepare: "Continue delivery", start_technical_repair: "Start repair",
+  provide_technical_evidence: "Provide what is missing",
   record_technical_apply: "Record check-in", record_technical_build: "Record build", record_technical_verify: "Record verification",
   record_applied: "Record applied in DEV", run_or_record_test: "Test and record",
   run_agents_or_record: "Run the agents or apply it", agents_running: "Follow the agents", reconcile_item: "Reconcile",

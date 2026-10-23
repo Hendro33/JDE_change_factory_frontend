@@ -54,3 +54,13 @@ test("Insights includes the period boundary and excludes older/future/invalid da
   }
   assert.equal(inInsightPeriod("2000-01-01", "lifetime", now), true);
 });
+
+test("an approval the delivery gate refuses is not counted as ready to apply (audit F02)", () => {
+  const blocked = {lifecycle: {phase: "delivery", nextAction: {action: "approve_exact_change"}, allowedActions: [],
+                               actionBlockers: {record_applied: "The approval expired."}},
+                   changeApproval: {status: "approved"}, exactChange: {execution: {writeState: "ready"}}};
+  assert.deepEqual(queues(blocked), ["delivery"]);
+  const ready = {...blocked, lifecycle: {...blocked.lifecycle, nextAction: {action: "run_agents_or_record"},
+                                         allowedActions: ["record_applied", "record_item", "run_agents"], actionBlockers: {}}};
+  assert.deepEqual(queues(ready), ["approved"]);
+});

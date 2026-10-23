@@ -21,7 +21,7 @@ import { ValidationWorkspace } from "./pages/validation/Validation";
 import { NotFoundPage } from "./pages/NotFound";
 import { AmWorkspace } from "./pages/am/AmWorkspace";
 import { gateFor } from "./pages/stories/NextActionCard";
-import { DemandReview } from "./pages/demand/DemandNav";
+import { ReviewRedirect } from "./pages/demand/DemandNav";
 import { EmptyState, useSessionInfo } from "./components/design";
 import { Login } from "./pages/auth/Login";
 import { ResetPassword } from "./pages/auth/ResetPassword";
@@ -202,7 +202,7 @@ function Routes() {
   if (match("/work", path)) return <MyWorkPage />;
   if (match("/stories", path)) return <StoriesPage />;
   if (match("/stories/new", path)) return <NewRequestPage />;
-  if (match("/stories/review", path)) return <DemandReview />;
+  if (match("/stories/review", path)) return <ReviewRedirect />;
   if ((m = match("/stories/:id/:tab?", path))) return <StoryWorkspace key={m.id} storyId={m.id} tab={m.tab} />;
   if ((m = match("/business/:domainId?", path))) return <BusinessArchitecturePage domainId={m.domainId} />;
   if (match("/knowledge", path)) return <KnowledgePage />;

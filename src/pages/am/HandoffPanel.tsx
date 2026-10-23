@@ -21,18 +21,21 @@ export function HandoffPanel({ change, onChanged }: { change: Change; onChanged:
   }, [change.id, tick, change.updatedAt, change.lifecycle?.nextAction.action]);
 
   if (!view || (view.items.length === 0 && view.route !== "Human Implementation")) return error ? <p className="muted">{error}</p> : null;
+  // No JD Edwards change, but the requirement still needs work by people (audit 23 Oct, F00).
+  const noChange = view.route === "Resolve without Change";
   const recorder = info.has("product_manager", "admin", "cnc_operator");
   const done = view.items.filter((i) => i.completion).length;
   const changed = () => { setTick((t) => t + 1); onChanged(); };
-  const human = view.route === "Human Implementation";
+  const human = view.route === "Human Implementation" || noChange;
 
   return (
     <section className="panel handoff" id="handoff" aria-label="Work by a named implementer">
       <div className="handoff-head">
         <div>
-          <h2 className="titlebar">Work by a named implementer</h2>
+          <h2 className="titlebar">{noChange ? "Work by people (no JD Edwards change)" : "Work by a named implementer"}</h2>
           <p className="muted">{view.authorisation
             ? `Authorised by ${view.authorisation.by}${view.authorisation.at ? ` on ${formatDateTime(String(view.authorisation.at))}` : ""}. ${done} of ${view.items.length} recorded.`
+            : noChange ? "Not confirmed yet: the Application Manager confirms the no-change finding first."
             : "Not authorised yet: nothing is implemented until the design (or its exact change) is approved."}</p>
         </div>
         <button className="btn" onClick={() => deliveryApi.downloadSpecification(change.id).catch((e) => setError(saveErrorMessage(e, "The specification could not be downloaded.")))}>

@@ -97,6 +97,9 @@ export interface TechnicalWorkView {
                               approved_at: string };
   };
   assignment_problem: string | null;
+  /** The latest run stopped without a package; a restart is offered only once something it needs changed. */
+  stopped?: { kind: string; label: string; explanation: string; questions: string[]; finished_at: string;
+              run_id: string; changed: string[] } | null;
   capability: { capability_id: string; status: string | null; technical_validation: string | null };
   runs: TechnicalRun[]; packages: PackageView[];
   human_actions: { action: string; by: string; at: string | number; detail: string }[];

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../../services/api";
-import type { CompanyRole, NextAction } from "../../types/domain";
+import type { Change, CompanyRole, FeedbackReasonCode, NextAction } from "../../types/domain";
 import { ConfirmDialog } from "../../components/ui";
 import { ErrorState, JadeWorking, useSessionInfo } from "../../components/design";
 import { Link, storyPath } from "../../router";
@@ -100,6 +100,7 @@ export function NextActionCard({ ctx, inApp = false, listedKinds }: { ctx: Story
         <div className="nextcard-kicker">{title}</div>
         <div className="nextcard-summary">{na.summary}</div>
         {lc.openItems.length > 0 && <ul className="nextcard-items">{lc.openItems.map((i) => <li key={i}>{i}</li>)}</ul>}
+        {(lc.completionGaps?.length ?? 0) > 0 && <CompletionGaps change={change} gaps={lc.completionGaps!} onChanged={reload} />}
         {lc.outcome === "delivered" && <Link to={workPath(change.id, inApp ? "delivery" : "progress", info.appManagement, inApp ? "release" : "outcome")}>
           {inApp ? "View the delivery and as-built record" : "View the outcome"}</Link>}
       </section>
@@ -145,6 +146,24 @@ export function NextActionCard({ ctx, inApp = false, listedKinds }: { ctx: Story
   if (gate && gate.to.split("#")[0] === location.pathname) controls = null;
   else if (gate) controls = <Link className="btn primary" to={gate.to}>{inApp && gate.screen === "the decision below" ? "Go to the decision" : `Open in ${gate.screen}`}</Link>;
   else switch (na.action) {
+    case "review_story": {
+      // The Domain Owner decides on the story itself (audit F08): no second review screen.
+      const ready = ctx.domainReview?.stage === "domain_owner_reviewing";
+      controls = (
+        <div className="btnrow">
+          <button className="btn primary" disabled={busy || !ready} onClick={() => setDialog({
+            title: "Approve this user story?", next: DECISION_COPY.review_story.ifApproved, confirm: "Approve story",
+            tone: "primary", requireNote: false,
+            run: async (note) => { ctx.setDomainReview(await api.approveDomainOwnerStory(change.id, { note })); } })}>Approve story</button>
+          <Link className="btn" to={storyPath(change.id, "story", "revise")}>Request changes</Link>
+          <button className="btn danger" disabled={busy || !ready} onClick={() => setDialog({
+            title: "Reject this requirement?", next: DECISION_COPY.review_story.ifRejected, confirm: "Reject requirement",
+            tone: "danger", requireNote: true, reasonCode: true,
+            run: async (note, reason) => { ctx.setDomainReview(await api.rejectDomainOwnerStory(change.id, { note, rejectionReason: reason as FeedbackReasonCode | undefined })); } })}>Reject</button>
+        </div>
+      );
+      break;
+    }
     case "start_analysis":
       controls = <button className="btn primary" disabled={busy} onClick={() => act(() => api.enhanceStory(change.id))}>{busy ? "Starting…" : "Start analysis"}</button>;
       break;
@@ -231,7 +250,6 @@ export function NextActionCard({ ctx, inApp = false, listedKinds }: { ctx: Story
  * holds the solution decision and the delivery steps; the story gates keep
  * their own screens. */
 const GATES: Record<string, { screen: string; path?: string; tab?: "solution" | "delivery"; anchor?: string }> = {
-  review_story: { screen: "User Story Review", path: "/stories/review" },
   authorise_delivery: { screen: "Backlog Review", path: "/am/backlog-review" },
   approve_exact_change: { screen: "Architecture Review", path: "/am/architecture-review", tab: "solution", anchor: "decision" },
   approve_design: { screen: "Architecture Review", path: "/am/architecture-review", tab: "solution", anchor: "decision" },
@@ -239,6 +257,7 @@ const GATES: Record<string, { screen: string; path?: string; tab?: "solution" | 
   confirm_no_change: { screen: "Architecture Review", path: "/am/architecture-review", tab: "solution", anchor: "decision" },
   approve_package: { screen: "Delivery", tab: "delivery", anchor: "work" },
   start_technical_prepare: { screen: "Delivery", tab: "delivery", anchor: "work" },
+  provide_technical_evidence: { screen: "Delivery", tab: "delivery", anchor: "work" },
   start_technical_repair: { screen: "Delivery", tab: "delivery", anchor: "work" },
   record_technical_apply: { screen: "Delivery", tab: "delivery", anchor: "work" },
   record_technical_build: { screen: "Delivery", tab: "delivery", anchor: "work" },
@@ -277,3 +296,39 @@ export function ExactChangeSummary({ ctx }: { ctx: StoryCtx }) {
   );
 }
 
+
+
+/**
+ * A finished story whose record lacks a checkpoint the current workflow needs
+ * (audit 23 Oct, F00/F07): said plainly. Nothing is invented; the Application
+ * Manager may reopen a no-change closure deliberately, with a reason.
+ */
+function CompletionGaps({ change, gaps, onChanged }: { change: Change; gaps: string[]; onChanged: () => void }) {
+  const info = useSessionInfo();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const canReopen = change.state === "RESOLVED_WITHOUT_CHANGE" && info.has("product_manager", "admin");
+  return (
+    <div className="completion-gaps" role="note">
+      <strong>Not on record</strong>
+      <ul>{gaps.map((g) => <li key={g}>{g}</li>)}</ul>
+      {canReopen && !open && <button className="btn small" onClick={() => setOpen(true)}>Reopen to finish the work</button>}
+      {canReopen && open && (
+        <div className="field">
+          <label htmlFor="reopen-reason">Why reopen it?</label>
+          <input id="reopen-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+          <div className="btnrow">
+            <button className="btn primary" disabled={busy || reason.trim().length < 5} onClick={async () => {
+              setBusy(true); setError(null);
+              try { await api.reopenResolved(change.id, reason.trim()); onChanged(); } catch (e) { setError(e); } finally { setBusy(false); }
+            }}>Reopen</button>
+            <button className="btn" onClick={() => setOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {error !== null && <ErrorState error={error} title="Not reopened" />}
+    </div>
+  );
+}

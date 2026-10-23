@@ -1,4 +1,5 @@
 import type {
+  BacklogCapacity,
   AcceptInvitationInput,
   ActivityEntry,
   AgentDefinition,
@@ -388,6 +389,31 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
       method: "POST", customerId, body: { note: input.note },
     });
   }
+  async sendToArchitecture(ids: string[], note: string): Promise<{ changeId: string; sent: boolean; detail: string }[]> {
+    const customerId = await this.activeCustomerId();
+    return request(`/backlog/send-to-architecture`, { method: "POST", customerId, body: { changeIds: ids, note } });
+  }
+
+  async holdInBacklog(id: string, reason: string): Promise<DomainReview> {
+    const customerId = await this.activeCustomerId();
+    return request<DomainReview>(`/changes/${encodeURIComponent(id)}/domain-review/hold`, { method: "POST", customerId, body: { reason } });
+  }
+
+  async releaseBacklogHold(id: string): Promise<DomainReview> {
+    const customerId = await this.activeCustomerId();
+    return request<DomainReview>(`/changes/${encodeURIComponent(id)}/domain-review/release-hold`, { method: "POST", customerId, body: { reason: "" } });
+  }
+
+  async getBacklogCapacity(): Promise<BacklogCapacity> {
+    const customerId = await this.activeCustomerId();
+    return request<BacklogCapacity>(`/backlog/capacity`, { customerId });
+  }
+
+  async reopenResolved(id: string, reason: string): Promise<Change> {
+    const customerId = await this.activeCustomerId();
+    return request<Change>(`/changes/${encodeURIComponent(id)}/reopen-resolved`, { method: "POST", customerId, body: { reason } });
+  }
+
 
   async approveExactChange(id: string, input: DecisionInput): Promise<Change> {
     const customerId = await this.activeCustomerId();

@@ -7,6 +7,7 @@
  */
 
 import type {
+  BacklogCapacity,
   ActivityEntry,
   AgentDefinition,
   AgentHealth,
@@ -232,6 +233,13 @@ export interface ChangeFactoryApi {
   approveExactChange(id: string, input: DecisionInput): Promise<Change>;
   /** The Application Manager confirms the Architect's "Resolve without Change". */
   confirmResolvedWithoutChange(id: string, input: DecisionInput): Promise<Change>;
+  /** Deliberately reopen a story an earlier workflow closed as resolved without change. */
+  reopenResolved(id: string, reason: string): Promise<Change>;
+  /** Backlog Review: authorise several approved stories at once (each through the single-story gate). */
+  sendToArchitecture(ids: string[], note: string): Promise<{ changeId: string; sent: boolean; detail: string }[]>;
+  holdInBacklog(id: string, reason: string): Promise<DomainReview>;
+  releaseBacklogHold(id: string): Promise<DomainReview>;
+  getBacklogCapacity(): Promise<BacklogCapacity>;
   /** Rejects that same exact operation instead — the other half of Section 6.5's Gate 2 decision, already real on the backend (mcp_server's reject_change). */
   rejectExactChange(id: string, input: DecisionInput): Promise<Change>;
 

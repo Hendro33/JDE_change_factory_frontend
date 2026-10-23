@@ -71,6 +71,9 @@ export function AmWorkspace() {
   else if (path === "/am/technical") page = <Redirect to={query.get("story")
     ? `/am/changes/${encodeURIComponent(query.get("story")!)}/delivery` : "/am/delivery?stage=active"} />;
   else if (path === "/am/delivery") page = <Pipeline onOpenChange={openChange} {...target} />;
+  // A story's as-built record lives on its change record (Delivery, release), not in a
+  // second workspace with its own story picker and journey bar (audit F08).
+  else if (match("/am/as-built", path) && query.get("story")) page = <Redirect to={`/am/changes/${encodeURIComponent(query.get("story")!)}/delivery#release`} />;
   else if (match("/am/as-built", path)) page = <AsBuiltWorkbench />;
   else if (match("/am/changes", path)) page = <Pipeline onOpenChange={openChange} {...target} />;
   else if ((m = match("/am/changes/:id/:tab?", path))) page = <ChangeView key={m.id} changeId={m.id} tab={m.tab} />;

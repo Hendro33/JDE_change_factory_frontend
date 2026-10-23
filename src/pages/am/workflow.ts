@@ -6,7 +6,7 @@ export const AM_STAGES = [
   { key: "approved", label: "Approved for Delivery", to: "/am/delivery?queue=approved" },
   { key: "delivery", label: "In Delivery", to: "/am/delivery?queue=delivery" },
   { key: "validation", label: "Awaiting Validation", to: "/am/delivery?stage=validation" },
-  { key: "asbuilt", label: "Awaiting As-Built", to: "/am/as-built?queue=asbuilt" },
+  { key: "asbuilt", label: "Awaiting As-Built", to: "/am/changes?stage=asbuilt" },
   { key: "release", label: "Ready for Release / CNC", to: "/am/delivery?stage=release" },
   { key: "completed", label: "Completed", to: "/am/delivery?stage=completed" },
 ] as const;
@@ -20,7 +20,8 @@ export function inAmStage(c: Change, stage: AmStage): boolean {
   const lc = c.lifecycle;
   if (!lc) return false;
   const approved = lc.phase === "delivery" && (lc.nextAction.action === "start_technical_prepare" ||
-    (c.changeApproval?.status === "approved" && (!c.exactChange?.execution || c.exactChange.execution.writeState === "ready")));
+    ((lc.allowedActions ? lc.allowedActions.includes("record_applied") : c.changeApproval?.status === "approved")
+      && (!c.exactChange?.execution || c.exactChange.execution.writeState === "ready")));
   switch (stage) {
     case "backlog": return lc.nextAction.action === "authorise_delivery";
     case "architecture": return lc.phase === "solutioning" || lc.phase === "solution_review";

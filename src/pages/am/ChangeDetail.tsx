@@ -329,7 +329,7 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
                   </div>
                 </div>
               )}
-              <ExecutionPanel changeId={change.id} exactChange={ec} approvalStatus={change.changeApproval?.status} onChanged={reload} />
+              <ExecutionPanel changeId={change.id} exactChange={ec} approvalStatus={change.changeApproval?.status} lifecycle={change.lifecycle} onChanged={reload} />
             </RecordPart>
           )}
 

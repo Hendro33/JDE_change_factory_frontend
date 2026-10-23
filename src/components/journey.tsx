@@ -132,7 +132,9 @@ export function OutcomeCardView({ change, lifecycle, onChanged }: { change: Chan
   if (!card) return null;
   const owner = info.has("domain_owner");
   const recorder = info.has("product_manager", "admin");
-  const askable = card.devVerified.done && !card.businessAccepted.done && !card.released.done
+  // A finished story never asks for an action that cannot be taken (audit F07).
+  const finished = lifecycle.phase === "done";
+  const askable = !finished && card.devVerified.done && !card.businessAccepted.done && !card.released.done
     && lifecycle.nextAction.action !== "record_handoff" && (owner || recorder);
   const needsName = !owner;
 
@@ -149,10 +151,10 @@ export function OutcomeCardView({ change, lifecycle, onChanged }: { change: Chan
       <div className="outcome-kicker">Outcome</div>
       <p className="outcome-headline">{card.headline}</p>
       <ol className="osteps" aria-label="Three outcomes">
-        <OutcomeStepView label="Verified in DEV" done={card.devVerified.done} by={card.devVerified.by} at={card.devVerified.at} waiting="Being verified" />
+        <OutcomeStepView label="Verified in DEV" done={card.devVerified.done} by={card.devVerified.by} at={card.devVerified.at} waiting={finished ? "Not recorded" : "Being verified"} />
         <OutcomeStepView label="Accepted by the business" done={card.businessAccepted.done} failed={!!card.notAccepted && !card.businessAccepted.done}
-                         by={card.businessAccepted.by} at={card.businessAccepted.at} waiting={card.devVerified.done ? "Waiting for the business" : "After verification"} />
-        <OutcomeStepView label="Handed over for release" done={card.released.done} by={card.released.by} at={card.released.at} waiting="After acceptance" />
+                         by={card.businessAccepted.by} at={card.businessAccepted.at} waiting={finished ? "Not recorded" : card.devVerified.done ? "Waiting for the business" : "After verification"} />
+        <OutcomeStepView label="Handed over for release" done={card.released.done} by={card.released.by} at={card.released.at} waiting={finished ? "Not recorded" : "After acceptance"} />
       </ol>
       <div className="outcome-grid">
         {card.whatChanged.length > 0 && <div><h4>What changed</h4><ul>{card.whatChanged.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}

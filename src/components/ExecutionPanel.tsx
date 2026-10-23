@@ -6,6 +6,7 @@ import { useSessionInfo } from "./design";
 import { approvedLine, ConfigurationItemsTable, ExecutorBadge, isChangeSet, kindLabel, showValue } from "./ConfigurationItems";
 import { executionApi } from "../services/executionApi";
 import type {
+  Lifecycle,
   ConfigurationItem, ExactChange, ExecutionState, PreflightResult, Reconciliation, RecordedApplied, RecordedVerification,
 } from "../types/domain";
 
@@ -82,8 +83,10 @@ function nonEmpty<T extends object>(o?: T | Record<string, never> | null): T | n
  * or recorded against the acceptance criteria.
  */
 export function ExecutionPanel({
-  changeId, exactChange, approvalStatus, onChanged, compact = false, showItems = false,
+  changeId, exactChange, approvalStatus, lifecycle, onChanged, compact = false, showItems = false,
 }: {
+  /** The story's lifecycle: which controls the backend accepts now (audit F02). */
+  lifecycle?: Lifecycle | null;
   changeId: string;
   compact?: boolean;
   /** Show every item of a configuration change set with its recorded state (where the page does not already). */
@@ -128,7 +131,11 @@ export function ExecutionPanel({
   const testState = execution?.testState ?? "ready";
   const writeUnknown = writeState === "unknown";
   const testUnknown = testState === "unknown";
-  const approved = approvalStatus === "approved";
+  // The controls follow the same gate the endpoints use, not the stored
+  // approval status: an expired or withdrawn approval offers no recording.
+  const allowed = (action: string) => lifecycle?.allowedActions ? lifecycle.allowedActions.includes(action) : approvalStatus === "approved";
+  const approved = allowed("record_applied") || (approvalStatus === "approved" && writeState === "applied");
+  const deliveryBlocker = lifecycle?.actionBlockers?.record_applied;
   const deliverable = exactChange?.capabilityExecutable !== false;
   const canRecord = info.has("product_manager");
   const applied = nonEmpty<RecordedApplied>(execution?.applied);
@@ -249,6 +256,13 @@ export function ExecutionPanel({
           Apply exactly the approved value in DEV yourself, then record it here: JADE reads it back live through the customer's
           JD Edwards connection and records it only if it is exactly what was approved.
         </p>
+      )}
+      {deliveryBlocker && writeState !== "applied" && (
+        <div className="callout" style={{ borderColor: "var(--stop)" }}>
+          <strong>Not deliverable now</strong>
+          <div>{deliveryBlocker}</div>
+          <div className="hint">Nothing can be applied or recorded until this is resolved; the story's next action says who resolves it.</div>
+        </div>
       )}
       <dl className="facts">
         <dt>Change applied</dt><dd><StateBadge state={writeState} /></dd>

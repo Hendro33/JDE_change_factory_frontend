@@ -18,7 +18,8 @@ export function ChangesTab({ ctx }: { ctx: StoryCtx }) {
   const d = change.architectDecision;
   const us = change.userStory;
   const route = d ? ROUTE_LABEL[d.recommendedRoute] : undefined;
-  const conclusion = d?.result?.conclusion || "";
+  // The business projection only: technical names and delivery mechanics stay in the application view.
+  const conclusion = d?.result?.businessSummary || "";
 
   return (
     <div className="changes">

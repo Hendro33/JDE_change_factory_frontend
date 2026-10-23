@@ -245,8 +245,10 @@ export function ResultSummary({ change, title = "JADE's conclusion", hideConclus
                 <td>{c.what}</td>
                 <td className="mono">{c.current || <span className="notstated">{c.status === "verified" ? "empty" : "not read"}</span>}</td>
                 <td aria-hidden="true" className="ba-arrow">→</td>
-                <td className="mono strong">{c.proposed || <span className="notstated">to be defined</span>}</td>
-                <td><ValueStatusTag status={c.status} /></td>
+                <td className="mono strong">{c.targetKnown === false ? <span className="notstated">not known yet</span> : c.proposed || <span className="notstated">to be defined</span>}</td>
+                <td>{c.status === "verified"
+                  ? <><Tag tone="ok">Now: verified in DEV</Tag>{c.targetKnown === false && <> <Tag tone="warn">Target unknown</Tag></>}</>
+                  : <ValueStatusTag status={c.status} />}</td>
               </tr>
             ))}
           </tbody>

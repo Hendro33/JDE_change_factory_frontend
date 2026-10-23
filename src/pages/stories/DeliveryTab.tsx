@@ -43,7 +43,7 @@ export function DeliveryTab({ ctx }: { ctx: StoryCtx }) {
     <div className="delivery vr-pilot">
       {functionalApproved && info.appManagement && (
         <Section id="record">
-          <ExecutionPanel compact showItems changeId={change.id} exactChange={change.exactChange} approvalStatus={change.changeApproval?.status} onChanged={ctx.reload} />
+          <ExecutionPanel compact showItems changeId={change.id} exactChange={change.exactChange} approvalStatus={change.changeApproval?.status} lifecycle={change.lifecycle} onChanged={ctx.reload} />
         </Section>
       )}
 
