@@ -66,6 +66,13 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
   // Counted as listed below: an expired authorisation is the decision above, not an open point.
   const openPoints = (lc?.issues ?? []).filter((i) => !i.resolution && i.kind !== "jade"
     && !(lc?.authorisation?.renewable && i.source === "delivery_gate" && i.actionId === "approve_exact_change")).length;
+  // Re-running is the Application Manager's call (review 23 Oct evening): the
+  // button sits at the top and says how many answers came in since the design.
+  const architectAtWork = lc?.nextAction.owner === "jade" && lc?.automation?.state !== "scheduled";
+  const canRerun = info.has("product_manager", "admin") && change.changeApproval?.status !== "approved";
+  const decidedAt = decision?.decidedAt ?? "";
+  const newAnswers = (lc?.issues ?? []).filter((i) => i.resolution?.answer && i.resolution.at > decidedAt).length;
+  const stillOpen = (lc?.issues ?? []).filter((i) => !i.resolution && i.kind !== "jade" && i.source !== "delivery_gate").length;
   const basis = evidence ? `Based on ${manifest?.observations.length ?? 0} reading${manifest?.observations.length === 1 ? "" : "s"} of the JD Edwards environment on ${formatDateTime(evidence.createdAt)}`
     + `${manifest?.documents.length ? `, ${manifest.documents.length} document${manifest.documents.length > 1 ? "s" : ""}` : ""}; ${openPoints} open point${openPoints === 1 ? "" : "s"}.` : "";
 
@@ -73,13 +80,27 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
     <div className="solutionview">
       {/* The next-step line above already says JADE is at work; said once. */}
       {standalone && <JadeAtWorkLine lifecycle={lc} />}
+      {canRerun && (
+        <div className={`rerunbar${newAnswers > 0 ? " ready" : ""}`} role="region" aria-label="Run the Architect again">
+          <div className="rerunbar-text">
+            {newAnswers > 0 ? (
+              <><strong>{newAnswers} answer{newAnswers === 1 ? "" : "s"} recorded since this design</strong>
+                <span>{stillOpen > 0 ? `${stillOpen} open point${stillOpen === 1 ? " is" : "s are"} still unanswered. ` : "All open points are answered. "}
+                  Run the Architect again when you are ready; it uses every answer.</span></>
+            ) : <span>Earlier designs and the conversation are kept when the Architect runs again.</span>}
+          </div>
+          <button className={`btn${newAnswers > 0 ? " primary" : ""}`} disabled={busy || architectAtWork} onClick={rerun}>
+            {architectAtWork ? "The Architect is at work…" : busy ? "Starting…" : "Run the Architect again"}</button>
+        </div>
+      )}
+      {error !== null && <ErrorState error={error} title="Not started" />}
       <DecisionPanel ctx={ctx} showWaiting={standalone} />
         <AskJadePanel
           title="Ask JADE about this solution"
           turns={ctx.run?.conversation ?? []}
           onAsk={async (question) => { ctx.setRun(await api.askAboutSolution(change.id, { question })); }}
           renderRecommendReanalysisActions={() => info.has("product_manager", "admin") ? (
-            <button className="btn primary" disabled={busy || (lc?.nextAction.owner === "jade" && lc?.automation?.state !== "scheduled")} onClick={rerun}>Run the Architect again</button>
+            <button className="btn primary" disabled={busy || architectAtWork} onClick={rerun}>Run the Architect again</button>
           ) : null}
         />
 
@@ -158,14 +179,6 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
         </Details>
       )}
 
-      {info.has("product_manager", "admin") && change.changeApproval?.status !== "approved" && (
-        <div className="btnrow rerun-row">
-          <button className="btn" disabled={busy || (lc?.nextAction.owner === "jade" && lc?.automation?.state !== "scheduled")} onClick={rerun}>
-            {lc?.nextAction.owner === "jade" && lc?.automation?.state !== "scheduled" ? "The Architect is at work…" : busy ? "Starting…" : "Run the Architect again"}</button>
-          <span className="hint explain">Earlier designs and the conversation are kept.</span>
-        </div>
-      )}
-      {error !== null && <ErrorState error={error} title="Not started" />}
 
       {ctx.run && ctx.run.history.length > 1 && (
         <Details summary={`Earlier designs (${ctx.run.history.length - 1})`}>

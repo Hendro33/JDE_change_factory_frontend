@@ -934,6 +934,12 @@ a.iconbtn.on { color: var(--jade-deep); border-color: var(--jade); box-shadow: i
 .solution-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 24px; }
 .solution-grid h4, .solutionview details h4 { margin: 14px 0 6px; font-size: 14px; }
 .rerun-row { margin: 8px 0 16px; }
+.rerunbar { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 10px 14px; margin: 0 0 14px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.rerunbar.ready { border-color: var(--jade); background: var(--jade-pale); }
+.rerunbar-text { display: flex; flex-direction: column; gap: 2px; font-size: 14px; color: var(--muted); }
+.rerunbar-text strong { color: var(--ink); }
+@media (max-width: 640px) { .rerunbar { flex-direction: column; align-items: flex-start; } }
 .ar-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
 .crumbs-aside .btn.small { text-decoration: none; }
 
