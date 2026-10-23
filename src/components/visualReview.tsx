@@ -47,9 +47,11 @@ export function BusinessImpactIndicators({ impact }: { impact: BusinessImpact })
     <p className="vr-note">As stated in the request. Missing information is not low impact; no scores have been inferred.</p></>;
 }
 
+/** Acceptance criteria as a plain list (decision X3): the story is approved as a whole, nothing is ticked. */
 export function AcceptanceChecklist({ items }: { items: AcceptanceCriterion[] }) {
-  return <div className="vr-acceptance"><div className="vr-section-meta"><span>{items.length} criteria to confirm</span><span>Requirements · not test results</span></div>
-    {items.length ? <ol>{items.map((item) => <li key={item.id}><span className="vr-check-outline" aria-hidden="true" /><div>{item.text}<span className="vr-note">{item.id}</span></div></li>)}</ol> : <p className="vr-missing">No acceptance criteria recorded.</p>}</div>;
+  return items.length
+    ? <ol className="criteria-list">{items.map((item) => <li key={item.id}>{item.text}</li>)}</ol>
+    : <p className="vr-missing">No acceptance criteria recorded.</p>;
 }
 
 export function QuestionCards({ questions, assumptions }: { questions: string[]; assumptions: string[] }) {

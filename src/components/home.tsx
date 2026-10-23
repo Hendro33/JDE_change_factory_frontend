@@ -59,6 +59,11 @@ export function QuestionRow({ q, onAnswered }: { q: QuestionItem; onAnswered: ()
         <span className="qrow-sub"><Link to={storyLink}>{q.title}</Link> <span className="mono muted">{q.changeId}</span>
           {i.consequence ? <> · {i.consequence}</> : null}</span>
         {i.proposedAnswer && <span className="qrow-proposal"><strong>JADE proposes:</strong> {i.proposedAnswer}</span>}
+        {(i.options?.length ?? 0) > 1 && !open && (
+          <span className="qrow-options">{i.options!.map((o) => (
+            <button key={o} className="btn small outline" disabled={busy} onClick={() => send(o)}>{o}</button>
+          ))}</span>
+        )}
         {open && (
           <span className="qrow-answer">
             <label className="sr-only" htmlFor={`ans-${i.id}`}>Your answer</label>

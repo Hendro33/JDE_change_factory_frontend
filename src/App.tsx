@@ -135,7 +135,7 @@ function Notifications({ work }: { work: MyWork | null }) {
               {happened.length === 0 && <p className="notif-empty">Nothing new. JADE tells you here when a decision is yours, when work finishes, and when something needs attention.</p>}
               {happened.map((n) => (
                 <Link key={n.id} className={`notif-item notif-${n.kind}${n.unread ? " unread" : ""}`}
-                      to={n.storyId ? storyPath(n.storyId, n.tab ?? undefined) : "/work"} onClick={() => setOpen(false)}>
+                      to={n.storyId ? (n.kind === "decision" ? storyPath(n.storyId, undefined, "next-action") : storyPath(n.storyId, n.tab ?? undefined, n.tab === "outcome" ? "outcome" : undefined)) : "/work"} onClick={() => setOpen(false)}>
                   <span className="notif-title">{n.unread && <span className="notif-dot" aria-label="new" />}{HAPPENED_LABEL[n.kind] ?? n.kind} · {timeAgo(n.at)}</span>
                   <span className="notif-story">{n.title}</span>
                   <span className="notif-text">{n.text}</span>

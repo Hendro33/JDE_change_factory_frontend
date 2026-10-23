@@ -168,9 +168,14 @@ function IssueRow({ issue, change, onChange, statedAbove }: { issue: Issue; chan
       {/* Already the next step at the top of the page: its actions stay here, its text is not repeated. */}
       <div className="issue-title">{statedAbove && !r ? <span className="muted">The next step above</span> : issue.title}</div>
       {issue.consequence && !statedAbove && <div className="issue-consequence">{issue.consequence}</div>}
-      {issue.kind === "business" && issue.source === "architect" && issue.action && !r && !statedAbove && <div className="issue-options"><strong>Options: </strong>{issue.action}</div>}
+      {(issue.options?.length ?? 0) > 1 && !r && !statedAbove && (
+        <div className="issue-options"><strong>Options</strong>
+          <ul>{issue.options!.map((o) => <li key={o}>{o}{resolvable && <> <button className="linkbtn" disabled={busy}
+            onClick={() => { setAnswer(o); setOpen(true); }}>Choose</button></>}</li>)}</ul>
+        </div>
+      )}
       {issue.proposedAnswer && !r && <div className="issue-proposal"><strong>JADE recommends: </strong>{issue.proposedAnswer}</div>}
-      {issue.kind === "jade" && <div className="issue-note">JADE handles this itself; nobody needs to act.</div>}
+      {issue.kind === "jade" && <div className="issue-note">{issue.returned ? "Returned to JADE: it reads this in DEV on the next run; nobody is asked." : "JADE handles this itself; nobody needs to act."}</div>}
       {issue.source === "delivery_gate" && !statedAbove && <div className="issue-note">{issue.action} This clears by itself once the cause is fixed.</div>}
       {r && (
         <div className="issue-answer">
@@ -286,12 +291,13 @@ export function AcceptanceList({ change }: { change: Change }) {
   return (
     <>
       <p className="acstatus">
-        <span className={`tag ${confirmed ? "info" : ""}`}>{confirmed ? `Confirmed by ${ap!.approvedBy}` : "Proposed by JADE, not confirmed yet"}</span>{" "}
+        <span className={`tag ${confirmed ? "info" : ""}`}>{confirmed ? `Approved with the story by ${ap!.approvedBy}` : "Proposed by JADE; approved with the story"}</span>{" "}
         <span className={`tag ${test === "passed" ? "ok" : test === "failed" ? "stop" : ""}`}>
           {test === "passed" ? "Test recorded: passed" : test === "failed" ? "Test recorded: did not pass" : "Not tested yet"}</span>
         <span className="muted explain"> Acceptance criteria are requirements. A test result is shown only once a test is recorded, and it covers the change as a whole.</span>
       </p>
-      <ol className="aclist">{acs.map((a) => <li key={a.id}><span className="mono muted">{a.id}</span> {a.text}</li>)}</ol>
+      {/* No internal ids on business screens (register M3). */}
+      <ol className="aclist">{acs.map((a) => <li key={a.id}>{a.text}</li>)}</ol>
     </>
   );
 }

@@ -250,6 +250,10 @@ export interface Issue {
   actionId?: string | null;
   blocks: boolean;
   proposedAnswer: string;
+  /** A decision's real alternatives (register E4). */
+  options?: string[];
+  /** Returned to the Architect: JADE reads it; nobody is asked (register E6). */
+  returned?: boolean;
   source: "architect" | "design_evidence" | "design_quality" | "delivery_gate" | "lifecycle" | "story";
   tab: WorkspaceTab;
   resolution?: IssueResolution | null;
