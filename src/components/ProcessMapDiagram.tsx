@@ -7,7 +7,7 @@ import type { MapContent, MapStep } from "../services/processApi";
  */
 const W = 190, H = 58, GX = 36, GY = 54, PAD = 20;
 
-function layers(content: MapContent): Map<string, number> {
+export function layers(content: MapContent): Map<string, number> {
   const ids = content.steps.map((s) => s.id);
   const incoming = new Map(ids.map((id) => [id, 0]));
   content.connections.forEach((c) => incoming.set(c.to, (incoming.get(c.to) ?? 0) + 1));

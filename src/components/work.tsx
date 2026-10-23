@@ -204,14 +204,18 @@ export function ValueStatusTag({ status }: { status: ValueStatus }) {
   return <Tag tone={VALUE_TONE[status]}>{VALUE_LABEL[status]}</Tag>;
 }
 
-export function ResultSummary({ change, title = "JADE's conclusion" }: { change: Change; title?: string }) {
+export function ResultSummary({ change, title = "JADE's conclusion", hideConclusion = false }: {
+  change: Change; title?: string;
+  /** When the decision card above already states the conclusion. */
+  hideConclusion?: boolean;
+}) {
   const r = change.architectDecision?.result;
   if (!r && !change.architectDecision) return null;
-  const conclusion = r?.conclusion || change.architectDecision?.existingFunctionalityFound || "";
+  const conclusion = hideConclusion ? "" : r?.conclusion || change.architectDecision?.existingFunctionalityFound || "";
   const changes = r?.changes ?? [];
   return (
     <section className="result" aria-label={title}>
-      <h3 className="result-title">{title}</h3>
+      <h3 className="result-title">{hideConclusion ? "The change in detail" : title}</h3>
       {conclusion && <p className="result-conclusion">{conclusion}</p>}
       {changes.length > 0 && (
         <table className="beforeafter">

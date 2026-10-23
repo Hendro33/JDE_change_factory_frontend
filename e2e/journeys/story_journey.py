@@ -74,7 +74,10 @@ with sync_playwright() as p:
           and "PDOCTYPE = SW" in full)
     check("before approval, the current values are announced as read at approval (never shown as empty)",
           "read live from JD Edwards when the change is approved" in full)
-    act(pg, ("click", "Approve exact change"), ("confirm", "Approve exact change"), ("wait", 3000))
+    check("the decision is one card: JADE's recommendation and 'Authorise implementation'",
+          "decision needed" in full.lower() and "Authorise implementation" in full)
+    act(pg, ("click", "Authorise implementation"), ("confirm", "Authorise implementation"), ("wait", 3000),
+        ("summary", "The exact change, as authorised"))
     full = pg.inner_text("main")
     check("approving reads the current values live and shows them",
           "S3" in full and "does not exist yet" in full and "read when approved: live AIS read" in full)
@@ -106,7 +109,17 @@ with sync_playwright() as p:
     check("the approved test Orchestration runs live and passes", "ran live" in full and "Passed" in full)
     pg.context.close()
 
-    pg, step, full = as_(b, "am", path, ("link", "Open in As-Built"), ("click", "Generate the as-built record"),
+    # Verified in DEV is not accepted: the Domain Owner checks the outcome and accepts it.
+    pg, step, full = as_(b, "do", path, ("link", "Check and accept the outcome"))
+    check("the Domain Owner sees the outcome: verified in DEV, waiting for the business",
+          "Verified in DEV" in full and "Waiting for the business" in full and "Accept the outcome" in full)
+    act(pg, ("click", "Accept the outcome"), ("click", "Accept the outcome"), ("wait", 2500))
+    full = pg.inner_text("main")
+    check("the business accepts the outcome; release follows with Application Management",
+          "Accepted. Application Management hands it over for release" in full)
+    pg.context.close()
+
+    pg, step, full = as_(b, "am", path, ("link", "Open in Delivery"), ("click", "Generate the as-built record"),
                          ("wait", 2500), ("click", "Finalise and complete the story"), ("wait", 3000))
     check("every delivery checkpoint is complete and the as-built record is final",
           "Every required delivery checkpoint is complete" in full and "final" in full)

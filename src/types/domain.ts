@@ -889,7 +889,15 @@ export const PHASES: { key: Phase; label: string }[] = [
 
 export type Health = "in_progress" | "waiting_decision" | "waiting" | "blocked" | "failed" | "done" | "closed";
 export type ActionOwner = "jade" | "domain_owner" | "product_manager" | "cnc_operator" | "admin" | "none";
-export type WorkspaceTab = "overview" | "story" | "solution" | "delivery" | "evidence" | "technical";
+/**
+ * Story tabs. The business view (/stories/:id) has story, changes, progress
+ * and evidence ("History"); the application view (/am/changes/:id) has
+ * solution, delivery, evidence, technical and record. "overview" and
+ * "outcome" are kept for links that use them (overview -> story,
+ * outcome -> progress).
+ */
+export type WorkspaceTab = "overview" | "story" | "solution" | "delivery" | "evidence" | "technical"
+  | "outcome" | "changes" | "progress" | "record";
 
 export interface NextAction {
   kind: "decision" | "task" | "none";
@@ -923,6 +931,65 @@ export interface Lifecycle {
   issues: Issue[];
   /** At most five lines, the next action first. */
   whatNext: WorkLine[];
+  /** Who does what in delivery, in order (agents, people, implementers, CNC, business, release). */
+  workItems: WorkItem[];
+  /** At the end: what changed, what was verified, and the three outcomes kept apart. */
+  outcomeCard?: OutcomeCard | null;
+  handoffAuthorised: boolean;
+  /** While JADE works: what it is reading right now. */
+  activity: string;
+}
+
+export type WorkOwnerKind = "agent" | "person" | "implementer" | "cnc" | "business" | "release" | "jade";
+export type WorkState = "todo" | "in_progress" | "done" | "failed" | "blocked" | "not_needed";
+
+export interface WorkItem {
+  id: string;
+  title: string;
+  ownerKind: WorkOwnerKind;
+  who: string;
+  state: WorkState;
+  detail: string;
+  dependsOn: string[];
+  action?: string | null;
+  group: "configuration" | "development" | "handoff" | "verification" | "acceptance" | "release";
+  completedBy: string;
+  completedAt: string;
+  evidenceReference: string;
+}
+
+export interface OutcomeStep { done: boolean; by: string; at: string; detail: string }
+
+export interface OutcomeCard {
+  headline: string;
+  whatChanged: string[];
+  verified: string[];
+  devVerified: OutcomeStep;
+  businessAccepted: OutcomeStep;
+  released: OutcomeStep;
+  notAccepted?: OutcomeStep | null;
+  whatToDoNow: string;
+  jiraKey: string;
+  jiraUrl: string;
+}
+
+/** GET /changes/{id}/handoff (snake_case: the backend's own record). */
+export interface HandoffItem {
+  id: string; position: number; text: string; design_revision: number; implementer: string;
+  completion: null | { implementer: string; evidence_reference: string; note: string; by: string; at: string };
+}
+export interface HandoffSpecification {
+  story_id: string; title: string; design_revision: number; route: string; need: string; conclusion: string;
+  changes: ResultChange[]; steps: string[]; handoff_items: { id: string; text: string; implementer: string }[];
+  objects: string[]; acceptance_criteria: { id: string; text: string }[]; validation: string; rollback: string;
+  answers: { question: string; answer: string; by: string; at: string }[]; uncertainty: string[];
+  authorisation: null | { kind: string; by: string; at: string }; generated_at: string; sha256: string;
+}
+export interface HandoffView {
+  route: string | null; design_revision: number | null; items: HandoffItem[];
+  authorisation: null | { kind: string; by: string; at: string; design_revision?: number };
+  verification: null | { passed: boolean; note: string; evidence_reference: string; by: string; at: string };
+  all_complete?: boolean; specification: HandoffSpecification | null;
 }
 
 /** GET /work — what needs the signed-in person, from the canonical lifecycle. */

@@ -892,3 +892,141 @@ a.iconbtn.on { color: var(--jade-deep); border-color: var(--jade); box-shadow: i
 .runoutput summary { cursor: pointer; font-size: 13px; color: var(--jade-dark); }
 .runoutput-text { white-space: pre-wrap; word-break: break-word; max-height: 420px; overflow: auto; background: var(--wash);
   padding: 10px; border-radius: 8px; font-size: 12.5px; max-width: 720px; }
+
+/* ---------------------------------------------------------------- */
+/* Reference journey (redesign step 2): business view, application   */
+/* view, decision, outcome, work items, process swimlane.            */
+/* Status is always words + an icon; colour only reinforces it.      */
+/* ---------------------------------------------------------------- */
+.titlebar { position: relative; padding-bottom: 10px; }
+.titlebar::after { content: ""; position: absolute; left: 0; bottom: 0; width: 44px; height: 4px; border-radius: 2px; background: var(--brand); }
+.btn.strong { background: var(--ink); border-color: var(--ink); color: #fff; }
+.btn.strong:hover { background: #000; color: #fff; }
+.section-kicker { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+.storyheader.compact h1 { font-size: 26px; margin: 4px 0 10px; }
+.storyheader.compact .storyheader-state { flex-wrap: wrap; gap: 14px; }
+
+/* The decision: one focal point per screen. */
+.decision { background: #FFFDF3; border: 1px solid #F1E2A0; border-left: 5px solid var(--brand); border-radius: var(--radius-lg);
+  padding: 20px 22px; margin-bottom: 16px; }
+.decision.waiting { background: var(--panel); border-color: var(--line); border-left-color: var(--stop); }
+.decision.decided { background: var(--jade-pale); border-color: #cfe7db; border-left-color: var(--jade); padding: 14px 20px; }
+.decision-kicker { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #7A6200; margin-bottom: 6px; }
+.decision.waiting .decision-kicker { color: var(--stop); }
+.decision.decided .decision-kicker { color: var(--jade-deep); }
+.decision-title { font-size: 19px; font-weight: 750; line-height: 1.4; max-width: 72ch; margin: 0 0 8px; }
+.decision-effect { font-size: 14.5px; max-width: 80ch; margin: 0 0 14px; }
+.decision .btnrow { margin-top: 12px; }
+.solution-main .route-line { margin-bottom: 10px; font-size: 14px; }
+.route-title { font-weight: 800; color: var(--jade-deep); }
+.designbasis { font-size: 13.5px; color: var(--ink-soft); border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; }
+.solutionview > .panel, .solutionview > details, .solutionview > #ask { margin-bottom: 16px; }
+.solution-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 24px; }
+.solution-grid h4, .solutionview details h4 { margin: 14px 0 6px; font-size: 14px; }
+.rerun-row { margin: 8px 0 16px; }
+.ar-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.crumbs-aside .btn.small { text-decoration: none; }
+
+/* JADE at work: a calm live line, with the faceted mark as its signature. */
+.jadeatwork { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--jade-deep); color: #fff;
+  border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 16px; }
+.jadeatwork-text { font-weight: 700; }
+.jadeatwork-now { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; color: #CFEBDD; }
+.facet { display: inline-flex; gap: 3px; }
+.facet i { width: 9px; height: 14px; background: var(--brand); clip-path: polygon(50% 0, 100% 30%, 100% 70%, 50% 100%, 0 70%, 0 30%);
+  animation: facet 1.4s ease-in-out infinite; opacity: .35; }
+.facet i:nth-child(2) { animation-delay: .2s; } .facet i:nth-child(3) { animation-delay: .4s; }
+@keyframes facet { 0%, 100% { opacity: .35; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
+.nextcard.working .jadeatwork { margin: 0; }
+
+/* Work items */
+.workitems { margin: 4px 0 8px; }
+.workgroup-block { margin-bottom: 14px; }
+.workgroup-label { font-size: 13px; font-weight: 800; color: var(--ink-soft); margin: 6px 0; }
+.worklist, .workgroups { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.workitem, .workgroup { display: grid; grid-template-columns: 130px 1fr minmax(150px, 220px) auto; gap: 12px; align-items: baseline;
+  padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; }
+.workgroup { grid-template-columns: 130px 1fr minmax(150px, 260px); }
+.wi-state { font-weight: 700; font-size: 13.5px; color: var(--muted); white-space: nowrap; }
+.s-done .wi-state { color: var(--ok); } .s-failed .wi-state, .s-blocked .wi-state { color: var(--stop); } .s-in_progress .wi-state { color: var(--info); }
+.wi-main { display: flex; flex-direction: column; gap: 2px; }
+.wi-title { font-weight: 650; }
+.wi-detail, .wi-after { font-size: 13px; color: var(--muted); }
+.wi-who { font-size: 13.5px; color: var(--ink-soft); display: flex; flex-direction: column; }
+.wi-kind { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 700; }
+
+/* Outcome: the business-readable end of the story. */
+.outcome { background: var(--panel); border: 1px solid var(--line); border-top: 5px solid var(--jade); border-radius: var(--radius-lg);
+  padding: 20px 22px; margin: 4px 0 20px; }
+.outcome.complete { background: linear-gradient(180deg, var(--jade-pale), var(--panel) 120px); }
+.outcome-kicker { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--jade-deep); }
+.outcome-headline { font-size: 18px; font-weight: 750; line-height: 1.4; max-width: 72ch; margin: 6px 0 14px; }
+.osteps { list-style: none; padding: 0; margin: 0 0 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.ostep { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; display: grid; grid-template-columns: 22px 1fr; column-gap: 6px; }
+.ostep-icon { grid-row: span 2; font-weight: 800; color: var(--muted); }
+.ostep.done { border-color: #bfe0c8; background: var(--ok-bg); } .ostep.done .ostep-icon { color: var(--ok); }
+.ostep.failed { border-color: #f0c4c0; background: var(--stop-bg); } .ostep.failed .ostep-icon { color: var(--stop); }
+.ostep-label { font-weight: 700; font-size: 14px; }
+.ostep-detail { font-size: 12.5px; color: var(--muted); }
+.outcome-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 24px; }
+.outcome-grid h4 { margin: 0 0 4px; font-size: 13.5px; } .outcome-grid ul { margin: 0 0 10px; padding-left: 18px; font-size: 14px; }
+.outcome-now { font-size: 14.5px; }
+.outcome-refused { background: var(--stop-bg); border-radius: var(--radius); padding: 8px 12px; font-size: 14px; }
+.outcome-form { max-width: 640px; margin-top: 10px; }
+.outcome-form input, .outcome-form textarea, .handoff-form input, .handoff-controls input, .handoff-verify textarea, .handoff-verify input {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 8px; }
+.outcome-foot { display: flex; gap: 18px; align-items: center; margin-top: 14px; padding-top: 10px; font-size: 13.5px;
+  border-top: 2px solid transparent; border-image: repeating-linear-gradient(90deg, var(--brand) 0 14px, transparent 14px 22px) 1; }
+
+/* Process swimlane */
+.swim-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.segmented { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; overflow: hidden; }
+.segmented button { border: 0; background: var(--panel); padding: 5px 14px; font-size: 13.5px; cursor: pointer; }
+.segmented button.on { background: var(--jade-deep); color: #fff; font-weight: 700; }
+.segmented button:disabled { color: var(--line-strong); cursor: not-allowed; }
+.swim-summary { font-size: 14px; color: var(--ink-soft); margin: 6px 0 10px; }
+.swim-scroll { overflow-x: auto; }
+.swimlane { border-collapse: collapse; min-width: 100%; }
+.swim-lane { text-align: left; vertical-align: top; font-size: 13px; font-weight: 800; color: var(--ink-soft); padding: 10px 12px 10px 0;
+  width: 140px; border-top: 1px solid var(--line); white-space: nowrap; }
+.swim-cell { vertical-align: top; padding: 8px 6px; border-top: 1px solid var(--line); min-width: 170px; }
+.swim-step { border: 1.5px solid var(--line-strong); border-radius: 8px; padding: 8px 10px; background: var(--panel); margin-bottom: 6px;
+  display: flex; flex-direction: column; gap: 3px; font-size: 13.5px; }
+.swim-step.t-decision { border-radius: 14px; }
+.swim-step.m-changed, .swim-step.m-new { border-color: var(--jade); box-shadow: inset 4px 0 0 var(--jade); background: var(--jade-pale); }
+.swim-step.assumed { border-style: dashed; }
+.swim-label { font-weight: 650; }
+.swim-system { font-size: 12px; color: var(--muted); }
+.swim-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.swim-tag { font-size: 11.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--wash); color: var(--ink-soft); }
+.swim-tag.changed { background: var(--jade); color: #fff; }
+.swim-tag.assumed { background: var(--warn-bg); color: var(--warn); }
+.swim-tag.ac { background: var(--brand-pale); color: var(--brand-ink); }
+.swim-acs { list-style: none; padding: 0; margin: 12px 0 0; font-size: 14px; display: grid; gap: 4px; }
+.swim-legend { margin-top: 8px; }
+
+/* Hand-offs */
+.handoff-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.handoff-items { list-style: none; padding: 0; margin: 8px 0; border-top: 1px solid var(--line); }
+.handoff-item { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.handoff-line { display: flex; gap: 12px; align-items: baseline; }
+.handoff-item.done .wi-state { color: var(--ok); }
+.handoff-text { font-weight: 650; }
+.handoff-controls { display: flex; gap: 8px; align-items: center; margin-top: 8px; max-width: 640px; }
+.handoff-form { max-width: 640px; margin-top: 8px; }
+.handoff-verify { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; margin-top: 12px; }
+.handoff-verify legend { font-weight: 800; padding: 0 6px; }
+.handoff-verified { color: var(--ok); font-weight: 650; margin-top: 10px; }
+.evidence-list { margin: 0; padding-left: 18px; font-size: 14px; display: grid; gap: 4px; }
+
+/* Ask JADE: what a proposed update would change. */
+.amend-diff { list-style: none; padding: 0; margin: 4px 0 8px; font-size: 13.5px; }
+.amend-diff .add { color: var(--ok); } .amend-diff .del { color: var(--stop); text-decoration: line-through; }
+
+@media (max-width: 760px) {
+  .workitem, .workgroup { grid-template-columns: 1fr; gap: 2px; }
+  .osteps { grid-template-columns: 1fr; }
+  .handoff-controls { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) { .facet i { animation: none; opacity: 1; } }
+.swim { margin-top: 24px; }

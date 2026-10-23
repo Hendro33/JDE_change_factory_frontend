@@ -6,6 +6,8 @@ import { ErrorState, JadeWorking, useSessionInfo } from "../../components/design
 import { Link, storyPath } from "../../router";
 import type { StoryCtx } from "./storyContext";
 import { WhatNeedsToHappen } from "../../components/work";
+import { JadeAtWorkLine } from "../../components/journey";
+import { changePath, workPath } from "./useStory";
 
 type Dialog = { title: string; intro?: ReactNode; next: string; confirm: string; tone: "primary" | "danger"; requireNote: boolean;
   reasonCode?: boolean; run: (note: string, reason?: string) => Promise<unknown> } | null;
@@ -54,7 +56,8 @@ function canOwn(owner: NextAction["owner"], has: (...r: CompanyRole[]) => boolea
  * is being decided, why it matters, and what happens either way -- and
  * performs the real, governed action.
  */
-export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
+/** inApp: shown in the application view, where the decision and the delivery steps are on its own tabs. */
+export function NextActionCard({ ctx, inApp = false }: { ctx: StoryCtx; inApp?: boolean }) {
   const { change, reload } = ctx;
   const info = useSessionInfo();
   const lc = change.lifecycle;
@@ -97,7 +100,8 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
         <div className="nextcard-kicker">{title}</div>
         <div className="nextcard-summary">{na.summary}</div>
         {lc.openItems.length > 0 && <ul className="nextcard-items">{lc.openItems.map((i) => <li key={i}>{i}</li>)}</ul>}
-        {lc.outcome === "delivered" && <Link to={storyPath(change.id, "delivery", "release")}>View the delivery and as-built record</Link>}
+        {lc.outcome === "delivered" && <Link to={workPath(change.id, inApp ? "delivery" : "progress", info.appManagement, inApp ? "release" : "outcome")}>
+          {inApp ? "View the delivery and as-built record" : "View the outcome"}</Link>}
       </section>
     );
   }
@@ -106,7 +110,7 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
   if (na.owner === "jade") {
     return (
       <section className="nextcard working" id="next-action" aria-label="Next action">
-        <JadeWorking>{na.summary}</JadeWorking>
+        <JadeAtWorkLine lifecycle={lc} />
         <div className="nextcard-note">No action is required from you. This page updates by itself.</div>
       </section>
     );
@@ -135,9 +139,9 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
   // the original process: the Domain Owner's in User Story Review, the
   // Application Manager's in Application Management. The card says what is
   // needed and opens the right screen on this story.
-  const gate = na.action ? gateFor(na.action, change.id) : undefined;
+  const gate = na.action ? gateFor(na.action, change.id, inApp) : undefined;
   let controls: ReactNode = null;
-  if (gate) controls = <Link className="btn primary" to={gate.to}>Open in {gate.screen}</Link>;
+  if (gate) controls = <Link className="btn primary" to={gate.to}>{inApp && gate.screen === "the decision below" ? "Go to the decision" : `Open in ${gate.screen}`}</Link>;
   else switch (na.action) {
     case "start_analysis":
       controls = <button className="btn primary" disabled={busy} onClick={() => act(() => api.enhanceStory(change.id))}>{busy ? "Starting…" : "Start analysis"}</button>;
@@ -160,18 +164,23 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
       controls = <button className="btn primary" disabled={busy} onClick={() => act(() => api.retriggerArchitectureReview(change.id))}>Run solutioning</button>;
       break;
     case "clarify":
-      controls = <Link className="btn primary" to={storyPath(change.id, "story", "ask")}>Answer JADE's question</Link>;
+      controls = <Link className="btn primary" to={workPath(change.id, "story", info.appManagement, "ask")}>Answer JADE's question</Link>;
       break;
     case "answer_issue":
     case "decide_issue":
-      controls = <Link className="btn primary" to={storyPath(change.id, na.tab === "story" ? "story" : "solution", "open-points")}>
+      controls = <Link className="btn primary" to={workPath(change.id, na.tab === "story" || !info.appManagement ? "changes" : "solution", info.appManagement, "open-points")}>
         {na.action === "decide_issue" ? "Decide" : "Answer the question"}</Link>;
+      break;
+    case "accept_outcome":
+      controls = <Link className="btn primary" to={storyPath(change.id, "progress", "outcome")}>
+        {info.has("domain_owner") ? "Check and accept the outcome" : "Record the business acceptance"}</Link>;
       break;
     case "admin_setup":
       controls = info.has("admin") ? <Link className="btn primary" to="/admin/setup-list">Open the setup list</Link> : null;
       break;
     default:
-      controls = na.tab !== "overview" ? <Link className="btn" to={storyPath(change.id, na.tab)}>Open</Link> : null;
+      controls = na.tab !== "overview" && !(inApp && na.tab === "solution")
+        ? <Link className="btn" to={workPath(change.id, na.tab, info.appManagement)}>Open</Link> : null;
   }
 
   const isDecision = na.kind === "decision";
@@ -212,7 +221,7 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
         </div>
       )}
       {isDecision && (
-        <Link className="asklink" to={storyPath(change.id, na.tab === "story" ? "story" : "solution", "ask")}>
+        <Link className="asklink" to={workPath(change.id, na.tab === "story" ? "story" : "solution", info.appManagement, "ask")}>
           Ask JADE about this {na.tab === "story" ? "story" : "solution"}…
         </Link>
       )}
@@ -232,32 +241,40 @@ export function NextActionCard({ ctx }: { ctx: StoryCtx }) {
   );
 }
 
-/** Where each gate decision or delivery step is taken (the original screens). */
-const GATES: Record<string, { screen: string; path: string }> = {
+/** Where each gate decision or delivery step is taken. The application view
+ * holds the solution decision and the delivery steps; the story gates keep
+ * their own screens. */
+const GATES: Record<string, { screen: string; path?: string; tab?: "solution" | "delivery"; anchor?: string }> = {
   review_story: { screen: "User Story Review", path: "/stories/review" },
   authorise_delivery: { screen: "Backlog Review", path: "/am/backlog-review" },
-  approve_exact_change: { screen: "Architecture Review", path: "/am/architecture-review" },
-  approve_design: { screen: "Architecture Review", path: "/am/architecture-review?view=design" },
-  approve_package: { screen: "Delivery", path: "/am/technical" },
-  start_technical_prepare: { screen: "Delivery", path: "/am/technical" },
-  start_technical_repair: { screen: "Delivery", path: "/am/technical" },
-  record_technical_apply: { screen: "Delivery", path: "/am/technical" },
-  record_technical_build: { screen: "Delivery", path: "/am/technical" },
-  record_cnc: { screen: "Delivery", path: "/am/technical" },
-  record_technical_verify: { screen: "Delivery", path: "/am/technical" },
-  record_applied: { screen: "Delivery", path: "/am/technical" },
-  run_agents_or_record: { screen: "Delivery", path: "/am/technical" },
-  agents_running: { screen: "Delivery", path: "/am/technical" },
-  reconcile_item: { screen: "Delivery", path: "/am/technical" },
-  run_or_record_test: { screen: "Delivery", path: "/am/technical" },
-  reconcile_technical: { screen: "Delivery", path: "/am/technical" },
-  reconcile_functional: { screen: "Architecture Review", path: "/am/architecture-review" },
-  finalise_asbuilt: { screen: "As-Built", path: "/am/as-built" },
+  approve_exact_change: { screen: "Architecture Review", path: "/am/architecture-review", tab: "solution", anchor: "decision" },
+  approve_design: { screen: "Architecture Review", path: "/am/architecture-review", tab: "solution", anchor: "decision" },
+  authorise_handoff: { screen: "Architecture Review", path: "/am/architecture-review", tab: "solution", anchor: "decision" },
+  approve_package: { screen: "Delivery", tab: "delivery", anchor: "work" },
+  start_technical_prepare: { screen: "Delivery", tab: "delivery", anchor: "work" },
+  start_technical_repair: { screen: "Delivery", tab: "delivery", anchor: "work" },
+  record_technical_apply: { screen: "Delivery", tab: "delivery", anchor: "work" },
+  record_technical_build: { screen: "Delivery", tab: "delivery", anchor: "work" },
+  record_cnc: { screen: "Delivery", tab: "delivery", anchor: "work" },
+  record_technical_verify: { screen: "Delivery", tab: "delivery", anchor: "work" },
+  record_applied: { screen: "Delivery", tab: "delivery", anchor: "work" },
+  run_agents_or_record: { screen: "Delivery", tab: "delivery", anchor: "work" },
+  agents_running: { screen: "Delivery", tab: "delivery", anchor: "work" },
+  reconcile_item: { screen: "Delivery", tab: "delivery", anchor: "work" },
+  run_or_record_test: { screen: "Delivery", tab: "delivery", anchor: "work" },
+  reconcile_technical: { screen: "Delivery", tab: "delivery", anchor: "work" },
+  reconcile_functional: { screen: "Delivery", tab: "delivery", anchor: "work" },
+  record_handoff: { screen: "Delivery", tab: "delivery", anchor: "handoff" },
+  record_handoff_verification: { screen: "Delivery", tab: "delivery", anchor: "handoff" },
+  finalise_asbuilt: { screen: "Delivery", tab: "delivery", anchor: "release" },
 };
 
-export function gateFor(action: string, storyId: string): { screen: string; to: string } | undefined {
+export function gateFor(action: string, storyId: string, inApp = false): { screen: string; to: string } | undefined {
   const g = GATES[action];
-  return g && { screen: g.screen, to: `${g.path}${g.path.includes("?") ? "&" : "?"}story=${encodeURIComponent(storyId)}` };
+  if (!g) return undefined;
+  if (g.tab && (inApp || !g.path)) return { screen: inApp ? (g.tab === "solution" ? "the decision below" : "Delivery") : g.screen,
+    to: changePath(storyId, g.tab, g.anchor) };
+  return { screen: g.screen, to: `${g.path}${g.path!.includes("?") ? "&" : "?"}story=${encodeURIComponent(storyId)}` };
 }
 
 /** The exact functional change in one readable line (decision dialogs, Solution tab). */

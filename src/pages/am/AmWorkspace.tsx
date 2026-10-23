@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { ValidationWorkspace } from "../validation/Validation";
 import { Link, match, navigate, useLocation } from "../../router";
 import { EmptyState, Tabs, useSessionInfo } from "../../components/design";
@@ -6,7 +7,7 @@ import { ApprovalBacklog } from "./ApprovalBacklog";
 import { ArchitectureReview } from "./ArchitectureReview";
 import { DeliveryQueuePage } from "./DeliveryQueue";
 import { Pipeline } from "./Pipeline";
-import { ChangeDetail } from "./ChangeDetail";
+import { ChangeView } from "./ChangeView";
 import { AsBuiltWorkbench, ProcessWorkbench, TechnicalWorkbench } from "./Workbenches";
 import { legacyNavigate, openChange, useNavTarget } from "./legacyNav";
 import { NotFoundPage } from "../NotFound";
@@ -28,6 +29,15 @@ const GROUPS: { label: string; items: { to: string; label: string; stage?: strin
   ] },
 ];
 
+function Redirect({ to }: { to: string }) {
+  useEffect(() => {
+    // Deferred: on a first page load the router subscribes to navigation after this effect runs.
+    const t = setTimeout(() => navigate(to, { replace: true }), 0);
+    return () => clearTimeout(t);
+  }, [to]);
+  return null;
+}
+
 export function AmWorkspace() {
   const info = useSessionInfo();
   const { path, query } = useLocation();
@@ -47,12 +57,14 @@ export function AmWorkspace() {
   if (path === "/am") page = <Dashboard onOpenChange={openChange} onNavigate={legacyNavigate} />;
   else if (match("/am/validation", path)) page = <ValidationWorkspace releaseOnly />;
   else if (match("/am/backlog-review", path)) page = <ApprovalBacklog {...target} />;
-  else if (match("/am/architecture-review", path) || path === "/am/process") page = <>
-    <Tabs label="Architecture Review sections" active={path === "/am/process" ? "process" : query.get("view") === "design" ? "design" : "review"}
-      hrefFor={(k) => `${k === "process" ? "/am/process" : "/am/architecture-review"}?${new URLSearchParams({...(query.get("story") ? {story: query.get("story")!} : {}), ...(k === "design" ? {view: "design"} : {})})}`}
-      tabs={[{key: "review", label: "Architecture Review"}, {key: "process", label: "Process & Maps"}, {key: "design", label: "Technical design"}]} />
-    {path === "/am/process" ? <ProcessWorkbench /> : query.get("view") === "design" ? <TechnicalWorkbench design /> : <ArchitectureReview {...target} onNavigate={legacyNavigate} />}
-  </>;
+  else if ((path === "/am/process" || (path === "/am/architecture-review" && query.get("view") === "design")) && query.get("story")) {
+    // The old Process & Maps and Technical design tabs: the process and the design decision now sit
+    // beside the solution in the change's application view.
+    page = <Redirect to={`/am/changes/${encodeURIComponent(query.get("story")!)}#${path === "/am/process" ? "process" : "decision"}`} />;
+  }
+  else if (path === "/am/process") page = <ProcessWorkbench />;
+  else if (match("/am/architecture-review", path) && query.get("view") === "design") page = <TechnicalWorkbench design />;
+  else if (match("/am/architecture-review", path)) page = <ArchitectureReview {...target} onNavigate={legacyNavigate} />;
   else if (["/am/delivery", "/am/delivery-queue", "/am/technical"].includes(path) || (path === "/am/changes" && (!query.get("stage") || query.get("stage") === "active"))) page = <>
     <Tabs label="Delivery sections" active={path === "/am/technical" ? "technical" : path === "/am/delivery-queue" ? "queue" : "active"}
       hrefFor={(k) => `${k === "technical" ? "/am/technical" : k === "queue" ? "/am/delivery-queue" : "/am/delivery"}${query.get("story") ? `?story=${encodeURIComponent(query.get("story")!)}` : ""}`}
@@ -61,7 +73,7 @@ export function AmWorkspace() {
   </>;
   else if (match("/am/as-built", path)) page = <AsBuiltWorkbench />;
   else if (match("/am/changes", path)) page = <Pipeline onOpenChange={openChange} {...target} />;
-  else if ((m = match("/am/changes/:id", path))) page = <ChangeDetail key={m.id} changeId={m.id} onBack={() => (window.history.length > 1 ? window.history.back() : navigate("/am/changes"))} />;
+  else if ((m = match("/am/changes/:id/:tab?", path))) page = <ChangeView key={m.id} changeId={m.id} tab={m.tab} />;
   else page = <NotFoundPage />;
 
   const stage = query.get("stage");

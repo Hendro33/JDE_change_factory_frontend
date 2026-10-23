@@ -1,447 +1,107 @@
-import { processApi, type Mapping } from "../../services/processApi";
-import { JadeWorking, useSessionInfo } from "../../components/design";
-import { StoryRatingsPanel } from "../../components/StoryRatings";
-import { ReviewFlow, ReviewDetail, BusinessContextMap, AcceptanceChecklist, QuestionCards, BacklogComparison, SolutionArchitectureMap, IntegrityPanel } from "../../components/visualReview";
-import { inAmStage } from "./workflow";
-import { Link, storyPath } from "../../router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../services/api";
-import { saveErrorMessage } from "../../services/saveErrors";
-import type { ArchitectureReviewRun, Change, DomainReview } from "../../types/domain";
-import { AskJadePanel } from "../../components/AskJade";
-import { ExecutionPanel } from "../../components/ExecutionPanel";
-import { DesignEvidencePanel } from "../../components/DesignEvidencePanel";
+import type { Change } from "../../types/domain";
+import { JadeWorking, Loading as DLoading } from "../../components/design";
 import { ChangeGrid, FilterBar, useChangeListControls, type GridColumn } from "../../components/WorkQueue";
-import { ConfirmDialog, Loading, PriorityBadge, Provenance } from "../../components/ui";
+import { Loading, PriorityBadge } from "../../components/ui";
 import type { Navigate, NavTarget } from "../../types/nav";
-import { JourneyBar } from "./JourneyBar";
-import { ExactChangeFacts, isChangeSet } from "../../components/ConfigurationItems";
-import { IssueList, ResultSummary, WhatNeedsToHappen } from "../../components/work";
+import { Link, setQueryParam } from "../../router";
+import { inAmStage } from "./workflow";
+import { SolutionView } from "./SolutionView";
+import { changePath, useStory } from "../stories/useStory";
 
 /**
- * Architecture Review — Gate 2. The Architect has already analysed the
- * JDE estate and proposed exactly one operation; a human reviews that
- * reasoning and either approves or rejects the specific write, before
- * anything reaches JD Edwards.
+ * Architecture Review -- the Application Manager's design decisions. The list
+ * is the queue: what waits for your authorisation first, then what waits for
+ * someone else, then JADE's work in progress. Selecting a change opens its one
+ * authoritative solution view (the same as the change record's Solution tab):
+ * the decision, JADE's conclusion, the open points with owners, the process,
+ * and "Why this solution" on demand.
  */
-export function ArchitectureReview({ navFilter, navToken, onNavigate }: Partial<NavTarget> & { onNavigate?: Navigate } = {}) {
-  const info = useSessionInfo();
-  const [mapping, setMapping] = useState<Mapping | null>(null);
+export function ArchitectureReview({ navFilter, navToken }: Partial<NavTarget> & { onNavigate?: Navigate } = {}) {
   const [changes, setChanges] = useState<Change[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"approve" | "reject" | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [decisionError, setDecisionError] = useState<string | null>(null);
-  const [domainReview, setDomainReview] = useState<DomainReview | null>(null);
-  const [run, setRun] = useState<ArchitectureReviewRun | null>(null);
-  const [showAnalysisHistory, setShowAnalysisHistory] = useState(false);
 
-  // Stories whose re-run was just requested here: shown as working at once,
-  // before the next refresh confirms it.
-  const [requested, setRequested] = useState<Set<string>>(new Set());
-  const isWorking = (c: Change) => c.lifecycle?.nextAction.owner === "jade" || requested.has(c.id);
-
-  // A proposal whose open points block authorisation says who it waits for.
-  const blockedBy = (c: Change) => {
+  const waitingOn = (c: Change) => {
     const lc = c.lifecycle;
-    if (!lc || lc.phase !== "solution_review" || c.changeApproval) return "";
-    if (lc.health === "blocked" && (lc.nextAction.action === "answer_issue" || lc.nextAction.action === "decide_issue"
-      || lc.nextAction.action === "admin_setup")) return lc.nextAction.ownerLabel || "an answer";
-    if (lc.nextAction.action === "rerun_solutioning" && (lc.issues ?? []).some((i) => i.resolution)) return "the reassessed design";
-    return "";
+    if (!lc || lc.phase !== "solution_review" || c.changeApproval?.status === "approved") return "";
+    return lc.health === "blocked" ? lc.nextAction.ownerLabel || "an answer" : "";
   };
+  const working = (c: Change) => c.lifecycle?.nextAction.owner === "jade";
+  const yours = (c: Change) => ["approve_exact_change", "approve_design", "authorise_handoff"].includes(c.lifecycle?.nextAction.action ?? "");
 
-  const reload = () => {
-    api.listChanges().then((all) => {
-      const queue = all.filter((c) => inAmStage(c, "architecture") || c.architectDecision || c.exactChange);
-      setChanges(queue);
-      setOpenId((cur) => (navFilter?.story && queue.some((c) => c.id === navFilter.story) ? navFilter.story
-        : cur && queue.some((c) => c.id === cur) ? cur : queue[0]?.id ?? null));
-    });
-  };
+  const load = () => api.listChanges().then((all) => {
+    const queue = all.filter((c) => inAmStage(c, "architecture") || c.architectDecision || c.exactChange);
+    setChanges(queue);
+    setOpenId((cur) => (navFilter?.story && queue.some((c) => c.id === navFilter.story) ? navFilter.story
+      : cur && queue.some((c) => c.id === cur) ? cur : queue.find(yours)?.id ?? queue[0]?.id ?? null));
+  });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(reload, [navToken]);
-
-  // While JADE works on any story in the list, refresh every few seconds so
-  // the page shows the result by itself.
-  const anyWorking = (changes ?? []).some(isWorking);
+  useEffect(() => { load(); }, [navToken]);
+  const anyWorking = (changes ?? []).some(working);
   useEffect(() => {
     if (!anyWorking) return;
-    const t = setInterval(() => {
-      api.listChanges().then((all) => {
-        const queue = all.filter((c) => inAmStage(c, "architecture") || c.architectDecision || c.exactChange);
-        setChanges(queue);
-        setRequested((cur) => {
-          // A request is confirmed (or finished) once the server reports it.
-          const next = new Set([...cur].filter((id) => {
-            const c = queue.find((q) => q.id === id);
-            return c && c.lifecycle?.nextAction.owner !== "jade" && Date.now() - (requestedAt.current[id] ?? 0) < 20000;
-          }));
-          return next.size === cur.size ? cur : next;
-        });
-      });
-      if (openId) api.getArchitectureReview(openId).then((r) => setRun(r ?? null));
-    }, 4000);
+    const t = setInterval(load, 5000);
     return () => clearInterval(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anyWorking, openId]);
-  const requestedAt = useRef<Record<string, number>>({});
-  const startRerun = async (id: string) => {
-    requestedAt.current[id] = Date.now();
-    setRequested((cur) => new Set(cur).add(id));
-    await api.retriggerArchitectureReview(id);
-  };
-
-  useEffect(() => {
-    if (!openId) { setDomainReview(null); setRun(null); return; }
-    api.getDomainReview(openId).then((r) => setDomainReview(r ?? null));
-    api.getArchitectureReview(openId).then((r) => setRun(r ?? null));
-  }, [openId]);
-
-  useEffect(() => {
-    let active = true; setMapping(null);
-    if (openId) processApi.story(openId).then((p) => { if(active) setMapping(p.mapping); }).catch(() => {});
-    return () => { active = false; };
-  }, [openId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anyWorking]);
 
   const columns: GridColumn[] = [
-    { key: "id", header: "Change", render: (c) => <span className="mono">{c.id}</span>, sortValue: (c) => c.id },
-    { key: "title", header: "Title", render: (c) => c.title, sortValue: (c) => c.title },
+    { key: "title", header: "Change", render: (c) => <><div>{c.title}</div><div className="mono muted">{c.id}</div></>, sortValue: (c) => c.title },
+    { key: "status", header: "Status", render: (c) =>
+      working(c) ? <JadeWorking>Architect at work</JadeWorking>
+        : c.changeApproval?.status === "approved" || c.lifecycle?.handoffAuthorised ? <span className="tag ok">✓ Authorised</span>
+        : c.changeApproval?.status === "rejected" ? <span className="tag stop">✕ Rejected</span>
+        : waitingOn(c) ? <span className="tag stop">■ Waiting for {waitingOn(c)}</span>
+        : yours(c) ? <span className="tag brand">◆ Your decision</span>
+        : <span className="tag">{c.lifecycle?.phaseLabel ?? "—"}</span> },
     { key: "route", header: "Route", render: (c) => c.architectDecision?.recommendedRoute ?? <span className="notstated">not decided</span> },
-    { key: "decision", header: "Exact change", render: (c) =>
-      isWorking(c) ? <JadeWorking>Architect at work</JadeWorking>
-        : c.changeApproval?.status === "approved" ? <span className="badge ok">Approved</span>
-        : c.changeApproval?.status === "rejected" ? <span className="badge stop">Rejected</span>
-        : blockedBy(c) ? <span className="badge stop">Waiting for {blockedBy(c)}</span>
-        : c.exactChange ? <span className="badge warn">Awaiting your decision</span>
-        : <span className="badge grey">Not proposed yet</span> },
     { key: "priority", header: "Priority", render: (c) => <PriorityBadge priority={c.priority} /> },
   ];
-
-  const { search, setSearch, sortKey, sortDir, onSortChange, filtered } = useChangeListControls(
-    changes ?? [], columns, (c) => `${c.id} ${c.title}`
-  );
-
-  // Awaiting-decision items first — that's the actual work on this screen.
-  const awaiting = (c: Change) => !!c.exactChange && !c.changeApproval && !blockedBy(c);
-  const sorted = [...filtered].sort((a, b) => Number(!awaiting(a)) - Number(!awaiting(b)));
-
-  const open = changes?.find((c) => c.id === openId) ?? null;
-  const ec = open?.exactChange;
-  const decided = open?.changeApproval?.status === "approved" || open?.changeApproval?.status === "rejected";
-  // Prefer the Architecture Review run's own "current" fields (kept in
-  // sync with history's newest entry) over the Change's own static
-  // copy -- the run reflects a re-analysis immediately, the Change
-  // record only on its next full reload.
-  const architectDecision = run?.architectDecision ?? open?.architectDecision;
-  const implementationSpec = run?.implementationSpec ?? open?.implementationSpec;
+  const { search, setSearch, sortKey, sortDir, onSortChange, filtered } = useChangeListControls(changes ?? [], columns, (c) => `${c.id} ${c.title}`);
+  const rank = (c: Change) => (yours(c) && !waitingOn(c) ? 0 : waitingOn(c) ? 1 : working(c) ? 2 : 3);
+  const sorted = sortKey ? filtered : [...filtered].sort((a, b) => rank(a) - rank(b));
+  const mine = (changes ?? []).filter((c) => yours(c) && !waitingOn(c)).length;
+  const waiting = (changes ?? []).filter((c) => !!waitingOn(c)).length;
 
   return (
     <div className="vr-pilot">
       <div className="pagehead">
         <div>
-          <h1>Architecture Review</h1>
-          <div className="sub">
-            Review the proposed solution, its effects and the exact change to approve.
-          </div>
+          <h1 className="titlebar">Architecture Review</h1>
+          <div className="sub">JADE's proposed solutions, and the decisions they need from you.</div>
         </div>
-        <div className="meta">
-          {changes?.filter(awaiting).length ?? 0} awaiting your decision
-          {(changes?.filter((c) => !!blockedBy(c)).length ?? 0) > 0 && <> · {changes!.filter((c) => !!blockedBy(c)).length} waiting for an answer</>}
-        </div>
+        <div className="meta">{mine} waiting for your authorisation{waiting ? ` · ${waiting} waiting for an answer` : ""}</div>
       </div>
-
-      {changes && changes.length > 0 && (
-        <FilterBar search={search} onSearchChange={setSearch} searchPlaceholder="Search by ID or title" selects={[]} />
-      )}
-
+      {changes && changes.length > 0 && <FilterBar search={search} onSearchChange={setSearch} searchPlaceholder="Search by ID or title" selects={[]} />}
       {!changes ? <Loading what="changes under architecture review" /> : (
         <section className="panel" style={{ marginBottom: 16 }}>
-          <ChangeGrid
-            changes={sorted}
-            columns={columns}
-            onRowClick={setOpenId}
-            selectedId={openId}
-            emptyMessage="Nothing here yet. A change arrives once Backlog Review has approved it for delivery and the Architect has analysed it."
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSortChange={onSortChange}
-          />
+          <ChangeGrid changes={sorted} columns={columns} onRowClick={(id) => { setOpenId(id); setQueryParam("story", id); }} selectedId={openId}
+            emptyMessage="Nothing here yet. A change arrives once Backlog Review has admitted it to architecture and the Architect has analysed it."
+            sortKey={sortKey} sortDir={sortDir} onSortChange={onSortChange} />
         </section>
       )}
+      {openId && <Selected id={openId} />}
+    </div>
+  );
+}
 
-      {open && !open.architectDecision && !open.exactChange && <p><Link to={storyPath(open.id, "solution")}>Open solution analysis and next action for {open.id}</Link></p>}
-      {open && (
-        <div className="stack">
-          <JourneyBar storyId={open.id} at="design" onNavigate={onNavigate} />
-          <section className="panel vr-story-heading">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-              <div>
-                <h2 style={{ marginBottom: 4 }}>{open.title}</h2>
-                <div className="mono" style={{ color: "var(--muted)" }}>{open.id}</div>
-              </div>
-              <div className="btnrow" style={{ alignItems: "center" }}>
-                <PriorityBadge priority={open.priority} />
-                {info.has("product_manager", "admin") && !(open.changeApproval?.status === "approved") && (
-                  <button className="btn" disabled={isWorking(open)} onClick={() => startRerun(open.id)}>
-                    {isWorking(open) ? "Architect at work…" : "Run the Architect again"}
-                  </button>
-                )}
-              </div>
-            </div>
-          </section>
-
-          {isWorking(open) && (
-            <section className="panel nextcard working" aria-live="polite">
-              <JadeWorking>The Architect is at work on this story</JadeWorking>
-              <div className="nextcard-note">
-                It is researching JD Edwards and preparing {architectDecision ? "a new version of the solution" : "the solution"}.
-                This usually takes a few minutes. No action is needed from you; this page updates by itself.
-                {architectDecision && " What you see below is the previous version until the new one arrives."}
-              </div>
-            </section>
-          )}
-
-          {open.architectDecision && (
-            <section className="panel">
-              <ResultSummary change={open} />
-              <WhatNeedsToHappen lifecycle={open.lifecycle} changeId={open.id} />
-              <IssueList change={open} onChange={(c) => setChanges((cur) => cur?.map((x) => x.id === c.id ? c : x) ?? cur)}
-                         empty="No open points: nothing is waiting on anyone." />
-            </section>
-          )}
-          {architectDecision && <><SolutionArchitectureMap change={open} decision={architectDecision} spec={implementationSpec} domain={info.domainName(open.businessDomainId)} mapping={mapping} /><IntegrityPanel decision={architectDecision} /></>}
-          <StoryRatingsPanel key={open.id} change={open} mode="technical" />
-          {architectDecision ? (
-            <ReviewDetail title="Full Architect recommendation & alternatives">
-              <h2>Architect recommendation</h2>
-              <Provenance kind="ai" label={`Recommended route: ${architectDecision.recommendedRoute} · confidence ${Math.round(architectDecision.confidence * 100)}%`}>
-                <p style={{ margin: "0 0 10px", fontSize: 13.5 }}>{architectDecision.existingFunctionalityFound}</p>
-                {architectDecision.alternativesConsidered.length > 0 && (
-                  <>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>Why not the simpler options</div>
-                    <table className="data">
-                      <thead><tr><th>Considered</th><th>Why it was not selected</th></tr></thead>
-                      <tbody>
-                        {architectDecision.alternativesConsidered.map((a, i) => (
-                          <tr key={i}><td>{a.approach}</td><td>{a.whyNot}</td></tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </>
-                )}
-              </Provenance>
-              <dl className="facts" style={{ marginTop: 14 }}>
-                <dt>Objects affected</dt>
-                <dd>{architectDecision.objectsAffected.length
-                  ? <span className="mono">{architectDecision.objectsAffected.join(", ")}</span>
-                  : "None"}</dd>
-                <dt>Could break</dt>
-                <dd>{architectDecision.dependenciesAndConflicts.length
-                  ? architectDecision.dependenciesAndConflicts.join("; ")
-                  : "Nothing identified"}</dd>
-                <dt>Rollback</dt><dd>{architectDecision.rollbackStrategy}</dd>
-              </dl>
-              {run && run.history.length > 1 && (
-                <div style={{ marginTop: 14 }}>
-                  <button className="linkish" onClick={() => setShowAnalysisHistory((v) => !v)}>
-                    {showAnalysisHistory ? "Hide" : "Show"} analysis history ({run.history.length})
-                  </button>
-                  {showAnalysisHistory && (
-                    <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-                      {[...run.history].reverse().map((v, i) => (
-                        <div key={i} style={{ fontSize: 13, borderLeft: "3px solid var(--line-strong)", paddingLeft: 10 }}>
-                          <div style={{ fontWeight: 700 }}>
-                            {i === 0 ? "Current" : "Superseded"} — {v.architectDecision.recommendedRoute}, confidence {Math.round(v.architectDecision.confidence * 100)}% · {new Date(v.capturedAt).toLocaleString("en-GB")}
-                          </div>
-                          <div>{v.architectDecision.existingFunctionalityFound}</div>
-                          {v.note && <div style={{ color: "var(--muted)" }}>{v.note}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </ReviewDetail>
-          ) : isWorking(open) ? null : (
-            <section className="panel">
-              <div className="callout">
-                <strong>No solution yet</strong>
-                The Architect has not started on this story. Open the story to see what it is waiting for.
-              </div>
-            </section>
-          )}
-
-          {run && run.history.length > 0 && <DesignEvidencePanel compact changeId={open.id} designCount={run.history.length} />}
-
-          {implementationSpec && (
-            <ReviewDetail title="Implementation specification & MCP operations">
-              <h2>Implementation specification</h2>
-              <dl className="facts">
-                <dt>Sequence</dt>
-                <dd>
-                  <ol style={{ margin: 0, paddingLeft: 18 }}>
-                    {implementationSpec.sequence.map((s, i) => <li key={i}>{s}</li>)}
-                  </ol>
-                </dd>
-                <dt>MCP operations</dt>
-                <dd className="mono">{implementationSpec.requiredMcpOperations.join(", ") || "None"}</dd>
-                <dt>Human actions required</dt>
-                <dd>{implementationSpec.humanActionsRequired.join("; ") || "None"}</dd>
-                <dt>Validation approach</dt>
-                <dd>{implementationSpec.validationApproach}</dd>
-              </dl>
-            </ReviewDetail>
-          )}
-
-          {domainReview && (
-            <ReviewDetail title="Ask Jade about this requirement"><AskJadePanel
-              title="Ask Jade about this requirement"
-              turns={domainReview.conversation}
-              onAsk={async (question) => {
-                const updated = await api.askAboutRequirement(open.id, { question });
-                setDomainReview(updated);
-              }}
-              renderAmendmentActions={(turn) => (
-                <button
-                  className="btn primary"
-                  onClick={async () => {
-                    const updated = await api.requestRequirementReconsideration(open.id, {
-                      note: `Flagged from Ask Jade about this requirement: "${turn.question}"`,
-                    });
-                    setDomainReview(updated);
-                  }}
-                >
-                  Flag for Domain Owner reconsideration
-                </button>
-              )}
-            /></ReviewDetail>
-          )}
-
-          {architectDecision && (
-            <ReviewDetail title="Ask Jade about this solution"><AskJadePanel
-              title="Ask Jade about this solution"
-              turns={run?.conversation ?? []}
-              onAsk={async (question) => {
-                const updated = await api.askAboutSolution(open.id, { question });
-                setRun(updated);
-              }}
-              renderRecommendReanalysisActions={() => (
-                <button
-                  className="btn primary"
-                  disabled={isWorking(open)}
-                  onClick={async () => {
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                    await startRerun(open.id);
-                  }}
-                >
-                  {isWorking(open) ? "Architect at work…" : "Re-run Architecture Review"}
-                </button>
-              )}
-            /></ReviewDetail>
-          )}
-
-          {ec && (
-            <section className="panel vr-decision">
-              <h2>The exact change</h2>
-              <Provenance
-                kind={decided ? "executed" : "proposed"}
-                label={decided ? `Decision recorded — ${open.changeApproval!.status}` : "Proposed only — not approved for anyone to apply in JD Edwards"}
-              >
-                <ExactChangeFacts ec={ec} testLabel="Verified by" />
-              </Provenance>
-
-              {open.changeApproval ? (
-                <div style={{ marginTop: 12 }}>
-                  <Provenance
-                    kind="human"
-                    label={`Exact change ${open.changeApproval.status} by ${open.changeApproval.approvedBy} · ${open.changeApproval.approvedAt ? new Date(open.changeApproval.approvedAt).toLocaleString("en-GB") : ""}`}
-                  >
-                    <div style={{ fontSize: 13.5 }}>
-                      {open.changeApproval.note || <span className="notstated">no note recorded</span>}
-                    </div>
-                  </Provenance>
-                </div>
-              ) : (
-                <>
-                  {decisionError && (
-                    <div className="callout" style={{ borderColor: "var(--stop)", marginTop: 16 }}>
-                      <strong>Not recorded</strong>
-                      {decisionError}
-                    </div>
-                  )}
-                  {blockedBy(open) && (
-                    <div className="callout" style={{ marginTop: 16 }}>
-                      <strong>Waiting for {blockedBy(open)}</strong>
-                      Approving this exact change becomes available once the open points that block it are answered
-                      (see above). JADE then reassesses the solution with the answers.
-                    </div>
-                  )}
-                  <div className="btnrow" style={{ marginTop: 16 }}>
-                    {!blockedBy(open) && (
-                      <button className="btn primary" onClick={() => setDialog("approve")} disabled={busy}>
-                        Approve exact change
-                      </button>
-                    )}
-                    <button className="btn danger" onClick={() => setDialog("reject")} disabled={busy}>
-                      Reject exact change
-                    </button>
-                  </div>
-                </>
-              )}
-              <ExecutionPanel compact changeId={open.id} exactChange={ec} approvalStatus={open.changeApproval?.status} onChanged={reload} />
-            </section>
-          )}
+function Selected({ id }: { id: string }) {
+  const { change, ctx } = useStory(id);
+  if (!change || !ctx) return <DLoading what="the solution" />;
+  return (
+    <div className="stack">
+      <section className="panel vr-story-heading ar-heading">
+        <div>
+          <h2 style={{ marginBottom: 4 }}>{change.title}</h2>
+          <div className="muted"><span className="mono">{change.id}</span> · {change.lifecycle?.phaseLabel}</div>
         </div>
-      )}
-
-      {dialog && open && ec && (
-        <ConfirmDialog
-          title={dialog === "approve" ? "Approve this exact change?" : "Reject this exact change?"}
-          intro={
-            <>
-              <p style={{ marginTop: 0 }}>
-                {dialog === "approve"
-                  ? (isChangeSet(ec) ? `You are approving exactly these ${ec.items?.length} configuration items, not the change in general.` : "You are approving one specific operation, not the change in general.")
-                  : "The Architect will need to propose a different operation, or this may need Human Implementation."}
-              </p>
-              {isChangeSet(ec) ? (
-                <ExactChangeFacts ec={ec} showDelivery={false} />
-              ) : (
-              <dl className="facts">
-                <dt>Application</dt><dd className="mono">{ec.application}</dd>
-                <dt>Version</dt><dd className="mono">{ec.version}</dd>
-                <dt>Option</dt><dd className="mono">{ec.option}</dd>
-                <dt>Change</dt><dd className="mono">{ec.currentValue || "current value read at approval"} → <strong>{ec.proposedValue}</strong></dd>
-              </dl>
-              )}
-            </>
-          }
-          whatHappensNext={
-            dialog === "approve"
-              ? "The Functional or Technical Agent may apply exactly this operation in DEV, then run the named test. If anything about the operation differs from what you see here, it will be refused."
-              : "This exact operation is refused. It cannot be approved or recorded as delivered."
-          }
-          confirmLabel={dialog === "approve" ? "Approve exact change" : "Reject exact change"}
-          tone={dialog === "approve" ? "primary" : "danger"}
-          requireNote={dialog === "reject"}
-          showReasonCode={dialog === "reject"}
-          onCancel={() => setDialog(null)}
-          onConfirm={async (note, reasonCode) => {
-            const wasApprove = dialog === "approve";
-            setDialog(null); setBusy(true); setDecisionError(null);
-            try {
-              if (wasApprove) await api.approveExactChange(open.id, { note });
-              else await api.rejectExactChange(open.id, { note, rejectionReason: reasonCode });
-            } catch (e) {
-              // e.g. no approval policy for this company, or a role it does not allow.
-              setDecisionError(saveErrorMessage(e, "The decision could not be recorded."));
-            } finally {
-              await reload(); setBusy(false);
-            }
-          }}
-        />
-      )}
+        <div className="btnrow">
+          <PriorityBadge priority={change.priority} />
+          <Link className="btn" to={changePath(change.id)}>Open the change</Link>
+        </div>
+      </section>
+      <SolutionView ctx={ctx} standalone />
     </div>
   );
 }

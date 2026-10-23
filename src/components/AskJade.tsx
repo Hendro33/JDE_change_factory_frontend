@@ -1,5 +1,29 @@
 import { useState, type ReactNode } from "react";
-import type { ConversationTurn } from "../types/domain";
+import type { ConversationTurn, UserStory } from "../types/domain";
+
+/** What a proposed update would change, compared with the story as it is. */
+function AmendmentPreview({ current, proposed }: { current?: UserStory; proposed: UserStory }) {
+  if (!current) return null;
+  const before = new Map(current.acceptanceCriteria.map((a) => [a.text.trim(), a]));
+  const after = new Set(proposed.acceptanceCriteria.map((a) => a.text.trim()));
+  const added = proposed.acceptanceCriteria.filter((a) => !before.has(a.text.trim()));
+  const removed = current.acceptanceCriteria.filter((a) => !after.has(a.text.trim()));
+  const statement = current.statement.trim() !== proposed.statement.trim();
+  const rules = proposed.businessRules.filter((r) => !current.businessRules.includes(r));
+  const parts = [statement && "the story statement", added.length && `${added.length} acceptance criteri${added.length > 1 ? "a" : "on"} added`,
+    removed.length && `${removed.length} removed`, rules.length && `${rules.length} business rule${rules.length > 1 ? "s" : ""} added`].filter(Boolean);
+  if (parts.length === 0) return <p className="hint">No difference with the current story.</p>;
+  return (
+    <div className="amend-preview">
+      <p className="hint" style={{ margin: "4px 0" }}>JADE proposes changing {parts.join(", ")}. Nothing changes until it is reviewed and applied as a recorded revision.</p>
+      <ul className="amend-diff">
+        {added.map((a, i) => <li key={`a${i}`} className="add"><span className="sr-only">Added: </span>+ {a.text}</li>)}
+        {removed.map((a, i) => <li key={`r${i}`} className="del"><span className="sr-only">Removed: </span>− {a.text}</li>)}
+        {rules.map((r, i) => <li key={`b${i}`} className="add"><span className="sr-only">Added rule: </span>+ {r}</li>)}
+      </ul>
+    </div>
+  );
+}
 
 /**
  * "Ask Jade about this requirement" / "Ask Jade about this solution" --
@@ -18,6 +42,7 @@ export function AskJadePanel({
   onAsk,
   renderAmendmentActions,
   renderRecommendReanalysisActions,
+  currentStory,
 }: {
   title: string;
   turns: ConversationTurn[];
@@ -31,6 +56,8 @@ export function AskJadePanel({
    * action here, the same way renderAmendmentActions supplies its own
    * governed next step for a proposed_amendment. */
   renderRecommendReanalysisActions?: (turn: ConversationTurn) => ReactNode;
+  /** The story as it is, so a proposed update shows what it would change. */
+  currentStory?: UserStory;
 }) {
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
@@ -70,6 +97,7 @@ export function AskJadePanel({
                 <div className="callout" style={{ marginTop: 8 }}>
                   <strong>JADE proposes an update to the story</strong>
                   <p style={{ margin: "4px 0 8px", fontSize: 13.5, fontWeight: 700 }}>{t.proposedUserStory.statement}</p>
+                  <AmendmentPreview current={currentStory} proposed={t.proposedUserStory} />
                   {renderAmendmentActions?.(t)}
                 </div>
               )}

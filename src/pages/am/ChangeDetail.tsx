@@ -96,7 +96,8 @@ const LIFECYCLE: { key: string; title: string; reached: (c: Change) => boolean; 
   },
 ];
 
-export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: () => void }) {
+/** embedded: shown as the application view's "Record" tab, without its own page header. */
+export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId: string; onBack: () => void; embedded?: boolean }) {
   const [change, setChange] = useState<Change | null>(null);
   const [dialog, setDialog] = useState<"approve" | "reject" | null>(null);
   const [busy, setBusy] = useState(false);
@@ -128,7 +129,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
 
   return (
     <>
-      <div className="pagehead">
+      {!embedded && <div className="pagehead">
         <div>
           <button className="linkish" onClick={onBack} style={{ marginBottom: 6 }}>← Back</button>
           <h1>{change.title}</h1>
@@ -141,7 +142,7 @@ export function ChangeDetail({ changeId, onBack }: { changeId: string; onBack: (
           <PhaseLabel lifecycle={change.lifecycle} />
           <HealthIndicator lifecycle={change.lifecycle} />
         </div>
-      </div>
+      </div>}
 
       <div className="detailgrid">
         <div className="stack">

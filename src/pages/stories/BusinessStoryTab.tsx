@@ -149,6 +149,7 @@ export function BusinessStoryTab({ ctx }: { ctx: StoryCtx }) {
       {domainReview && (
         <div id="ask">
           <AskJadePanel
+            currentStory={us}
             title="Ask JADE about this story"
             turns={domainReview.conversation}
             onAsk={async (question) => { ctx.setDomainReview(await api.askAboutRequirement(change.id, { question })); }}
