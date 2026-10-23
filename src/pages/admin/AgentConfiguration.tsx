@@ -287,6 +287,14 @@ function AssignmentRow({ role, current, packs, onAssign, onUnassign }: {
       <td>{role.label}</td>
       <td>
         {current ? <>{current.packName} <span className="mono">r{current.revision}</span>
+          {current.followsStandard && <div><span className="badge ok">Follows the standard version</span></div>}
+          {current.newerStandard && (
+            <div className="callout" style={{ marginTop: 6 }}>
+              <strong>Newer standard version available: r{current.newerStandard.revision}</strong>
+              {current.newerStandard.changes.length > 0 && <ul style={{ margin: "4px 0 0" }}>{current.newerStandard.changes.map((c) => <li key={c}>{c}</li>)}</ul>}
+              <div className="hint">Your own pack stays as it is until you copy the changes into it or assign the standard version.</div>
+            </div>
+          )}
           <div className="hint">by {current.assignedBy}, {new Date(current.assignedAt).toLocaleString()}</div></>
           : <span className="badge warn">none — this agent cannot run</span>}
       </td>

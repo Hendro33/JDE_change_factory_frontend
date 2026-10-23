@@ -99,6 +99,11 @@ export interface PackRevision {
 
 export interface Assignment {
   packId: string; packName: string; revision: number; version: number; assignedAt: string; assignedBy: string;
+  /** On the standard Jade instructions: follows the latest standard revision (decision X2). */
+  followsStandard?: boolean;
+  assignedRevision?: number;
+  /** A customer's own pack: a newer standard version exists, with what changed. */
+  newerStandard?: { revision: number; publishedAt: string; changes: string[] } | null;
 }
 
 export interface RoleInfo { role: string; label: string; ceiling: string[] }

@@ -1035,7 +1035,26 @@ export interface HandoffView {
 }
 
 /** GET /work — what needs the signed-in person, from the canonical lifecycle. */
+export interface QuestionItem {
+  changeId: string; title: string; phaseLabel: string; domainId?: string | null; since?: string | null; issue: Issue;
+}
+export interface StuckItem { change: Change; reason: string }
+export interface DomainLine { domainId?: string | null; name: string; inFlight: number; oldestWaitingDays?: number | null; waitingOn: Record<string, number> }
+export interface Figure { key: string; label: string; value?: number | null; display: string; definition: string; link: string }
+
 export interface MyWork {
+  /** Every open question or decision owned by one of my roles (register C3). */
+  questions: QuestionItem[];
+  /** Domain Owner: open stories in my domains, one line each. */
+  yourRequests: Change[];
+  /** Application Manager: stuck work with the reason. */
+  stuck: StuckItem[];
+  /** Application Manager: per business domain, what is in flight. */
+  perDomain: DomainLine[];
+  /** "Things need you": needs-you rows plus question rows. */
+  attentionCount: number;
+  /** The one figure strip (decision X1). */
+  figures: Figure[];
   needsYou: Change[];
   waitingOnOthers: Change[];
   jadeWorking: Change[];

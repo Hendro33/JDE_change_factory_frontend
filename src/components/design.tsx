@@ -359,5 +359,8 @@ export function attentionOf(work: MyWork | null | undefined) {
   const tasks = items.filter((c) => c.lifecycle?.nextAction.kind !== "decision");
   const newRequests = tasks.filter((c) => c.lifecycle?.nextAction.action === "start_analysis");
   const otherTasks = tasks.filter((c) => !newRequests.includes(c));
-  return { decisions, otherTasks, newRequests, count: decisions.length + otherTasks.length + (newRequests.length ? 1 : 0) };
+  const questions = work?.questions ?? [];
+  // The count is the server's (one count service, register M6): the same number on every page and in the bell.
+  return { decisions, otherTasks, newRequests, questions,
+           count: work?.attentionCount ?? decisions.length + otherTasks.length + (newRequests.length ? 1 : 0) + questions.length };
 }

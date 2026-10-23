@@ -1,4 +1,6 @@
 import { ReviewDetail } from "../../components/visualReview";
+import { FigureStrip } from "../../components/home";
+import { ApprovedWorkFlow } from "../am/Dashboard";
 import { INSIGHT_PERIODS, inInsightPeriod, type InsightPeriod } from "../../services/insightPeriod";
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
@@ -33,17 +35,6 @@ function Bars({ rows, onRow, label }: { rows: { label: string; count: number; hi
   );
 }
 
-/** A count that turns orange or red above the customer's saved thresholds (Administration › Organisation). */
-function AlertStat({ value, label, to, thresholds }: { value: number; label: string; to: string; thresholds: { warnAt: number; criticalAt: number } }) {
-  const tone = toneForValue(value, thresholds);
-  return (
-    <Link to={to} className={`statcard${tone ? ` ${tone}` : ""}`}>
-      <span className="stat-value">{value}</span>
-      <span className="stat-label">{label}{tone && <> · <strong>{tone === "stop" ? "above the alert level" : "above the warning level"}</strong></>}</span>
-    </Link>
-  );
-}
-
 /**
  * Reports: where demand comes from, where stories sit and how delivery
  * performs -- moved off the landing page. Every number comes from the
@@ -56,6 +47,7 @@ export function ReportsPage() {
   const period = (INSIGHT_PERIODS.find((p) => p.key === query.get("period"))?.key ?? "month") as InsightPeriod;
   const { data: metrics, error, loading: metricsLoading } = useAsync<FactoryMetrics>(() => api.getMetrics(period), [period]);
   const { data: allChanges } = useAsync(() => api.listChanges(), []);
+  const { data: figures } = useAsync(() => api.getFigures(), []);
   const { data: thresholds } = useAsync(() => api.getDashboardThresholds().catch(() => DEFAULT_DASHBOARD_THRESHOLDS), []);
   const [queue, setQueue] = useState<DeliveryQueueEntry[]>([]);
   useEffect(() => { api.listDeliveryQueue().then(setQueue).catch(() => setQueue([])); }, []);
@@ -82,15 +74,10 @@ export function ReportsPage() {
       </select></div>
       <ReviewDetail title="How to read these insights"><p className="muted">Stories created in the selected period (7, 30 or 365 days, or lifetime), shown at their current lifecycle status. This is a story cohort, not a count of events during that period.</p></ReviewDetail>
 
-      <div className="statrow">
-        <Link to={`/stories?period=${period}`} className="statcard"><span className="stat-value">{changes.filter((c) => c.lifecycle?.phase !== "done" && !isRequest(c)).length}</span><span className="stat-label">user stories in progress</span></Link>
-        <Link to={`/stories?phase=understand&period=${period}`} className="statcard"><span className="stat-value">{changes.filter(isRequest).length}</span><span className="stat-label">incoming requests (not a story yet)</span></Link>
-        <AlertStat to={`/stories?health=waiting_decision&period=${period}`} value={changes.filter((c) => c.lifecycle?.health === "waiting_decision").length}
-                   label="waiting for a decision" thresholds={thresholds ?? DEFAULT_DASHBOARD_THRESHOLDS} />
-        <AlertStat to={`/stories?health=stuck&period=${period}`} value={changes.filter((c) => c.lifecycle?.health === "failed" || c.lifecycle?.health === "blocked").length}
-                   label="blocked or needing attention" thresholds={thresholds ?? DEFAULT_DASHBOARD_THRESHOLDS} />
-        <div className="statcard"><span className="stat-value">{changes.filter((c) => c.lifecycle?.outcome === "delivered").length}</span><span className="stat-label">delivered</span></div>
-      </div>
+      {/* The same figure strip as My Work and the AM home: current portfolio, same numbers (decision X1, register M6). */}
+      {figures && <FigureStrip figures={figures} label="Now"
+        tones={{ blocked: toneForValue(Number(figures.find((f) => f.key === "blocked")?.value ?? 0), thresholds ?? DEFAULT_DASHBOARD_THRESHOLDS) || undefined }} />}
+      {info.appManagement && <Section title="Where approved work stands" description="Approved stories by stage, now. Each stage opens its queue."><ApprovedWorkFlow changes={allChanges} /></Section>}
 
       <div className="reportgrid">
         <Section title="Requests and stories by lifecycle phase" description="Click a phase to see its stories.">

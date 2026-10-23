@@ -1,4 +1,5 @@
 import type {
+  Figure,
   BacklogCapacity,
   AcceptInvitationInput,
   ActivityEntry,
@@ -297,6 +298,11 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
   async getMyWork(): Promise<MyWork> {
     const customerId = await this.activeCustomerId();
     return request<MyWork>("/work", { customerId });
+  }
+
+  async getFigures(): Promise<Figure[]> {
+    const customerId = await this.activeCustomerId();
+    return request<Figure[]>("/figures", { customerId });
   }
 
   async listAgentInventory(): Promise<AgentInventoryEntry[]> {

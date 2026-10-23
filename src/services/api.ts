@@ -7,6 +7,7 @@
  */
 
 import type {
+  Figure,
   BacklogCapacity,
   ActivityEntry,
   AgentDefinition,
@@ -209,6 +210,8 @@ export interface ChangeFactoryApi {
   listChanges(): Promise<Change[]>;
   /** What needs the signed-in person, derived from the canonical lifecycle and their roles. */
   getMyWork(): Promise<MyWork>;
+  /** The portfolio figures of the one figure strip (decision X1). */
+  getFigures(): Promise<Figure[]>;
   /** The one canonical list of Jade's agents. */
   listAgentInventory(): Promise<AgentInventoryEntry[]>;
   getChange(id: string): Promise<Change | undefined>;

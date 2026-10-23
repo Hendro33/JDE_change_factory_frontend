@@ -113,6 +113,12 @@ function Notifications({ work }: { work: MyWork | null }) {
               <span className="notif-story">{storyTitle(c)}</span>
             </Link>
           ))}
+          {(work?.questions ?? []).slice(0, Math.max(0, 5 - items.length)).map((q) => (
+            <Link key={q.issue.id} className="notif-item" to={storyPath(q.changeId, "changes", "open-points")} onClick={() => setOpen(false)}>
+              <span className="notif-title">{q.issue.kind === "decision" ? "Decision needed" : "Question for you"} · {q.phaseLabel}</span>
+              <span className="notif-story">{q.issue.title}</span>
+            </Link>
+          ))}
           {newRequests.length > 0 && (
             <Link className="notif-item" to="/stories?phase=understand" onClick={() => setOpen(false)}>
               <span className="notif-title">To do · Understand</span>

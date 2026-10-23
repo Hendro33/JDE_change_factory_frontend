@@ -185,7 +185,8 @@ export function NextActionCard({ ctx, inApp = false, listedKinds }: { ctx: Story
       controls = <button className="btn primary" disabled={busy} onClick={() => act(() => api.retriggerArchitectureReview(change.id))}>Run solutioning</button>;
       break;
     case "clarify":
-      controls = <Link className="btn primary" to={workPath(change.id, "story", info.appManagement, "ask")}>Answer JADE's question</Link>;
+      // The question itself, with its answer field (register C2) -- not the Ask JADE chat.
+      controls = <Link className="btn primary" to={workPath(change.id, info.appManagement ? "solution" : "changes", info.appManagement, "open-points")}>Answer the question</Link>;
       break;
     case "answer_issue":
     case "decide_issue":
@@ -207,14 +208,15 @@ export function NextActionCard({ ctx, inApp = false, listedKinds }: { ctx: Story
   const isDecision = na.kind === "decision";
   // While a solution is up for review or waiting for clarification, the
   // Application Manager can always send it back to the Architect from here.
-  const rerunnable = info.has("product_manager", "admin")
+  // In the application view the rerun control sits once, at the top of the solution (register E8/M4).
+  const rerunnable = !inApp && info.has("product_manager", "admin")
     && ["approve_design", "approve_exact_change", "clarify", "answer_issue", "decide_issue"].includes(na.action ?? "")
     && lc.phase !== "delivery";
   return (
     <section className={`nextcard ${isDecision ? "decision" : "task"} ${lc.health}`} id="next-action" aria-label={isDecision ? "Decision needed" : "Next action"}>
       <div className="nextcard-kicker">{isDecision ? "Decision needed" : lc.health === "failed" ? "Needs attention" : "Next step"}</div>
       <div className="nextcard-summary">{na.summary}</div>
-      {na.effect && <p className="nextcard-effect"><strong>{isDecision ? "If approved: " : "What happens: "}</strong>{na.effect}</p>}
+      {na.effect && <p className="nextcard-effect"><strong>{copy ? "If approved: " : "What happens: "}</strong>{na.effect}</p>}
       {lc.openItems.length > 0 && lc.health !== "waiting_decision" && (
         <ul className="nextcard-items">{lc.openItems.map((i) => <li key={i}>{i}</li>)}</ul>
       )}
