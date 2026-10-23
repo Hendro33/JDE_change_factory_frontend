@@ -135,10 +135,11 @@ export function StoriesPage() {
       <PageHeader title={phase === "understand" ? "Requests" : "User Stories"}
         subtitle={phase === "understand" ? "New requests, before JADE has turned them into user stories." : "Every business need JADE is working on, from request to delivered outcome."}
         actions={<>
-          {jira && jira.state !== "unavailable" && (
-            <button className="btn" disabled={retrieving} onClick={retrieve}>{retrieving ? "Retrieving…" : "Retrieve from Jira"}</button>
+          {/* Requests are retrieved, not user stories (Hendro, 23 Oct): only on Requests, and source-neutral. */}
+          {phase === "understand" && jira && jira.state !== "unavailable" && (
+            <button className="btn" disabled={retrieving} onClick={retrieve}>{retrieving ? "Retrieving…" : "Retrieve requests"}</button>
           )}
-          <Link className="btn primary" to="/stories/new">New request</Link>
+          <Link className="btn primary" to="/stories/new">Create new request</Link>
         </>} />
 
       {!phase && view === "list" && requestCount > 0 && (
