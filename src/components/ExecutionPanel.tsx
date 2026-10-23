@@ -135,7 +135,8 @@ export function ExecutionPanel({
   // approval status: an expired or withdrawn approval offers no recording.
   const allowed = (action: string) => lifecycle?.allowedActions ? lifecycle.allowedActions.includes(action) : approvalStatus === "approved";
   const approved = allowed("record_applied") || (approvalStatus === "approved" && writeState === "applied");
-  const deliveryBlocker = lifecycle?.actionBlockers?.record_applied;
+  const testAllowed = allowed("record_test");
+  const deliveryBlocker = writeState === "applied" ? lifecycle?.actionBlockers?.record_test : lifecycle?.actionBlockers?.record_applied;
   const deliverable = exactChange?.capabilityExecutable !== false;
   const canRecord = info.has("product_manager");
   const applied = nonEmpty<RecordedApplied>(execution?.applied);
@@ -257,11 +258,11 @@ export function ExecutionPanel({
           JD Edwards connection and records it only if it is exactly what was approved.
         </p>
       )}
-      {deliveryBlocker && writeState !== "applied" && (
+      {deliveryBlocker && testState !== "completed" && (
         <div className="callout" style={{ borderColor: "var(--stop)" }}>
           <strong>Not deliverable now</strong>
           <div>{deliveryBlocker}</div>
-          <div className="hint">Nothing can be applied or recorded until this is resolved; the story's next action says who resolves it.</div>
+          <div className="hint">Nothing can be {writeState === "applied" ? "tested or recorded" : "applied or recorded"} until this is resolved; the story's next action says who resolves it.</div>
         </div>
       )}
       <dl className="facts">
@@ -465,7 +466,7 @@ export function ExecutionPanel({
       )}
 
       {/* ------------ Test ------------ */}
-      {approved && writeState === "applied" && testState === "ready" && (
+      {testAllowed && writeState === "applied" && testState === "ready" && (
         canRecord ? (
           <div className="callout" style={{ marginTop: 12 }}>
             <strong>Test the change in DEV</strong>
