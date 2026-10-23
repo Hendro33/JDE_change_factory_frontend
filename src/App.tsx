@@ -5,7 +5,7 @@ import { automationApi, type NotificationFeed } from "./services/automationApi";
 import type { BusinessDomain, CompanyRole, MyWork, Session } from "./types/domain";
 import { CustomerScope } from "./components/CustomerScope";
 import { SetupHandover } from "./components/SetupHandover";
-import { CorporateBar, ROLE_LABEL, SessionContext, type SessionInfo, attentionOf, storyTitle, Loading } from "./components/design";
+import { ROLE_LABEL, SessionContext, type SessionInfo, attentionOf, storyTitle, Loading } from "./components/design";
 import { GlobalSearch } from "./components/GlobalSearch";
 import { Link, match, navigate, storyPath, useLocation } from "./router";
 import { MyWorkPage } from "./pages/work/MyWork";
@@ -269,10 +269,11 @@ function MainApp({ onSignedOut, onSetupFinished }: { onSignedOut: () => void; on
     <div className="app">
       <a className="skiplink" href="#main">Skip to content</a>
       <header className="appbar">
-        <CorporateBar />
         <div className="appbar-row">
+          {/* The JADE logo with a small "by ConsultIQ" mark, as on consultiq.nl (register L2). */}
           <Link to="/work" className="brand" aria-label="Jade by ConsultIQ — My Work">
             <img src={`${import.meta.env.BASE_URL}jade-wordmark.png`} alt="Jade" className="brand-mark" />
+            <span className="byciq" aria-hidden="true">by <span className="logo">consult<b>IQ</b></span></span>
           </Link>
           <nav className="primarynav" aria-label="Primary">
             {PRIMARY_NAV.filter((n) => !info || !n.show || n.show(info)).map((n) => (
@@ -308,14 +309,10 @@ function MainApp({ onSignedOut, onSetupFinished }: { onSignedOut: () => void; on
         )}
       </main>
 
+      {/* A quiet footer on work screens; the wave belongs to sign-in, empty queues and the outcome (register L7). */}
       <footer className="sitefoot">
-        <div className="footer-brand">
-          <span className="logo">consult<b>IQ</b></span>
-          <span className="footer-tagline">Jade — an AI delivery team for enterprise change</span>
-        </div>
-        <span style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          <BuildVersions />
-        </span>
+        <span>Jade by <span className="logo">consult<b>IQ</b></span></span>
+        <BuildVersions />
       </footer>
     </div>
   );

@@ -85,6 +85,10 @@ export function AmWorkspace() {
     it.to === "/am/delivery" && (path === "/am/delivery" || path === "/am/changes") ? true :
     it.stage ? path === "/am/changes" && stage === it.stage : path === it.to.split("?")[0];
 
+  // One change opens full width: top navigation, breadcrumb and tabs only -- no fourth
+  // navigation layer beside it (register K14). The breadcrumb leads back to the queue.
+  const detail = /^\/am\/changes\/[^/]+/.test(path);
+  if (detail) return <div className="amspace amdetail">{page}</div>;
   return (
     <div className="admin amspace">
       <aside className="adminnav" aria-label="Application Management">

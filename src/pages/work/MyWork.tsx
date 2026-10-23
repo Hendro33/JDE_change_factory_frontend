@@ -38,15 +38,16 @@ export function QueueRow({ c }: { c: Change }) {
   // Straight into the screen where this person acts (finding 1).
   const to = workLink(c, info);
   return (
-    <li className={`qrow ${na.kind}`}>
-      <span className="qrow-kind">{na.kind === "decision" ? <><span aria-hidden="true">◆</span> Decision</> : <><span aria-hidden="true">○</span> To do</>}</span>
+    <li className={`qrow k-${na.kind}`}>
+      <span className="kindtile" data-kind={na.kind === "decision" ? "decision" : "task"} aria-hidden="true">{na.kind === "decision" ? "◆" : "○"}</span>
+      <span className="sr-only">{na.kind === "decision" ? "Decision" : "To do"}</span>
       <span className="qrow-main">
         <Link className="qrow-title" to={to}>{storyTitle(c)}</Link>
         <span className="qrow-sub">{na.summary}</span>
       </span>
-      <span className="qrow-meta"><span>{c.lifecycle!.phaseLabel}{waitingLabel(c) ? ` · ${waitingLabel(c)}` : ""}</span><span className="muted qrow-domain">{info.domainName(c.businessDomainId) ?? "No domain"}</span></span>
-      <span className="qrow-prio"><ImpactIndicator change={c} /></span>
-      <Link className={`btn small ${na.kind === "decision" ? "primary" : ""}`} to={to}>{ACTION_VERB[na.action ?? ""] ?? "Open"}</Link>
+      <span className="qrow-meta"><span>{c.lifecycle!.phaseLabel}{waitingLabel(c) ? ` · ${waitingLabel(c)}` : ""}</span><span className="muted qrow-domain">{info.domainName(c.businessDomainId) ?? "No domain"}</span><ImpactIndicator change={c} /></span>
+      {/* Lists carry no yellow: the one yellow action is the decision itself, on its screen (register L3). */}
+      <Link className="btn small" to={to}>{ACTION_VERB[na.action ?? ""] ?? "Open"}</Link>
     </li>
   );
 }
@@ -59,14 +60,13 @@ function AreaQueue({ rows, questions, newRequests, onChanged }: { rows: Change[]
       {rows.map((c) => <QueueRow key={c.id} c={c} />)}
       {questions.map((q) => <QuestionRow key={q.issue.id} q={q} onAnswered={onChanged} />)}
       {newRequests.length > 0 && (
-        <li className="qrow task">
+        <li className="qrow k-task">
           <span className="kindtile" data-kind="task" aria-hidden="true">○</span>
           <span className="qrow-main">
             <Link className="qrow-title" to="/stories?phase=understand">{newRequests.length} new request{newRequests.length === 1 ? "" : "s"} to analyse</Link>
             <span className="qrow-sub">{newRequests.slice(0, 3).map((c) => storyTitle(c)).join(" · ")}{newRequests.length > 3 ? " …" : ""}</span>
           </span>
           <span className="qrow-meta"><span>Understand</span></span>
-          <span className="qrow-prio" />
           <Link className="btn small" to="/stories?phase=understand">Open requests</Link>
         </li>
       )}

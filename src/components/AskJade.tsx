@@ -94,7 +94,7 @@ export function AskJadePanel({
         <input id="askjade-question" type="text" value={question} autoComplete="off"
           placeholder={`${title}: why this, what if, or what JADE missed…`}
           onChange={(e) => setQuestion(e.target.value)} />
-        <button className="btn primary small" type="submit" disabled={busy || !question.trim()}>{busy ? "Asking…" : "Ask"}</button>
+        <button className="btn small strong" type="submit" disabled={busy || !question.trim()}>{busy ? "Asking…" : "Ask"}</button>
       </form>
       <div className="muted explain askjade-intro">Answers never change anything by themselves; new information comes back as a proposed update for you to review.</div>
       {error && <div className="callout" style={{ borderColor: "var(--stop)", margin: "8px 0" }}>{error}</div>}

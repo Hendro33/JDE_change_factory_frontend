@@ -254,7 +254,7 @@ export function MapEditor({ view, kind, nodes, onSaved }: { view: StoryProcessVi
     <div className="stack">
       <div className="btnrow">
         {versions.length === 0 ? <span className="notstated">No {kind.replace("_", "-")} map yet.</span> : versions.map((v) => (
-          <button key={v.version} className={`btn small${v.version === shown && !draft ? " primary" : ""}`} onClick={() => { setShown(v.version); setDraft(null); }}>
+          <button key={v.version} className={`chip${v.version === shown && !draft ? " on" : ""}`} aria-pressed={v.version === shown && !draft} onClick={() => { setShown(v.version); setDraft(null); }}>
             v{v.version}{v.material_change ? "" : " (wording)"}</button>))}
         {current && <span className="hint">by {current.created_by} · {current.created_at.slice(0, 16).replace("T", " ")}{current.note ? ` · ${current.note}` : ""}</span>}
         {draft && <span className="badge warn">Unsaved edits</span>}
@@ -310,7 +310,7 @@ export function MapEditor({ view, kind, nodes, onSaved }: { view: StoryProcessVi
           <button className="btn small" disabled={content.steps.length < 2} onClick={() => set({ ...content, connections: [...content.connections, { from: content.steps[0].id, to: content.steps[1].id, label: "" }] })}>Add connection</button>
           <label style={{ display: "block", marginTop: 8 }}>Change note <input aria-label="Map change note" value={note} onChange={(e) => setNote(e.target.value)} /></label>
           <div className="btnrow">
-            <button className="btn primary" disabled={busy || !draft} onClick={save}>Save as new version</button>
+            <button className={`btn${draft ? " primary" : ""}`} disabled={busy || !draft} onClick={save}>Save as new version</button>
             {draft && <button className="btn small" onClick={() => setDraft(null)}>Discard edits</button>}
           </div>
           {error && <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div>}
@@ -369,8 +369,8 @@ export function StoryProcessPanel({ storyId, onChanged }: { storyId: string; onC
       ) : view.framework ? <p className="muted">The affected processes have not been confirmed yet.</p> : null}
       <div id="process-maps">
         <div className="btnrow">
-          <button className={`btn small${kind === "to_be" ? " primary" : ""}`} onClick={() => setKind("to_be")}>To-be ({view.maps.to_be.versions.length})</button>
-          <button className={`btn small${kind === "as_is" ? " primary" : ""}`} onClick={() => setKind("as_is")}>As-is ({view.maps.as_is.versions.length})</button>
+          <button className={`chip${kind === "to_be" ? " on" : ""}`} aria-pressed={kind === "to_be"} onClick={() => setKind("to_be")}>To-be ({view.maps.to_be.versions.length})</button>
+          <button className={`chip${kind === "as_is" ? " on" : ""}`} aria-pressed={kind === "as_is"} onClick={() => setKind("as_is")}>As-is ({view.maps.as_is.versions.length})</button>
         </div>
         {notice && <div className="callout" style={{ borderColor: "var(--ok)" }}>{notice}</div>}
         <MapEditor key={kind} view={view} kind={kind} nodes={nodes} onSaved={(m) => { setNotice(m); changed(); }} />

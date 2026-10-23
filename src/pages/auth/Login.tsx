@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { authApi } from "../../services/httpApi";
-import { CorporateBar } from "../../components/design";
 
 /** Sign-in: identity comes from a real session cookie set by the backend. */
 export function Login({ onSignedIn, notice }: { onSignedIn: () => void; notice?: string | null }) {
@@ -136,7 +135,6 @@ export function Login({ onSignedIn, notice }: { onSignedIn: () => void; notice?:
 export function AuthBrand() {
   return (
     <div className="authbrand">
-      <CorporateBar className="authcorp" />
       <img src={`${import.meta.env.BASE_URL}jade-wordmark.png`} alt="Jade" className="authbrand-mark" />
       <span className="authbrand-tag">An AI delivery team for enterprise change · by Consult<b>IQ</b></span>
     </div>

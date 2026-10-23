@@ -79,15 +79,6 @@ a:hover { color: var(--jade-deep); }
   border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 30;
 }
-/* The ConsultIQ corporate band: the company's yellow and wordmark above Jade's own bar. */
-.corpbar { background: var(--brand); color: var(--brand-ink); }
-.corpbar-row {
-  max-width: 1440px; margin: 0 auto; padding: 0 28px; min-height: 30px;
-  display: flex; align-items: center; gap: 14px;
-}
-.corpbar .logo { font-size: 17px; font-weight: 400; letter-spacing: -0.3px; line-height: 1; text-transform: capitalize; }
-.corpbar .logo b { font-weight: 800; }
-.corpbar-product { font-size: 12.5px; font-weight: 600; padding-left: 14px; border-left: 1px solid rgba(25, 25, 25, .35); line-height: 1.2; }
 .appbar-row {
   max-width: 1440px; margin: 0 auto; padding: 10px 28px;
   display: flex; align-items: center; gap: 28px; min-height: 76px;
@@ -105,7 +96,7 @@ a:hover { color: var(--jade-deep); }
 .primarynav a.on { color: var(--jade-deep); }
 .primarynav a.on::after {
   content: ""; position: absolute; left: 9px; right: 9px; bottom: -19px; height: 3px;
-  background: var(--jade); border-radius: 3px 3px 0 0;
+  background: var(--brand); border-radius: 3px;
 }
 .navsep { width: 1px; height: 22px; background: var(--line-strong); margin: 0 8px; }
 
@@ -194,27 +185,12 @@ a:hover { color: var(--jade-deep); }
 .noticebar.stop { background: var(--stop-bg); border-color: #f3c9c6; color: var(--stop); }
 .noticebar.ok { background: var(--ok-bg); border-color: #bfe0c8; color: var(--ok); }
 
-/* Footer: ConsultIQ is the supporting parent brand. */
-.sitefoot {
-  position: relative; background: var(--brand); padding: 26px 28px 16px; margin-top: auto;
-  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-  font-size: 13px; color: rgba(25,25,25,.72);
-  clip-path: polygon(0.0% 8px, 4.55% 3px, 9.09% 9px, 13.64% 0px, 18.18% 2px, 22.73% 4px, 27.27% 2px, 31.82% 8px, 36.36% 7px,
-    40.91% 0px, 45.45% 4px, 50.0% 5px, 54.55% 0px, 59.09% 2px, 63.64% 9px, 68.18% 9px, 72.73% 2px, 77.27% 5px, 81.82% 2px,
-    86.36% 4px, 90.91% 9px, 95.45% 0px, 100.0% 7px, 100% 100%, 0% 100%);
-}
-.footer-brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.sitefoot .logo { font-size: 24px; font-weight: 400; color: var(--ink); letter-spacing: -0.4px; text-transform: capitalize; }
-.sitefoot .logo b { font-weight: 800; }
-.footer-tagline { font-size: 13px; font-weight: 700; color: rgba(25,25,25,.78); }
 
 /* Auth screens keep the brand large and friendly. */
 .authscreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--canvas); padding: 20px; }
 .authcard { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 36px; max-width: 440px; width: 100%; }
 .authscreen { background: radial-gradient(1200px 500px at 50% -10%, var(--jade-pale), var(--canvas) 70%); }
 .authcard { border-top: 4px solid var(--jade); }
-/* The corporate band spans the top of every sign-in screen, as it does above the app header. */
-.corpbar.authcorp { position: fixed; top: 0; left: 0; right: 0; z-index: 5; }
 .authbrand { display: grid; justify-items: start; gap: 8px; margin-bottom: 28px; }
 .authbrand-mark { height: 64px; width: auto; display: block; }
 .authbrand-tag { font-size: 13.5px; color: var(--muted); }
@@ -685,8 +661,6 @@ dl.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
   body { font-size: 15px; }
   .page { padding: 18px 14px 40px; }
   .brand-mark { height: 38px; }
-  .corpbar-row { padding: 0 14px; }
-  .corpbar-product { display: none; }
   .cscope-label { display: none; }
   .pageheader h1 { font-size: 24px; }
   .storyheader { padding: 18px; }
@@ -1050,24 +1024,9 @@ a.iconbtn.on { color: var(--jade-deep); border-color: var(--jade); box-shadow: i
 /* ---------------------------------------------------------------- */
 /* Step 3: compact queues, explanations behind "?", fewer cards.     */
 /* ---------------------------------------------------------------- */
-.qhead { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 18px 0 6px; }
-.qcount { display: inline-block; min-width: 22px; padding: 0 7px; border-radius: 999px; background: var(--wash); color: var(--ink); text-align: center; margin-left: 6px; letter-spacing: 0; }
-.queue { list-style: none; margin: 0 0 8px; padding: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); }
-.qrow { display: grid; grid-template-columns: 96px minmax(0, 1fr) 200px 120px auto; gap: 14px; align-items: center; padding: 11px 16px; border-top: 1px solid var(--line); }
-.qrow:first-child { border-top: 0; }
-.qrow-kind { font-size: 12.5px; font-weight: 800; color: var(--muted); white-space: nowrap; }
-.qrow.decision .qrow-kind { color: #7A6200; }
-.qrow-main { display: flex; flex-direction: column; min-width: 0; }
-.qrow-title { font-weight: 700; color: var(--ink); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qrow-title:hover { text-decoration: underline; color: var(--jade-deep); }
-.qrow-sub { font-size: 13.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.qrow-meta { display: flex; flex-direction: column; font-size: 13px; }
 .qmore { margin-top: 14px; }
 .qmore > summary { cursor: pointer; font-weight: 700; color: var(--ink-soft); padding: 6px 0; }
-@media (max-width: 900px) {
-  .qrow { grid-template-columns: 1fr auto; }
-  .qrow-kind, .qrow-meta, .qrow-prio { display: none; }
-}
 /* Explanations: hidden until the "?" is pressed. Data and status are never in these. */
 body:not(.help-on) :is(.explain, .pageheader .lede, .pagehead .sub, .section-desc, .nextcard-note, .swim-legend, .issues-note,
   .askjade-intro, .handoff-note, .storyprocess-intro) { display: none !important; }
@@ -1237,3 +1196,119 @@ body:not(.help-on) :is(.explain, .pageheader .lede, .pagehead .sub, .section-des
 .sidedrawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(640px, 100vw); overflow-y: auto; background: var(--canvas); border-left: 1px solid var(--line); box-shadow: var(--shadow-pop); padding: 16px; z-index: 40; }
 @media (max-width: 700px) { .sidedrawer { width: 100vw; } }
 .sidedrawer-backdrop { position: fixed; inset: 0; background: rgba(15, 20, 18, .25); z-index: 39; }
+
+
+/* ================================================================= */
+/* Jade visual system (register L2-L11, 23 Oct): the ConsultIQ        */
+/* language carried into JADE. One set of components, used everywhere.*/
+/* ================================================================= */
+
+/* Header: white, the active section underlined in yellow, JADE with a small "by ConsultIQ" mark. */
+.appbar { box-shadow: 0 1px 0 var(--line); border-bottom: 0; }
+.primarynav a.on { color: var(--ink); }
+.brand { gap: 10px; text-decoration: none; }
+.byciq { font-size: 12px; color: var(--muted); white-space: nowrap; align-self: flex-end; margin-bottom: 6px; }
+.byciq .logo { font-size: 13px; letter-spacing: -0.2px; color: var(--ink); text-transform: capitalize; }
+.byciq .logo b { font-weight: 800; }
+
+/* Footer: quiet on work screens. */
+.sitefoot { margin-top: auto; border-top: 1px solid var(--line); background: var(--panel); padding: 14px 28px;
+  display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.sitefoot .logo { text-transform: capitalize; color: var(--ink); } .sitefoot .logo b { font-weight: 800; }
+
+/* Sign-in: the charcoal JADE identity band and the yellow wave (a welcoming moment). */
+.authscreen { position: relative; background: linear-gradient(180deg, #191919 0 46%, var(--canvas) 46% 100%); }
+.authscreen::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 12px; background: var(--brand);
+  clip-path: polygon(0 60%, 8% 20%, 17% 70%, 26% 30%, 35% 55%, 45% 10%, 55% 60%, 65% 25%, 75% 70%, 85% 20%, 93% 55%, 100% 30%, 100% 100%, 0 100%); }
+.authcard { border-top: 0; box-shadow: var(--shadow-pop); }
+
+/* Type: heavy, tight headlines; calm body; few sizes (32 / 22 / 17 / 15.5 / 13). */
+h1, .pageheader h1, .pagehead h1, .pagetitle h1, .titlebar { font-weight: 800; letter-spacing: -0.03em; line-height: 1.12; }
+.pageheader h1 { font-size: 32px; }
+h2 { letter-spacing: -0.015em; }
+
+/* Buttons: yellow for the one main decision, dark outline for secondary, charcoal for strong confirmation. */
+.btn { border: 1.5px solid var(--ink); background: transparent; color: var(--ink); border-radius: 10px; }
+.btn:hover { background: var(--ink); color: #fff; }
+.btn.primary { border-color: var(--brand); }
+.btn.primary:hover { background: var(--brand-dark); border-color: var(--brand-dark); color: var(--brand-ink); }
+.btn.strong { background: var(--ink); color: #fff; border-color: var(--ink); }
+.btn.outline { background: transparent; }
+.btn.quiet { border-color: transparent; }
+.btn.quiet:hover { background: var(--wash); color: var(--ink); }
+.btn.danger { border-color: var(--stop); color: var(--stop); }
+.btn.danger:hover { background: var(--stop); color: #fff; }
+.btn:disabled:hover { background: transparent; color: var(--ink); }
+.btn.primary:disabled:hover { background: var(--brand); color: var(--brand-ink); }
+
+/* The one figure strip (decision X1): slim, the same on every page. */
+.figstrip { display: flex; flex-wrap: wrap; gap: 4px 34px; margin: 0 0 22px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.fig { display: flex; flex-direction: column-reverse; min-width: 96px; margin: 0; }
+.fig dt, .fig dd { margin: 0; }
+.fig-value { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; color: var(--ink); }
+.fig-label { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.fig-label a { color: inherit; text-decoration: none; } .fig-label a:hover { text-decoration: underline; }
+.fig.warn .fig-value { color: var(--warn); } .fig.stop .fig-value { color: var(--stop); }
+
+/* Queues: compact rows; a kind tile helps scan by kind (decision, question, task) -- never decoration. */
+.queue { list-style: none; margin: 0 0 8px; padding: 0; border-top: 1px solid var(--line); }
+.queue > li { border-bottom: 1px solid var(--line); }
+.qrow { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto auto; gap: 6px 14px; align-items: center; padding: 12px 4px; }
+.qrow .qrow-kind { display: none; }
+.qrow .qrow-prio:empty { display: none; }
+.kindtile { width: 32px; height: 32px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 15px; background: var(--wash); color: var(--ink); }
+.kindtile[data-kind="decision"] { background: var(--brand); color: var(--brand-ink); }
+.kindtile[data-kind="question"] { background: var(--jade-pale); color: var(--jade-deep); }
+.kindtile[data-kind="task"] { background: var(--wash); }
+.qrow-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.qrow-title, .qrow-q { font-weight: 700; color: var(--ink); text-decoration: none; }
+.qrow-sub { font-size: 13.5px; color: var(--muted); }
+.qrow-proposal { font-size: 13.5px; color: var(--ink-soft); }
+.qrow-options, .qrow-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.qrow-options { margin-top: 6px; }
+.qrow-answer { display: grid; gap: 8px; margin-top: 8px; }
+.qrow-answer textarea { width: 100%; border: 1px solid var(--line-strong); border-radius: 8px; padding: 8px 10px; }
+.qrow-meta { display: flex; flex-direction: column; align-items: flex-end; font-size: 12.5px; color: var(--muted); text-align: right; }
+.qhead { display: flex; align-items: baseline; gap: 8px; font-size: 17px; font-weight: 800; letter-spacing: -0.015em; margin: 26px 0 8px; }
+.qcount { font-size: 13px; color: var(--muted); font-weight: 600; }
+@media (max-width: 700px) {
+  .qrow { grid-template-columns: 32px minmax(0, 1fr); }
+  .qrow-meta { grid-column: 2; align-items: flex-start; text-align: left; }
+  .qrow > .btn, .qrow-actions { grid-column: 2; justify-self: start; }
+}
+
+/* Role homes. */
+.home-areas { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 12px 40px; }
+.area-title { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--jade-deep); margin: 8px 0 0; font-weight: 800; }
+.home-tests { margin: 0 0 14px; font-size: 14px; }
+.reqlist, .stucklist { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.reqline { display: grid; grid-template-columns: minmax(0, 1fr) 130px minmax(0, 1fr) auto; gap: 4px 16px; padding: 10px 4px; border-bottom: 1px solid var(--line); align-items: baseline; }
+.reqline-title { font-weight: 700; color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+.reqline-phase { font-size: 13px; color: var(--jade-deep); font-weight: 700; }
+.reqline-next { font-size: 13.5px; color: var(--muted); }
+.status-word { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.status-word.stop { color: var(--stop); }
+.stucklist li { display: flex; flex-direction: column; gap: 2px; padding: 9px 4px; border-bottom: 1px solid var(--line); }
+.stucklist a { font-weight: 700; color: var(--ink); text-decoration: none; }
+.domainlines td, .domainlines th { padding: 8px 10px; }
+@media (max-width: 700px) {
+  .home-areas { grid-template-columns: 1fr; }
+  .reqline { grid-template-columns: 1fr; }
+}
+
+/* No card stacks on the work screens: sections are aligned blocks with a divider; the decision card and
+   work items keep the card (register L6, L10). */
+.workspace .panel, .mywork .panel, .cockpit .panel, .solutionview .panel, .deliveryview .panel, .evidenceview .panel {
+  background: transparent; border: 0; border-top: 1px solid var(--line); border-radius: 0; box-shadow: none; padding: 20px 0;
+}
+.workspace .nextcard, .workspace .outcome { box-shadow: var(--shadow); }
+
+/* Acceptance criteria: a plain list (decision X3). */
+.criteria-list { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+
+/* Collapsible detail on work screens: a divider row, not a box (register L10). */
+.workspace .drawer { border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; margin: 0; }
+.workspace .drawer.technical { background: transparent; }
+.workspace .drawer > summary { padding-left: 0; padding-right: 0; }
+.workspace .drawer-body { padding: 4px 0 16px; }

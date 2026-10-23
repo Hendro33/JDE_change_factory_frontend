@@ -52,7 +52,7 @@ export function QuestionRow({ q, onAnswered }: { q: QuestionItem; onAnswered: ()
   const storyLink = info.appManagement && i.tab !== "story" ? changePath(q.changeId, "solution", "open-points")
     : storyPath(q.changeId, "changes", "open-points");
   return (
-    <li className="qrow question">
+    <li className="qrow k-question">
       <span className="kindtile" data-kind={decision ? "decision" : "question"} aria-hidden="true">{decision ? "◆" : "?"}</span>
       <span className="qrow-main">
         <span className="qrow-q">{i.title}</span>
