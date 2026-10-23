@@ -1,6 +1,6 @@
 import { Details, EmptyState, Section, useSessionInfo } from "../../components/design";
 import { ProcessSwimlane } from "../../components/journey";
-import { IssueList, ResultSummary } from "../../components/work";
+import { AcceptanceList, IssueList, ResultSummary } from "../../components/work";
 import { Link } from "../../router";
 import { ROUTE_LABEL, type StoryCtx } from "./storyContext";
 import { changePath } from "./useStory";
@@ -48,7 +48,7 @@ export function ChangesTab({ ctx }: { ctx: StoryCtx }) {
 
       {us && us.acceptanceCriteria.length > 0 && !(ctx.process?.maps.to_be.versions.length || ctx.process?.maps.as_is.versions.length) && (
         <Section title="How you will know it works">
-          <ul className="checklist">{us.acceptanceCriteria.map((a) => <li key={a.id}><span className="mono muted">{a.id}</span> {a.text}</li>)}</ul>
+          <AcceptanceList change={change} />
         </Section>
       )}
 

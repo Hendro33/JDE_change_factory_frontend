@@ -8,7 +8,7 @@ import { Details, ErrorState, Fact, Section, businessNeed, formatDateTime, useSe
 import { Link, useLocation } from "../../router";
 import { StoryProcessPanel } from "../StoryProcess";
 import type { StoryCtx } from "./storyContext";
-import { IssueList } from "../../components/work";
+import { AcceptanceList, IssueList } from "../../components/work";
 
 const IMPACT_FIELDS: [keyof import("../../types/domain").BusinessImpact, string][] = [
   ["financialImpact", "Financial"], ["operationalReach", "Operational"], ["riskCompliance", "Risk & compliance"],
@@ -74,7 +74,7 @@ export function BusinessStoryTab({ ctx }: { ctx: StoryCtx }) {
 
           <Section title="Acceptance criteria">
             {us.acceptanceCriteria.length === 0 ? <p className="muted">None yet. The story cannot pass JADE's quality check without testable criteria.</p> : (
-              <ul className="checklist">{us.acceptanceCriteria.map((ac) => <li key={ac.id}><span className="mono muted">{ac.id}</span> {ac.text}</li>)}</ul>
+              <AcceptanceList change={change} />
             )}
           </Section>
 

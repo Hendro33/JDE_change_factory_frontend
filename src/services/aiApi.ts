@@ -120,11 +120,20 @@ export interface AiRun {
   output_chars?: number;
   /** A quality signal for tuning the prompt; the answer is never cut. */
   output_long?: boolean;
+  /** Number of recorded hand-offs to subagents. */
+  handoffs?: number;
 }
 
+export interface AiHandoff {
+  subagent: string; started_at: string; finished_at?: string; prompt: string; prompt_chars: number;
+  source_complete: boolean; source_chars: number; result: string | null; result_chars: number; is_error?: boolean;
+}
 export interface AiRunOutput {
   run_id: string; driver: string; story_id: string | null; status: string; error: string | null;
   started_at: string; finished_at: string | null; output: string | null; output_chars: number; output_long: boolean;
+  trace?: AiHandoff[];
+  trace_findings?: { agents: string[]; every_agent_had_source: boolean; missing_source: string[]; check_rounds: number;
+    revised_between_checks: boolean | null };
 }
 
 export interface RoleHealth {

@@ -139,9 +139,10 @@ export function ChangeGrid({
 export function useChangeListControls(
   changes: Change[],
   columns: GridColumn[],
-  searchText: (c: Change) => string
+  searchText: (c: Change) => string,
+  initialSearch = ""
 ) {
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [sortKey, setSortKey] = useState<string | undefined>(undefined);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 

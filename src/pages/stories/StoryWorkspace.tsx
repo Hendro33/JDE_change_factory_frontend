@@ -92,12 +92,12 @@ export function StoryWorkspace({ storyId, tab }: { storyId: string; tab?: string
         </div>
         {need && <p className="storyheader-value">{need}</p>}
         <div className="storyheader-meta">
-          <span className="mono">{change.id}</span> · {sourceLabel(change)} · updated {formatDate(change.updatedAt)}
+          <span className="mono">{change.id}</span> · {sourceLabel(change)}{lc?.since ? ` · last step ${formatDate(lc.since)}` : ""}
         </div>
         <LifecycleStepper lifecycle={lc} />
       </header>
 
-      <NextActionCard ctx={ctx!} />
+      <NextActionCard ctx={ctx!} listedKinds={active === "story" || active === "changes" ? ["business"] : undefined} />
 
       <Tabs label="Story sections" active={active} hrefFor={(k) => storyPath(change.id, k === "story" ? undefined : k)} tabs={TABS} />
 

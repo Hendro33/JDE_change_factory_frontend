@@ -381,6 +381,13 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     notImplemented("rejectChange");
   }
 
+  async confirmResolvedWithoutChange(id: string, input: DecisionInput): Promise<Change> {
+    const customerId = await this.activeCustomerId();
+    return request<Change>(`/changes/${encodeURIComponent(id)}/resolve-without-change`, {
+      method: "POST", customerId, body: { note: input.note },
+    });
+  }
+
   async approveExactChange(id: string, input: DecisionInput): Promise<Change> {
     const customerId = await this.activeCustomerId();
     return request<Change>(`/changes/${encodeURIComponent(id)}/approve-change`, {

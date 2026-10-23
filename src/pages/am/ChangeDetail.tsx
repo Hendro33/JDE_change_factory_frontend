@@ -262,7 +262,7 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
           )}
 
           {ec && (
-            <RecordPart title="The exact change" summary={<>{change.changeApproval ? `${change.changeApproval.status} by ${change.changeApproval.approvedBy}` : "not approved yet"}
+            <RecordPart title="The exact change" summary={<>{change.lifecycle?.authorisation?.label ?? (change.changeApproval ? `${change.changeApproval.status} by ${change.changeApproval.approvedBy}` : "not approved yet")}
               {" · "}{applied || ec.execution?.writeState === "applied" ? "applied in DEV" : "not applied"}
               {ec.capabilityStatus && <> <CapabilityStatusBadge status={ec.capabilityStatus} /></>}</>}>
               <Provenance
@@ -291,7 +291,7 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
                 <div style={{ marginTop: 12 }}>
                   <Provenance
                     kind="human"
-                    label={`Exact change ${change.changeApproval.status} by ${change.changeApproval.approvedBy} · ${new Date(change.changeApproval.approvedAt!).toLocaleString("en-GB")}`}
+                    label={`Exact change ${change.changeApproval.status} by ${change.changeApproval.approvedBy} · ${new Date(change.changeApproval.approvedAt!).toLocaleString("en-GB")}${change.lifecycle?.authorisation?.renewable ? ` — now: ${change.lifecycle.authorisation.label.toLowerCase()}` : ""}`}
                   >
                     <div style={{ fontSize: 13.5 }}>
                       {change.changeApproval.note || <span className="notstated">no note recorded</span>}

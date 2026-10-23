@@ -213,14 +213,16 @@ export function LifecycleStepper({ lifecycle, compact }: { lifecycle?: Lifecycle
   return (
     <ol className={`stepper${compact ? " compact" : ""}`} aria-label="Lifecycle">
       {PHASES.map((p, i) => {
-        const done = i < current || (i === current && lifecycle?.phase === "done" && !rejected);
-        const isCurrent = i === current && !done;
-        const state = done ? "done" : isCurrent ? (failed ? "attention" : rejected ? "closed" : "current") : "todo";
+        // Resolved without a change: delivery, validation and release never happened -- shown as skipped, not ticked.
+        const skipped = lifecycle?.outcome === "resolved_without_change" && ["delivery", "validation", "release"].includes(p.key);
+        const done = !skipped && (i < current || (i === current && lifecycle?.phase === "done" && !rejected));
+        const isCurrent = i === current && !done && !skipped;
+        const state = skipped ? "skipped" : done ? "done" : isCurrent ? (failed ? "attention" : rejected ? "closed" : "current") : "todo";
         return (
           <li key={p.key} className={`step ${state}`} aria-current={isCurrent ? "step" : undefined}>
-            <span className="step-dot" aria-hidden="true">{done ? "✓" : isCurrent ? (failed ? "!" : "●") : ""}</span>
+            <span className="step-dot" aria-hidden="true">{skipped ? "–" : done ? "✓" : isCurrent ? (failed ? "!" : "●") : ""}</span>
             <span className="step-label">{p.label}</span>
-            <span className="sr-only">{done ? "(complete)" : isCurrent ? "(current)" : "(not started)"}</span>
+            <span className="sr-only">{skipped ? "(not needed)" : done ? "(complete)" : isCurrent ? "(current)" : "(not started)"}</span>
           </li>
         );
       })}

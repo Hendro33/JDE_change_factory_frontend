@@ -1,5 +1,6 @@
 import { INSIGHT_PERIODS, inInsightPeriod } from "../../services/insightPeriod";
 import { useEffect, useMemo, useState } from "react";
+import { workLink } from "../../services/workLink";
 import { DemandNav } from "../demand/DemandNav";
 import { api } from "../../services/api";
 import type { Change, Health, JiraConnectionStatus, JiraSyncResult, Phase } from "../../types/domain";
@@ -69,6 +70,9 @@ export function StoriesPage() {
       if (period && !inInsightPeriod(c.createdAt, period.key)) return false;
       const lc = c.lifecycle;
       if (!showDone && !phase && lc?.phase === "done") return false;
+      // A request is not a user story until JADE has prepared one (finding 2): the
+      // User Stories list leaves requests to Requests; the end-to-end board shows both.
+      if (!phase && view === "list" && isRequest(c)) return false;
       if (needle && !`${c.id} ${c.title} ${c.userStory?.statement ?? ""} ${info.domainName(c.businessDomainId) ?? ""}`.toLowerCase().includes(needle)) return false;
       if (phase && lc?.phase !== phase) return false;
       if (domain && (domain === "none" ? c.businessDomainId : c.businessDomainId !== domain)) return false;
@@ -80,7 +84,8 @@ export function StoriesPage() {
       if (health && health !== "attention" && health !== "stuck" && lc?.health !== health) return false;
       return true;
     });
-  }, [data, q, phase, domain, health, owner, priority, changeType, showDone, info, period]);
+  }, [data, q, phase, domain, health, owner, priority, changeType, showDone, info, period, view]);
+  const requestCount = (data ?? []).filter(isRequest).length;
 
   const doneCount = (data ?? []).filter((c) => c.lifecycle?.phase === "done").length;
   const filtered = !!(q || phase || domain || health || owner || priority || changeType);
@@ -136,6 +141,9 @@ export function StoriesPage() {
           <Link className="btn primary" to="/stories/new">New request</Link>
         </>} />
 
+      {!phase && view === "list" && requestCount > 0 && (
+        <p className="muted">{requestCount} incoming request{requestCount === 1 ? " is" : "s are"} not a user story yet: <Link to="/stories?phase=understand">Requests</Link>.</p>
+      )}
       {period && <p className="muted">Insights cohort: {period.label} · stories created in this period, shown at their current status.</p>}
       {retrieveError !== null && <ErrorState error={retrieveError} title="Could not retrieve new requests" />}
       {retrieved && (
@@ -177,7 +185,7 @@ export function StoriesPage() {
                value={q} onChange={(e) => setQueryParam("q", e.target.value)} />
         <select aria-label="Phase" value={phase} onChange={(e) => setQueryParam("phase", e.target.value)}>
           <option value="">All phases</option>
-          {PHASES.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+          {PHASES.map((p) => <option key={p.key} value={p.key}>{p.key === "understand" ? "Requests (not a story yet)" : p.label}</option>)}
         </select>
         <select aria-label="Business domain" value={domain} onChange={(e) => setQueryParam("domain", e.target.value)}>
           <option value="">All domains</option>
@@ -240,8 +248,10 @@ interface RowSelection {
   setAll: (on: boolean) => void;
 }
 
-export function StoryTable({ rows, compact, select }: { rows: Change[]; compact?: boolean; select?: RowSelection }) {
+export function StoryTable({ rows, compact, select, am }: { rows: Change[]; compact?: boolean; select?: RowSelection; am?: boolean }) {
   const info = useSessionInfo();
+  // Each row opens where the viewer acts (finding 1); `am`: the Application Management view.
+  const linkFor = (c: Change) => workLink(c, info, { am });
   const eligible = select ? rows.filter(select.can) : [];
   const allOn = !!select && eligible.length > 0 && eligible.every((c) => select.selected.has(c.id));
   return (
@@ -256,7 +266,7 @@ export function StoryTable({ rows, compact, select }: { rows: Change[]; compact?
           )}<th>Story</th>{!compact && <th>Business domain</th>}<th>Priority</th><th>Phase</th><th>Health</th><th>Next action</th></tr>
         </thead>
         <tbody>{rows.map((c) => (
-          <tr key={c.id} className="clickable" onClick={(e) => { if ((e.target as HTMLElement).closest("a, input")) return; navigate(storyPath(c.id)); }}>
+          <tr key={c.id} className="clickable" onClick={(e) => { if ((e.target as HTMLElement).closest("a, input")) return; navigate(linkFor(c)); }}>
             {select && (
               <td>
                 <input type="checkbox" aria-label={`Select ${c.id}`} checked={select.selected.has(c.id)}
@@ -265,8 +275,8 @@ export function StoryTable({ rows, compact, select }: { rows: Change[]; compact?
               </td>
             )}
             <td className="storycell">
-              <Link to={storyPath(c.id)} className="storylink">{storyTitle(c)}</Link>
-              <div className="muted small"><span className="mono">{c.id}</span> · {sourceLabel(c)} · {formatDate(c.updatedAt)}</div>
+              <Link to={linkFor(c)} className="storylink">{storyTitle(c)}</Link>
+              <div className="muted small"><span className="mono">{c.id}</span> · {sourceLabel(c)}{c.lifecycle?.since ? ` · last step ${formatDate(c.lifecycle.since)}` : ""}</div>
             </td>
             {!compact && <td>{info.domainName(c.businessDomainId) ?? <span className="muted">—</span>}</td>}
             <td><ImpactIndicator change={c} /></td>
@@ -288,9 +298,9 @@ function Board({ rows }: { rows: Change[] }) {
     <div className="board" role="list">
       {PHASES.map((p) => (
         <section key={p.key} className="board-col" role="listitem" aria-label={p.label}>
-          <h3>{p.label} <span className="muted">{byPhase.get(p.key)?.length ?? 0}</span></h3>
+          <h3>{p.key === "understand" ? "Requests" : p.label} <span className="muted">{byPhase.get(p.key)?.length ?? 0}</span></h3>
           {(byPhase.get(p.key) ?? []).map((c) => (
-            <Link key={c.id} to={storyPath(c.id)} className={`board-card h-${c.lifecycle?.health}`}>
+            <Link key={c.id} to={workLink(c, info)} className={`board-card h-${c.lifecycle?.health}`}>
               <span className="board-title">{storyTitle(c)}</span>
               <span className="muted small">{info.domainName(c.businessDomainId) ?? c.id}</span>
               <HealthIndicator lifecycle={c.lifecycle} />
@@ -300,4 +310,9 @@ function Board({ rows }: { rows: Change[] }) {
       ))}
     </div>
   );
+}
+
+/** Still a request: JADE has not yet prepared a user story that passed its quality check. */
+export function isRequest(c: Change): boolean {
+  return (c.lifecycle?.phase ?? "understand") === "understand";
 }

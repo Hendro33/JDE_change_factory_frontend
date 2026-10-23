@@ -8,7 +8,9 @@ import {
   attentionOf, storyTitle, useAsync, useSessionInfo, ROLE_LABEL,
 } from "../../components/design";
 import { Link, storyPath } from "../../router";
-import { gateFor } from "../stories/NextActionCard";
+import { workLink } from "../../services/workLink";
+import { oldestWaiting, waitingLabel } from "../../services/metrics";
+import { MetricStrip } from "../../components/work";
 
 /** The verb on each item's button: what the person will actually do. */
 export const ACTION_VERB: Record<string, string> = {
@@ -27,25 +29,21 @@ function greeting(): string {
   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
-function age(iso: string): string {
-  const d = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 86400000));
-  return d === 0 ? "today" : d === 1 ? "1 day" : `${d} days`;
-}
 
 /** One row of the queue: what, where it is, how long it has waited, and the one button. */
 function QueueRow({ c }: { c: Change }) {
   const info = useSessionInfo();
   const na = c.lifecycle!.nextAction;
-  const gate = na.action ? gateFor(na.action, c.id) : undefined;
-  const to = gate?.to ?? storyPath(c.id, na.tab, "next-action");
+  // Straight into the screen where this person acts (finding 1).
+  const to = workLink(c, info);
   return (
     <li className={`qrow ${na.kind}`}>
       <span className="qrow-kind">{na.kind === "decision" ? <><span aria-hidden="true">◆</span> Decision</> : <><span aria-hidden="true">○</span> To do</>}</span>
       <span className="qrow-main">
-        <Link className="qrow-title" to={storyPath(c.id)}>{storyTitle(c)}</Link>
+        <Link className="qrow-title" to={to}>{storyTitle(c)}</Link>
         <span className="qrow-sub">{na.summary}</span>
       </span>
-      <span className="qrow-meta"><span>{c.lifecycle!.phaseLabel} · {age(c.updatedAt) === "today" ? "since today" : `waiting ${age(c.updatedAt)}`}</span><span className="muted qrow-domain">{info.domainName(c.businessDomainId) ?? "No domain"}</span></span>
+      <span className="qrow-meta"><span>{c.lifecycle!.phaseLabel}{waitingLabel(c) ? ` · ${waitingLabel(c)}` : ""}</span><span className="muted qrow-domain">{info.domainName(c.businessDomainId) ?? "No domain"}</span></span>
       <span className="qrow-prio"><ImpactIndicator change={c} /></span>
       <Link className={`btn small ${na.kind === "decision" ? "primary" : ""}`} to={to}>{ACTION_VERB[na.action ?? ""] ?? "Open"}</Link>
     </li>
@@ -94,6 +92,22 @@ export function MyWorkPage() {
         title={count === 0 ? "Nothing needs you right now" : `${count} thing${count === 1 ? "" : "s"} need${count === 1 ? "s" : ""} you`}
       />
       {!work.roles.length && <p className="callout">You have no role on this customer yet; ask an administrator.</p>}
+      {/* The role overview (finding 7): a few measures with their definitions, from recorded events only. */}
+      {(() => {
+        const mineAll = [...decisions, ...otherTasks];
+        const oldest = oldestWaiting(mineAll);
+        const blocked = mineAll.filter((c) => c.lifecycle?.health === "blocked" || c.lifecycle?.health === "failed" || c.lifecycle?.authorisation?.renewable).length;
+        return <MetricStrip label="Your overview" items={[
+          { label: "Decisions for you", value: decisions.length, definition: "Stories whose next step is a decision owned by one of your roles." },
+          { label: "Oldest waiting", value: oldest === null ? "—" : `${oldest} day${oldest === 1 ? "" : "s"}`,
+            definition: "Days since the current step of your longest-waiting item began (its latest recorded lifecycle event)." },
+          { label: "Blocked", value: blocked, definition: "Your items that are blocked, need attention, or whose authorisation expired." },
+          { label: "Stories in progress", value: work.inProgressCount, to: "/stories", definition: "Open user stories for this customer. Requests that are not a story yet are counted apart." },
+          { label: "Incoming requests", value: work.requestsCount ?? 0, to: "/stories?phase=understand", definition: "Requests JADE has not turned into a user story yet." },
+          { label: "Delivered, last 31 days", value: work.completedThisMonth.filter((c) => c.lifecycle?.outcome === "delivered").length, to: "/stories?phase=done",
+            definition: "Stories delivered whose recorded finish falls in the last 31 days." },
+        ]} />;
+      })()}
 
       {openTests.length > 0 && (
         <Section title="Assigned acceptance tests">
@@ -162,7 +176,6 @@ export function MyWorkPage() {
 
         <aside className="mywork-side">
           {/* Counts are Insights' job; one line links there (step 3: no card stacks). */}
-          <p className="muted side-counts"><Link to="/stories">{work.inProgressCount} in progress</Link> · <Link to="/stories?phase=done">{work.completedThisMonth.length} delivered this month</Link></p>
           <Link className="btn wide" to="/stories/new">New request</Link>
           {recent.length > 0 && (
             <Section title="Recently viewed" quiet>

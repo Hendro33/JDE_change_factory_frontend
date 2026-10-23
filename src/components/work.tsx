@@ -39,7 +39,7 @@ export function canResolve(issue: Issue, has: (...r: CompanyRole[]) => boolean):
 /* What needs to happen                                                 */
 /* ------------------------------------------------------------------ */
 
-export function WhatNeedsToHappen({ lifecycle, changeId, controls, title = "What needs to happen", skipPrimary, limit }: {
+export function WhatNeedsToHappen({ lifecycle, changeId, controls, title = "What needs to happen", skipPrimary, limit, listedKinds }: {
   lifecycle?: Lifecycle | null;
   changeId: string;
   /** The control for the primary line (the next action's own button), if the caller has one. */
@@ -49,9 +49,12 @@ export function WhatNeedsToHappen({ lifecycle, changeId, controls, title = "What
   skipPrimary?: boolean;
   /** Show at most this many lines; the rest open on request (blocking lines first). */
   limit?: number;
+  /** Open points of these kinds are listed on the same screen ("all": every kind): not repeated here. */
+  listedKinds?: string[] | "all";
 }) {
   const [all, setAll] = useState(false);
-  const lines = (lifecycle?.whatNext ?? []).filter((l) => !(skipPrimary && l.primary));
+  const listed = (l: WorkLine) => !!l.issueId && (listedKinds === "all" || (!!listedKinds && listedKinds.includes(l.issueKind ?? "")));
+  const lines = (lifecycle?.whatNext ?? []).filter((l) => !(skipPrimary && l.primary) && !listed(l));
   if (lines.length === 0) return null;
   const ordered = limit ? [...lines].sort((a, b) => Number(!!b.primary) - Number(!!a.primary) || Number(!!b.blocking) - Number(!!a.blocking)) : lines;
   const shown = limit && !all ? ordered.slice(0, limit) : ordered;
@@ -89,7 +92,7 @@ function WorkLineRow({ line, changeId, controls }: { line: WorkLine; changeId: s
 /* Issues                                                               */
 /* ------------------------------------------------------------------ */
 
-export function IssueList({ change, onChange, kinds, title = "Open points", empty, id = "open-points" }: {
+export function IssueList({ change, onChange, kinds, title = "Open points", empty, id = "open-points", skipNextAction }: {
   change: Change;
   onChange: (c: Change) => void;
   /** Only these kinds (e.g. the business questions on the business view). */
@@ -97,8 +100,14 @@ export function IssueList({ change, onChange, kinds, title = "Open points", empt
   title?: string;
   empty?: ReactNode;
   id?: string;
+  /** The next-step card above already states the open point that is the next action: not repeated here. */
+  skipNextAction?: boolean;
 }) {
-  const all = (change.lifecycle?.issues ?? []).filter((i) => !kinds || kinds.includes(i.kind));
+  const na = change.lifecycle?.nextAction;
+  const isNextAction = (i: Issue) => !!skipNextAction && !!na && na.summary.includes(i.title.replace(/[ .]+$/, ""));
+  // An expired or invalidated authorisation is shown as the decision itself, not again as an open point.
+  const shownAsDecision = (i: Issue) => !!change.lifecycle?.authorisation?.renewable && i.source === "delivery_gate" && i.actionId === "approve_exact_change";
+  const all = (change.lifecycle?.issues ?? []).filter((i) => (!kinds || kinds.includes(i.kind)) && !shownAsDecision(i));
   const open = all.filter((i) => !i.resolution);
   const resolved = all.filter((i) => i.resolution);
   const sorted = [...open].sort((a, b) => Number(b.blocks) - Number(a.blocks) || Number(a.kind === "jade") - Number(b.kind === "jade"));
@@ -108,7 +117,7 @@ export function IssueList({ change, onChange, kinds, title = "Open points", empt
       <h3 className="issues-title">{title}{open.length > 0 && <span className="issues-count">{open.length} open</span>}</h3>
       {sorted.length === 0 && <p className="muted">Every open point is answered or resolved.</p>}
       <ul className="issue-list">
-        {sorted.map((i) => <IssueRow key={i.id} issue={i} change={change} onChange={onChange} />)}
+        {sorted.map((i) => <IssueRow key={i.id} issue={i} change={change} onChange={onChange} statedAbove={isNextAction(i)} />)}
       </ul>
       {resolved.length > 0 && (
         <details className="issues-resolved" open={resolved.some((i) => Date.now() - Date.parse(i.resolution!.at) < 15 * 60 * 1000)}>
@@ -126,7 +135,7 @@ export function IssueList({ change, onChange, kinds, title = "Open points", empt
   );
 }
 
-function IssueRow({ issue, change, onChange }: { issue: Issue; change: Change; onChange: (c: Change) => void }) {
+function IssueRow({ issue, change, onChange, statedAbove }: { issue: Issue; change: Change; onChange: (c: Change) => void; statedAbove?: boolean }) {
   const info = useSessionInfo();
   const [answer, setAnswer] = useState("");
   const [open, setOpen] = useState(false);
@@ -156,11 +165,12 @@ function IssueRow({ issue, change, onChange }: { issue: Issue; change: Change; o
         <span className="issue-owner">{issue.ownerLabel}</span>
         {issue.blocks && !r && <Tag tone="stop">Blocks progress</Tag>}
       </div>
-      <div className="issue-title">{issue.title}</div>
-      {issue.consequence && <div className="issue-consequence">{issue.consequence}</div>}
+      {/* Already the next step at the top of the page: its actions stay here, its text is not repeated. */}
+      <div className="issue-title">{statedAbove && !r ? <span className="muted">The next step above</span> : issue.title}</div>
+      {issue.consequence && !statedAbove && <div className="issue-consequence">{issue.consequence}</div>}
       {issue.proposedAnswer && !r && <div className="issue-proposal"><strong>JADE proposes: </strong>{issue.proposedAnswer}</div>}
       {issue.kind === "jade" && <div className="issue-note">JADE handles this itself; nobody needs to act.</div>}
-      {issue.source === "delivery_gate" && <div className="issue-note">{issue.action} This clears by itself once the cause is fixed.</div>}
+      {issue.source === "delivery_gate" && !statedAbove && <div className="issue-note">{issue.action} This clears by itself once the cause is fixed.</div>}
       {r && (
         <div className="issue-answer">
           <strong>{r.status === "answered" ? "Answer" : "Resolved"}</strong>
@@ -249,5 +259,57 @@ export function ResultSummary({ change, title = "JADE's conclusion", hideConclus
       )}
       {r?.derived && <p className="hint">Summarised by JADE from an earlier design. Running the Architect again gives the conclusion in its own words.</p>}
     </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Acceptance criteria: a requirement, not a result                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The acceptance criteria with what is actually known about them: proposed by
+ * JADE, confirmed by a person (the Domain Owner's story approval), and whether a
+ * test result has been recorded. A criterion is never marked as passed unless a
+ * passing test is recorded; the recorded test covers the change as a whole.
+ */
+export function AcceptanceList({ change }: { change: Change }) {
+  const acs = change.userStory?.acceptanceCriteria ?? [];
+  if (acs.length === 0) return null;
+  const ap = change.storyApproval;
+  const confirmed = ap?.status === "approved";
+  const v = change.lifecycle?.deliverySteps.find((s) => s.id === "validation");
+  const test = v?.state === "done" ? "passed" : v?.state === "failed" ? "failed" : change.testResult && change.testResult.outcome !== "not run"
+    ? (change.testResult.outcome === "pass" ? "passed" : "failed") : null;
+  return (
+    <>
+      <p className="acstatus">
+        <span className={`tag ${confirmed ? "info" : ""}`}>{confirmed ? `Confirmed by ${ap!.approvedBy}` : "Proposed by JADE, not confirmed yet"}</span>{" "}
+        <span className={`tag ${test === "passed" ? "ok" : test === "failed" ? "stop" : ""}`}>
+          {test === "passed" ? "Test recorded: passed" : test === "failed" ? "Test recorded: did not pass" : "Not tested yet"}</span>
+        <span className="muted explain"> Acceptance criteria are requirements. A test result is shown only once a test is recorded, and it covers the change as a whole.</span>
+      </p>
+      <ol className="aclist">{acs.map((a) => <li key={a.id}><span className="mono muted">{a.id}</span> {a.text}</li>)}</ol>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Role-home measures                                                   */
+/* ------------------------------------------------------------------ */
+
+export interface Metric { value: string | number; label: string; to?: string; definition: string }
+
+/** A small row of measures, each with its definition (shown with "?"). Never an oversized card stack. */
+export function MetricStrip({ items, label }: { items: Metric[]; label: string }) {
+  return (
+    <dl className="metricstrip" aria-label={label}>
+      {items.map((m) => (
+        <div key={m.label} className="metric" title={m.definition}>
+          <dt>{m.to ? <Link to={m.to}>{m.label}</Link> : m.label}</dt>
+          <dd>{m.value}</dd>
+          <dd className="metric-def explain">{m.definition}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }

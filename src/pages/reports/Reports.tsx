@@ -9,6 +9,10 @@ import {
 } from "../../components/design";
 import { Link, navigate, setQueryParam, useLocation, storyPath } from "../../router";
 import { DEFAULT_DASHBOARD_THRESHOLDS, toneForValue } from "../../services/dashboardThresholds";
+import { isRequest } from "../stories/Stories";
+
+/** Routes that deliver a change; "Resolve without Change" and "Clarification Required" are outcomes, not routes. */
+const DELIVERY_ROUTES = ["Functional Agent", "Technical Agent", "Mixed", "Human Implementation"];
 
 /** One series, one hue: a labelled horizontal bar per row, each a link to the stories behind it. */
 function Bars({ rows, onRow, label }: { rows: { label: string; count: number; hint?: string }[]; onRow?: (i: number) => void; label: string }) {
@@ -64,6 +68,11 @@ export function ReportsPage() {
   const health = (metrics.health ?? []).filter((h) => h.count > 0);
   const byId = new Map(changes.map((c) => [c.id, c]));
   const perf = metrics.performance;
+  // The delivery queue holds what the Application Manager authorised; only the
+  // part past solution review is in delivery (finding 8).
+  const queued = queue.filter((e) => byId.has(e.changeId));
+  const inDelivery = queued.filter((e) => ["delivery", "validation", "release"].includes(byId.get(e.changeId)?.lifecycle?.phase ?? ""));
+  const inArchitecture = queued.filter((e) => ["solutioning", "solution_review"].includes(byId.get(e.changeId)?.lifecycle?.phase ?? "")).length;
 
   return (
     <div className="reports vr-pilot">
@@ -74,7 +83,8 @@ export function ReportsPage() {
       <ReviewDetail title="How to read these insights"><p className="muted">Stories created in the selected period (7, 30 or 365 days, or lifetime), shown at their current lifecycle status. This is a story cohort, not a count of events during that period.</p></ReviewDetail>
 
       <div className="statrow">
-        <div className="statcard"><span className="stat-value">{changes.filter((c) => c.lifecycle?.phase !== "done").length}</span><span className="stat-label">stories in progress</span></div>
+        <Link to={`/stories?period=${period}`} className="statcard"><span className="stat-value">{changes.filter((c) => c.lifecycle?.phase !== "done" && !isRequest(c)).length}</span><span className="stat-label">user stories in progress</span></Link>
+        <Link to={`/stories?phase=understand&period=${period}`} className="statcard"><span className="stat-value">{changes.filter(isRequest).length}</span><span className="stat-label">incoming requests (not a story yet)</span></Link>
         <AlertStat to={`/stories?health=waiting_decision&period=${period}`} value={changes.filter((c) => c.lifecycle?.health === "waiting_decision").length}
                    label="waiting for a decision" thresholds={thresholds ?? DEFAULT_DASHBOARD_THRESHOLDS} />
         <AlertStat to={`/stories?health=stuck&period=${period}`} value={changes.filter((c) => c.lifecycle?.health === "failed" || c.lifecycle?.health === "blocked").length}
@@ -83,8 +93,8 @@ export function ReportsPage() {
       </div>
 
       <div className="reportgrid">
-        <Section title="Stories by lifecycle phase" description="Click a phase to see its stories.">
-          <Bars label="Stories by phase" rows={phases.map((p) => ({ label: p.stage, count: p.count }))}
+        <Section title="Requests and stories by lifecycle phase" description="Click a phase to see its stories.">
+          <Bars label="Stories and requests by phase" rows={phases.map((p) => ({ label: p.stage === "Understand" ? "Requests (not a story yet)" : p.stage, count: p.count }))}
                 onRow={(i) => navigate(`/stories?period=${period}&phase=${PHASES[i].key}${PHASES[i].key === "done" ? "&done=1" : ""}`)} />
         </Section>
         <Section title="Health of open work">
@@ -96,16 +106,21 @@ export function ReportsPage() {
                   onRow={(i) => { const d = metrics.businessDomainBreakdown[i]; navigate(`/stories?done=1&period=${period}&domain=${encodeURIComponent(d.domainId ?? "none")}`); }} />
           )}
         </Section>
-        <Section title="Confirmed business benefit" description="Human-confirmed ratings for this story cohort.">
-          <Bars label="Confirmed business benefit" rows={["High","Medium","Small"].map((level) => ({label:level,count:changes.filter((c) => c.ratings?.businessBenefit.confirmed === level).length}))} />
-          <span className="vr-note">{changes.filter((c) => !c.ratings?.businessBenefit.confirmed).length} stories without a current confirmed benefit</span>
+        <Section title="Expected business benefit (rated, not achieved)" description="The expected benefit as rated when the story was reviewed and confirmed by a person. This is not benefit achieved: JADE does not measure realised benefit.">
+          <Bars label="Expected business benefit (confirmed rating)" rows={["High","Medium","Small"].map((level) => ({label:level,count:changes.filter((c) => c.ratings?.businessBenefit.confirmed === level).length}))} />
+          <span className="vr-note">{changes.filter((c) => !isRequest(c) && !c.ratings?.businessBenefit.confirmed).length} stories without a confirmed expected benefit</span>
         </Section>
-        <Section title="Confirmed business impact">
-          <Bars label="Confirmed business impact" rows={["High","Medium","Low"].map((level) => ({label:level,count:changes.filter((c) => c.ratings?.businessImpact.confirmed === level).length}))} />
+        <Section title="Expected business impact (rated, not measured)" description="The impact of the business problem as rated and confirmed by a person; not a measured result.">
+          <Bars label="Expected business impact (confirmed rating)" rows={["High","Medium","Low"].map((level) => ({label:level,count:changes.filter((c) => c.ratings?.businessImpact.confirmed === level).length}))} />
           <ReviewDetail title="Original impact coverage"><Bars label="Business impact stated" rows={metrics.businessImpactBreakdown.map((b) => ({label:b.category,count:b.count}))} /><p>Counts stated narrative impact, not its severity.</p></ReviewDetail>
         </Section>
-        <Section title="Recommended delivery routes" description="Architecture recommendations, not completed deliveries.">
-          <Bars label="Recommended delivery routes" rows={[...new Set(changes.map((c) => c.architectDecision?.recommendedRoute ?? "Not assessed"))].map((route) => ({label:route,count:changes.filter((c) => (c.architectDecision?.recommendedRoute ?? "Not assessed") === route).length}))} />
+        <Section title="Recommended delivery routes" description="The route the Architect recommends for stories that need a change in JD Edwards. Recommendations, not completed deliveries.">
+          <Bars label="Recommended delivery routes" rows={DELIVERY_ROUTES.map((route) => ({ label: route, count: changes.filter((c) => c.architectDecision?.recommendedRoute === route).length })).filter((r) => r.count > 0)} />
+          <p className="vr-note">
+            {changes.filter((c) => c.architectDecision?.recommendedRoute === "Resolve without Change").length} resolved without a change ·{" "}
+            {changes.filter((c) => c.architectDecision?.recommendedRoute === "Clarification Required").length} waiting for clarification ·{" "}
+            {changes.filter((c) => !isRequest(c) && !c.architectDecision).length} stories not analysed by the Architect yet
+          </p>
         </Section>
       </div>
 
@@ -115,15 +130,17 @@ export function ReportsPage() {
           <div className="statcard plain"><span className="stat-value">{perf.firstTimeSuccessRate}%</span><span className="stat-label">stories that passed JADE's quality check without a revision</span></div>
           <div className="statcard plain"><span className="stat-value">{perf.humanApprovals}</span><span className="stat-label">human approvals recorded ({perf.humanRejections} rejected)</span></div>
           <div className="statcard plain"><span className="stat-value">{perf.changeVolume}</span><span className="stat-label">requests and stories in total</span></div>
+          <div className="statcard plain"><span className="stat-value">{perf.deliveredCount ? `${perf.averageCycleTimeDays} days` : "no data"}</span>
+            <span className="stat-label">average cycle time, request received to as-built record finalised ({perf.deliveredCount} delivered in this period)</span></div>
         </div>
       </Section>
 
-      {info.appManagement && <Section title="Delivery queue" description="Work authorised for delivery, in order. Phase and health come from each story's own lifecycle."
+      {info.appManagement && <Section title="Delivery queue" description="Approved changes in delivery, validation or release, in queue order. Stories authorised but still in architecture are counted below the table."
         actions={<Link to="/am/delivery">Open Delivery</Link>}>
-        {queue.filter((e) => byId.has(e.changeId)).length === 0 ? <EmptyState title="Nothing authorised for delivery yet" /> : (
+        {inDelivery.length === 0 ? <EmptyState title="Nothing in delivery yet" /> : (
           <table className="data">
             <thead><tr><th>#</th><th>Story</th><th>Phase</th><th>Health</th><th>Authorised by</th></tr></thead>
-            <tbody>{queue.filter((e) => byId.has(e.changeId)).map((e) => {
+            <tbody>{inDelivery.map((e) => {
               const c = byId.get(e.changeId);
               return (
                 <tr key={e.changeId}>
@@ -137,6 +154,7 @@ export function ReportsPage() {
             })}</tbody>
           </table>
         )}
+        {inArchitecture > 0 && <p className="vr-note">{inArchitecture} authorised stor{inArchitecture === 1 ? "y is" : "ies are"} still in architecture (solutioning or solution review): <Link to="/am/architecture-review">Architecture Review</Link>.</p>}
       </Section>}
 
       {info.has("admin") && (

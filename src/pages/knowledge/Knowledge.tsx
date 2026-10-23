@@ -52,7 +52,7 @@ export function KnowledgePage({ part }: { part?: "rules" | "solutions" | "refere
           <ul className="knowledgelist">{d.map((c) => (
             <li key={c.id}>
               <Link to={storyPath(c.id, "delivery", "release")}>{storyTitle(c)}</Link>
-              <div className="muted small">{info.domainName(c.businessDomainId) ?? "No domain"} · {c.lifecycle?.outcome === "delivered" ? `delivered ${formatDate(c.updatedAt)}` : "validated, release pending"}</div>
+              <div className="muted small">{info.domainName(c.businessDomainId) ?? "No domain"} · {c.lifecycle?.outcome === "delivered" ? `delivered ${formatDate(c.lifecycle?.since ?? c.updatedAt)}` : "validated, release pending"}</div>
             </li>
           ))}</ul>
         )}

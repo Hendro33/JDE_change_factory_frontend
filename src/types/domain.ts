@@ -148,6 +148,8 @@ export interface TestStep {
 export interface UserStory {
   businessImpactRating?: "Low" | "Medium" | "High" | null;
   businessBenefitRating?: "Small" | "Medium" | "High" | null;
+  /** What in the source the proposed ratings rest on. */
+  ratingBasis?: string;
   statement: string;
   businessContext: string;
   acceptanceCriteria: AcceptanceCriterion[];
@@ -258,6 +260,9 @@ export interface WorkLine {
   tab: WorkspaceTab;
   blocking: boolean;
   primary: boolean;
+  /** The open point this line restates, if any. */
+  issueId?: string | null;
+  issueKind?: string | null;
 }
 
 /** GET /setup-list — one Administrator task per setup gap, with the stories it affects. */
@@ -936,6 +941,10 @@ export interface Lifecycle {
   /** At the end: what changed, what was verified, and the three outcomes kept apart. */
   outcomeCard?: OutcomeCard | null;
   handoffAuthorised: boolean;
+  /** The CURRENT authorisation of the exact change (same checks as the delivery gate). */
+  authorisation?: Authorisation | null;
+  /** When the current step began: the latest recorded lifecycle event (for a finished story, when it finished). */
+  since?: string | null;
   /** While JADE works: what it is reading right now. */
   activity: string;
 }
@@ -997,7 +1006,11 @@ export interface MyWork {
   needsYou: Change[];
   waitingOnOthers: Change[];
   jadeWorking: Change[];
+  /** User stories in progress (requests that are not a story yet excluded). */
   inProgressCount: number;
+  /** Incoming requests JADE has not turned into a user story yet. */
+  requestsCount?: number;
+  /** Finished in the last 31 days, by recorded finish time. */
   completedThisMonth: Change[];
   roles: CompanyRole[];
 }
@@ -1040,6 +1053,7 @@ export interface FactoryMetrics {
   performance: {
     averageCycleTimeDays: number;
     averageCycleTimeDelta: number;
+    deliveredCount?: number;
     firstTimeSuccessRate: number;
     firstTimeSuccessDelta: number;
     humanApprovals: number;
@@ -1588,4 +1602,17 @@ export interface StoryRatings {
   revision: number;
   canConfirmBusiness: boolean;
   canConfirmTechnical: boolean;
+}
+
+export interface PastApproval { by?: string | null; at?: string | null; expiresAt?: string | null; supersededAt?: string | null; reason: string }
+export interface Authorisation {
+  state: "none" | "pending" | "valid" | "used" | "expired" | "invalidated" | "rejected";
+  label: string;
+  detail: string;
+  by?: string | null;
+  at?: string | null;
+  expiresAt?: string | null;
+  /** Expired or invalidated before use: may be authorised again. */
+  renewable: boolean;
+  history: PastApproval[];
 }

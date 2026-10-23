@@ -4,7 +4,7 @@ import { deliveryApi } from "../../services/deliveryApi";
 import { discoveryApi, type DesignBaselineView } from "../../services/discoveryApi";
 import { technicalApi } from "../../services/technicalApi";
 import { saveErrorMessage } from "../../services/saveErrors";
-import type { FeedbackReasonCode } from "../../types/domain";
+import type { Change, FeedbackReasonCode } from "../../types/domain";
 import { AskJadePanel } from "../../components/AskJade";
 import { ConfirmDialog } from "../../components/ui";
 import { Details, EmptyState, ErrorState, formatDateTime, useSessionInfo } from "../../components/design";
@@ -18,7 +18,7 @@ import { ROUTE_LABEL, cleanAgentText, type StoryCtx } from "../stories/storyCont
 import { Link } from "../../router";
 import { changePath } from "../stories/useStory";
 
-const DECISIONS = new Set(["approve_exact_change", "approve_design", "authorise_handoff"]);
+const DECISIONS = new Set(["approve_exact_change", "approve_design", "authorise_handoff", "confirm_no_change"]);
 
 /**
  * The one authoritative solution view of a change (review, changes 1 and 3):
@@ -63,7 +63,9 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
 
   const route = decision ? ROUTE_LABEL[decision.recommendedRoute] ?? { title: decision.recommendedRoute, summary: "" } : undefined;
   const manifest = evidence?.manifest;
-  const openPoints = (lc?.issues ?? []).filter((i) => !i.resolution && i.kind !== "jade").length;
+  // Counted as listed below: an expired authorisation is the decision above, not an open point.
+  const openPoints = (lc?.issues ?? []).filter((i) => !i.resolution && i.kind !== "jade"
+    && !(lc?.authorisation?.renewable && i.source === "delivery_gate" && i.actionId === "approve_exact_change")).length;
   const basis = evidence ? `Based on ${manifest?.observations.length ?? 0} reading${manifest?.observations.length === 1 ? "" : "s"} of the JD Edwards environment on ${formatDateTime(evidence.createdAt)}`
     + `${manifest?.documents.length ? `, ${manifest.documents.length} document${manifest.documents.length > 1 ? "s" : ""}` : ""}; ${openPoints} open point${openPoints === 1 ? "" : "s"}.` : "";
 
@@ -75,9 +77,23 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
       <section className="panel solution-main">
         {route && <div className="route-line"><span className="route-title">{route.title}</span><span className="muted"> · {route.summary}</span></div>}
         <ResultSummary change={change} hideConclusion={DECISIONS.has(lc?.nextAction.action ?? "") && info.has("product_manager", "admin")} />
+        {/* What changes, who builds it, the risk and what is open: one screen (finding 4). */}
+        {decision && (
+          <dl className="glance">
+            <dt>Who builds it</dt>
+            <dd>{route?.title}{spec?.humanActionsRequired.length ? ` · people: ${spec.humanActionsRequired.length} step${spec.humanActionsRequired.length === 1 ? "" : "s"} outside JADE` : ""}</dd>
+            <dt>Risk</dt>
+            <dd>{decision.dependenciesAndConflicts.length
+              ? `${decision.dependenciesAndConflicts.length} dependenc${decision.dependenciesAndConflicts.length === 1 ? "y or conflict" : "ies or conflicts"} named`
+              : "No dependencies or conflicts named"}{decision.rollbackStrategy ? " · rollback described" : " · no rollback described"}</dd>
+            <dt>Effort</dt>
+            <dd>{change.complexitySignal === "Unknown" ? "Not estimated" : `${change.complexitySignal} (JADE's estimate)`}</dd>
+          </dl>
+        )}
         {basis && <p className="designbasis">{basis} <Link to={changePath(change.id, "evidence")}>Design basis</Link></p>}
         {standalone && <WhatNeedsToHappen lifecycle={lc} changeId={change.id} skipPrimary title="Also open" limit={3} />}
-        <IssueList change={change} onChange={() => ctx.reload()} empty="No open points: nothing is waiting on anyone." />
+        <IssueList change={change} onChange={() => ctx.reload()} skipNextAction={!DECISIONS.has(lc?.nextAction.action ?? "")}
+          empty="No open points: nothing is waiting on anyone." />
       </section>
 
       {ctx.process && (latestMap(ctx.process.maps.to_be.versions) || latestMap(ctx.process.maps.as_is.versions)) ? (
@@ -105,21 +121,13 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
               <table className="data"><thead><tr><th>Considered</th><th>Why it was not chosen</th></tr></thead>
                 <tbody>{decision.alternativesConsidered.map((a, i) => <tr key={i}><td>{a.approach}</td><td>{a.whyNot}</td></tr>)}</tbody></table></>
           )}
-          <div className="solution-grid">
-            <div><h4>Implementation steps</h4>
-              {spec?.sequence.length ? <ol className="compactlist">{spec.sequence.map((s, i) => <li key={i}>{s}</li>)}</ol> : <p className="muted">No steps recorded.</p>}
-              {decision.objectsAffected.length > 0 && <p className="muted">JD Edwards objects: <span className="mono">{decision.objectsAffected.join(", ")}</span></p>}
-              {spec?.humanActionsRequired.length ? <p className="muted">People involved: {spec.humanActionsRequired.join("; ")}</p> : null}
-            </div>
-            <div><h4>Risk and rollback</h4>
-              {decision.dependenciesAndConflicts.length ? <ul className="compactlist">{decision.dependenciesAndConflicts.map((d, i) => <li key={i}>{d}</li>)}</ul> : <p>No conflicts identified.</p>}
-              {decision.rollbackStrategy && <p className="muted">If it needs undoing: {decision.rollbackStrategy}</p>}
-            </div>
-            <div><h4>How it will be validated</h4><p>{spec?.validationApproach || <span className="muted">Not stated.</span>}</p></div>
-            <div><h4>Effort</h4><p>{change.complexitySignal === "Unknown" ? <span className="muted">Not estimated.</span> : `${change.complexitySignal} complexity (JADE's estimate, not a commitment).`}</p>
-              {spec && spec.requiredMcpOperations.length > 0 && <p className="muted">Operations: <span className="mono">{spec.requiredMcpOperations.join(", ")}</span></p>}</div>
-          </div>
           <StoryRatingsPanel key={change.id} change={change} mode="technical" onChanged={ctx.reload} />
+        </Details>
+      )}
+
+      {decision && (
+        <Details summary="Technical detail — objects, steps, risk, validation" id="technical-detail">
+          <TechnicalDetail change={change} decision={decision} spec={spec} />
         </Details>
       )}
 
@@ -193,10 +201,48 @@ function DecisionPanel({ ctx, showWaiting }: { ctx: StoryCtx; showWaiting: boole
 
   // Already decided: who authorised it, and when.
   const designApproval = ctx.tech?.assignment?.design_approval;
+  // The CURRENT authorisation, never the bare record: an expired or invalidated
+  // approval asks for a decision again; the earlier approval stays as history.
+  const auth = lc.authorisation;
+  if (auth?.renewable) {
+    const a = change.changeApproval;
+    return (
+      <section className="decision" id="decision" aria-label="Decision needed">
+        <div className="decision-kicker">{auth.label}</div>
+        <p className="decision-title">{auth.detail}</p>
+        <Details summary="Earlier approvals">
+          <ul className="compactlist">
+            {a && <li>Approved by {a.approvedBy}{a.approvedAt ? ` on ${formatDateTime(a.approvedAt)}` : ""}{a.expiresAt ? `, valid until ${formatDateTime(a.expiresAt)}` : ""}{a.note ? ` — “${a.note}”` : ""}</li>}
+            {auth.history.map((h, i) => <li key={i}>Approved by {h.by}{h.at ? ` on ${formatDateTime(h.at)}` : ""}; superseded{h.supersededAt ? ` on ${formatDateTime(h.supersededAt)}` : ""}: {h.reason}</li>)}
+          </ul>
+        </Details>
+        {ec && <Details summary="The exact change"><ExactChangeFacts ec={ec} showDelivery={false} /></Details>}
+        {canDecide ? (
+          <div className="btnrow">
+            <button className="btn primary" disabled={busy} onClick={() => setDialog("approve")}>Authorise again</button>
+          </div>
+        ) : <p className="muted">The Application Manager decides this.</p>}
+        {error && <div className="callout" role="alert" style={{ borderColor: "var(--stop)", marginTop: 12 }}><strong>Not recorded</strong>{error}</div>}
+        {dialog && (
+          <ConfirmDialog title="Authorise this exact change again?"
+            intro={<><p style={{ marginTop: 0 }}><strong>{change.title}</strong> <span className="mono muted">{change.id}</span></p>{ec && <ExactChangeFacts ec={ec} showDelivery={false} />}</>}
+            whatHappensNext="A new approval is recorded under the current approval policy; the earlier one stays in the history. JADE re-checks everything against DEV before it is applied."
+            confirmLabel="Authorise again" tone="primary" requireNote={false}
+            onCancel={() => setDialog(null)}
+            onConfirm={async (note) => {
+              setBusy(true); setError(null);
+              try { await api.approveExactChange(change.id, { note }); ctx.reload(); }
+              catch (e) { setError(saveErrorMessage(e, "The decision could not be recorded.")); }
+              finally { setBusy(false); setDialog(null); }
+            }} />
+        )}
+      </section>
+    );
+  }
   if (change.changeApproval && change.changeApproval.status !== "pending") {
     const a = change.changeApproval;
     return <section className="decision decided" id="decision"><div className="decision-kicker">Decision</div>
-      <p>Implementation <strong>{a.status === "approved" ? "authorised" : "rejected"}</strong> by {a.approvedBy}{a.approvedAt ? ` on ${formatDateTime(a.approvedAt)}` : ""}.{a.note ? <span className="muted"> “{a.note}”</span> : null}</p>
+      <p>Implementation <strong>{a.status === "approved" ? "authorised" : "rejected"}</strong> by {a.approvedBy}{a.approvedAt ? ` on ${formatDateTime(a.approvedAt)}` : ""}{a.status === "approved" && auth?.state === "valid" && a.expiresAt ? `, valid until ${formatDateTime(a.expiresAt)}` : ""}{auth?.state === "used" ? "; applied in DEV" : ""}.{a.note ? <span className="muted"> “{a.note}”</span> : null}</p>
       {ec && <Details summary={a.status === "approved" ? "The exact change, as authorised" : "The exact change"}><ExactChangeFacts ec={ec} showDelivery={false} /></Details>}</section>;
   }
   if (designApproval && (route === "Technical Agent" || route === "Mixed")) {
@@ -223,7 +269,8 @@ function DecisionPanel({ ctx, showWaiting }: { ctx: StoryCtx; showWaiting: boole
   }
 
   const conclusion = change.architectDecision?.result?.conclusion || na.summary;
-  const label = route === "Human Implementation" ? "Authorise implementation by a person" : route === "Technical Agent" || route === "Mixed"
+  const label = na.action === "confirm_no_change" ? "Confirm: resolved without a change"
+    : route === "Human Implementation" ? "Authorise implementation by a person" : route === "Technical Agent" || route === "Mixed"
     ? "Authorise the design" : "Authorise implementation";
 
   async function decide(note: string, reason?: string) {
@@ -233,6 +280,7 @@ function DecisionPanel({ ctx, showWaiting }: { ctx: StoryCtx; showWaiting: boole
       else if (na!.action === "approve_exact_change") await api.approveExactChange(change.id, { note });
       else if (na!.action === "approve_design") await technicalApi.approveDesign(change.id, ctx.tech!.assignment!.design_revision, note);
       else if (na!.action === "authorise_handoff") await deliveryApi.authoriseHandoff(change.id, note);
+      else if (na!.action === "confirm_no_change") await api.confirmResolvedWithoutChange(change.id, { note });
       ctx.reload();
     } catch (e) { setError(saveErrorMessage(e, "The decision could not be recorded.")); } finally { setBusy(false); setDialog(null); }
   }
@@ -248,6 +296,9 @@ function DecisionPanel({ ctx, showWaiting }: { ctx: StoryCtx; showWaiting: boole
         <div className="btnrow">
           <button className="btn primary" disabled={busy || (na.action === "approve_design" && !ctx.tech?.assignment)} onClick={() => setDialog("approve")}>{label}</button>
           {na.action === "approve_exact_change" && <button className="btn" disabled={busy} onClick={() => setDialog("reject")}>Reject</button>}
+          {na.action === "confirm_no_change" && <button className="btn" disabled={busy} onClick={async () => {
+            setBusy(true); try { await api.retriggerArchitectureReview(change.id); ctx.reload(); }
+            catch (e) { setError(saveErrorMessage(e, "The Architect could not be started.")); } finally { setBusy(false); } }}>Ask the Architect to look again</button>}
           {na.action === "authorise_handoff" && <button className="btn" onClick={() => deliveryApi.downloadSpecification(change.id).catch((e) => setError(saveErrorMessage(e, "The specification could not be downloaded.")))}>Download the specification (PDF)</button>}
           <a className="btn quiet" href="#ask">Discuss the solution</a>
         </div>
@@ -273,4 +324,34 @@ function DecisionPanel({ ctx, showWaiting }: { ctx: StoryCtx; showWaiting: boole
 
 function latestMap<T>(versions: T[] | undefined): T | undefined {
   return versions && versions.length ? versions[versions.length - 1] : undefined;
+}
+
+/**
+ * The solution's technical content, structured (finding 4): an aligned table of
+ * JD Edwards objects, the exact change, the steps, dependencies, rollback,
+ * validation and the operations JADE uses -- the agent's fields, each in its
+ * own row at full width, never narrative squeezed into columns.
+ */
+function TechnicalDetail({ change, decision, spec }: { change: Change; decision: NonNullable<Change["architectDecision"]>; spec: Change["implementationSpec"] }) {
+  const ec = change.exactChange;
+  const none = <span className="muted">None recorded</span>;
+  return (
+    <dl className="techdetail">
+      <dt>JD Edwards objects</dt>
+      <dd>{decision.objectsAffected.length ? <ul className="monolist">{decision.objectsAffected.map((o) => <li key={o} className="mono">{o}</li>)}</ul> : none}</dd>
+      {ec && <><dt>The exact change</dt><dd><ExactChangeFacts ec={ec} showDelivery={false} /></dd></>}
+      <dt>Implementation steps</dt>
+      <dd>{spec?.sequence.length ? <ol className="steplist">{spec.sequence.map((st, i) => <li key={i}>{st}</li>)}</ol> : none}</dd>
+      <dt>Done by people</dt>
+      <dd>{spec?.humanActionsRequired.length ? <ul className="steplist">{spec.humanActionsRequired.map((h, i) => <li key={i}>{h}</li>)}</ul> : "Nothing; JADE's agents apply it"}</dd>
+      <dt>Dependencies and conflicts</dt>
+      <dd>{decision.dependenciesAndConflicts.length ? <ul className="steplist">{decision.dependenciesAndConflicts.map((d, i) => <li key={i}>{d}</li>)}</ul> : "None identified"}</dd>
+      <dt>Rollback</dt>
+      <dd>{decision.rollbackStrategy || none}</dd>
+      <dt>Validation</dt>
+      <dd>{spec?.validationApproach || none}</dd>
+      <dt>Operations JADE uses</dt>
+      <dd>{spec?.requiredMcpOperations.length ? <ul className="monolist">{spec.requiredMcpOperations.map((o) => <li key={o} className="mono">{o}</li>)}</ul> : none}</dd>
+    </dl>
+  );
 }

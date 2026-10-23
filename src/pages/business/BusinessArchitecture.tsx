@@ -1,3 +1,4 @@
+import { isRequest } from "../stories/Stories";
 import { KnowledgePage } from "../knowledge/Knowledge";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../services/api";
@@ -27,7 +28,9 @@ export function BusinessArchitecturePage({ domainId }: { domainId?: string }) {
 
   const counts = (id: string | null) => {
     const mine = changes.filter((c) => (c.businessDomainId ?? null) === id);
-    return { open: mine.filter((c) => c.lifecycle?.phase !== "done").length, done: mine.filter((c) => c.lifecycle?.outcome === "delivered").length };
+    // Requests are not stories yet (finding 2): counted apart.
+    return { open: mine.filter((c) => c.lifecycle?.phase !== "done" && !isRequest(c)).length,
+      requests: mine.filter(isRequest).length, done: mine.filter((c) => c.lifecycle?.outcome === "delivered").length };
   };
   const unplaced = counts(null);
   const active = info.domains.filter((d) => d.status !== "retired");
@@ -44,16 +47,16 @@ export function BusinessArchitecturePage({ domainId }: { domainId?: string }) {
                 <Link key={d.id} to={`/business/${encodeURIComponent(d.id)}`} className="domaincard">
                   <span className="domaincard-name">{d.name}</span>
                   {d.description && <span className="domaincard-desc">{d.description}</span>}
-                  <span className="domaincard-stats"><strong>{n.open}</strong> active stor{n.open === 1 ? "y" : "ies"} · {n.done} delivered</span>
+                  <span className="domaincard-stats"><strong>{n.open}</strong> active stor{n.open === 1 ? "y" : "ies"} · {n.done} delivered{n.requests ? ` · ${n.requests} request${n.requests === 1 ? "" : "s"}` : ""}</span>
                   <span className="domaincard-owner">{(d.assignedOwners ?? []).length ? `Owner: ${d.assignedOwners!.join(", ")}` : "No Domain Owner assigned"}</span>
                   {d.status === "proposed" && <Tag tone="warn">Proposed</Tag>}
                 </Link>
               );
             })}
-            {unplaced.open > 0 && (
+            {(unplaced.open > 0 || unplaced.requests > 0) && (
               <Link to="/stories?domain=none" className="domaincard muted-card">
                 <span className="domaincard-name">Not placed yet</span>
-                <span className="domaincard-stats"><strong>{unplaced.open}</strong> stor{unplaced.open === 1 ? "y" : "ies"} waiting to be placed in a domain</span>
+                <span className="domaincard-stats"><strong>{unplaced.open}</strong> stor{unplaced.open === 1 ? "y" : "ies"} waiting to be placed in a domain{unplaced.requests ? ` · ${unplaced.requests} incoming request${unplaced.requests === 1 ? "" : "s"}` : ""}</span>
               </Link>
             )}
           </div>

@@ -1,3 +1,4 @@
+import { AcceptanceList } from "../../components/work";
 import { useEffect, useState } from "react";
 import { deliveryApi } from "../../services/deliveryApi";
 import { saveErrorMessage } from "../../services/saveErrors";
@@ -112,7 +113,7 @@ function Verification({ change, view, canRecord, onChanged }: { change: Change; 
     <fieldset className="handoff-verify">
       <legend>Verify the result against the acceptance criteria</legend>
       {v && <p className="callout" style={{ borderColor: "var(--stop)" }}><strong>Previous verification did not pass</strong>{v.note}</p>}
-      <ul className="checklist">{(change.userStory?.acceptanceCriteria ?? []).map((a) => <li key={a.id}><span className="mono muted">{a.id}</span> {a.text}</li>)}</ul>
+      <AcceptanceList change={change} />
       <div className="btnrow" role="radiogroup" aria-label="Result">
         <label><input type="radio" name="hv" checked={passed === true} onChange={() => setPassed(true)} /> Meets the criteria</label>
         <label><input type="radio" name="hv" checked={passed === false} onChange={() => setPassed(false)} /> Does not meet them</label>

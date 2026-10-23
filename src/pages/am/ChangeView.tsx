@@ -1,11 +1,12 @@
 import { useEffect } from "react";
-import type { WorkspaceTab } from "../../types/domain";
+import type { Change, WorkspaceTab } from "../../types/domain";
 import {
   Details, ErrorState, HealthIndicator, LifecycleStepper, Loading, Section, Tabs, formatDateTime, storyTitle, useSessionInfo,
 } from "../../components/design";
 import { WorkItemsList } from "../../components/journey";
 import { DesignEvidencePanel } from "../../components/DesignEvidencePanel";
 import { Link, navigate, storyPath, useLocation } from "../../router";
+import { returnFor } from "../../services/workLink";
 import { NextActionCard } from "../stories/NextActionCard";
 import { DeliveryTab } from "../stories/DeliveryTab";
 import { EvidenceTab } from "../stories/EvidenceTab";
@@ -49,13 +50,17 @@ export function ChangeView({ changeId, tab }: { changeId: string; tab?: string }
   if (change === null) return <ErrorState title="This change could not be found" error={new Error("It may have been removed or belong to another customer.")} />;
 
   const lc = change.lifecycle;
+  // The breadcrumb returns to the queue this change was opened from (with its
+  // filters); otherwise to the queue its phase belongs to -- never to Delivery
+  // for a change still in architecture.
+  const back = returnFor(change.id) ?? queueFor(change);
   const active: WorkspaceTab = (TABS.find((t) => t.key === tab)?.key ?? "solution");
   const route = lc?.route ?? change.architectDecision?.recommendedRoute;
 
   return (
     <div className="workspace view-application">
       <div className="crumbs">
-        <Link to="/am">Application Management</Link> <span aria-hidden="true">/</span> <Link to="/am/changes">Changes</Link>{" "}
+        <Link to="/am">Application Management</Link> <span aria-hidden="true">/</span> <Link to={back.to}>{back.label}</Link>{" "}
         <span aria-hidden="true">/</span> <span className="mono">{change.id}</span>
         <span className="crumbs-aside"><Link to={storyPath(change.id)}>Business view</Link></span>
       </div>
@@ -72,8 +77,8 @@ export function ChangeView({ changeId, tab }: { changeId: string; tab?: string }
       </header>
 
       {/* On the Solution tab a pending decision is the decision card itself; elsewhere the next step leads. */}
-      {!(active === "solution" && ["approve_exact_change", "approve_design", "authorise_handoff"].includes(lc?.nextAction.action ?? "")
-        && info.has("product_manager", "admin")) && <NextActionCard ctx={ctx!} inApp />}
+      {!(active === "solution" && ["approve_exact_change", "approve_design", "authorise_handoff", "confirm_no_change"].includes(lc?.nextAction.action ?? "")
+        && info.has("product_manager", "admin")) && <NextActionCard ctx={ctx!} inApp listedKinds={active === "solution" ? "all" : undefined} />}
 
       <Tabs label="Change sections" active={active} hrefFor={(k) => changePath(change.id, k as WorkspaceTab)} tabs={TABS} />
 
@@ -146,4 +151,11 @@ function EvidenceView({ ctx }: { ctx: StoryCtx }) {
       </Details>
     </div>
   );
+}
+
+function queueFor(c: Change): { label: string; to: string } {
+  const p = c.lifecycle?.phase;
+  if (p === "understand" || p === "story_review") return { label: "Backlog Review", to: "/am/backlog-review" };
+  if (p === "solutioning" || p === "solution_review") return { label: "Architecture Review", to: "/am/architecture-review" };
+  return { label: "Delivery", to: "/am/delivery" };
 }

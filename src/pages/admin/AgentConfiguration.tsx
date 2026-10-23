@@ -8,6 +8,7 @@ import {
   type PackSummary,
   type RoleHealth,
   type RoleInfo,
+  type AiRunOutput,
 } from "../../services/aiApi";
 import { discoveryApi, type ArtifactView } from "../../services/discoveryApi";
 import { saveErrorMessage } from "../../services/saveErrors";
@@ -212,7 +213,7 @@ export function AgentConfiguration({ part = "all" }: { part?: "config" | "operat
                   <td>
                     <span className={`badge ${r.status === "completed" ? "ok" : r.status === "running" ? "info" : "stop"}`}>{r.status}</span>
                     {r.error && <div className="hint">{r.error}</div>}
-                    {(r.output_chars ?? 0) > 0 && <RunOutput runId={r.run_id} chars={r.output_chars ?? 0} long={!!r.output_long} />}
+                    {((r.output_chars ?? 0) > 0 || (r.handoffs ?? 0) > 0) && <RunOutput runId={r.run_id} chars={r.output_chars ?? 0} long={!!r.output_long} handoffs={r.handoffs ?? 0} />}
                   </td>
                   <td>
                     {r.configured_model ?? "—"}
@@ -236,20 +237,40 @@ export function AgentConfiguration({ part = "all" }: { part?: "config" | "operat
   );
 }
 
-/** The agent's full final answer, exactly as given -- for troubleshooting and assessing the agent. */
-function RunOutput({ runId, chars, long }: { runId: string; chars: number; long: boolean }) {
-  const [text, setText] = useState<string | null>(null);
+/** The agent's full final answer, exactly as given, and every hand-off to a subagent -- for troubleshooting and assessing the agents. */
+function RunOutput({ runId, chars, long, handoffs }: { runId: string; chars: number; long: boolean; handoffs: number }) {
+  const [out, setOut] = useState<AiRunOutput | null>(null);
   const [failed, setFailed] = useState("");
+  const f = out?.trace_findings;
   return (
     <details className="runoutput" onToggle={(e) => {
-      if ((e.target as HTMLDetailsElement).open && text === null) {
-        aiApi.runOutput(runId).then((o) => setText(o.output ?? "")).catch(() => setFailed("The answer could not be loaded."));
+      if ((e.target as HTMLDetailsElement).open && out === null) {
+        aiApi.runOutput(runId).then(setOut).catch(() => setFailed("The answer could not be loaded."));
       }
     }}>
-      <summary>Full answer ({chars.toLocaleString()} characters){long && <span className="badge warn" style={{ marginLeft: 6 }}
+      <summary>Full answer ({chars.toLocaleString()} characters){handoffs > 0 ? ` · ${handoffs} hand-off${handoffs === 1 ? "" : "s"}` : ""}{long && <span className="badge warn" style={{ marginLeft: 6 }}
         title="A quality signal for tuning the prompt; the answer is kept in full.">long</span>}</summary>
-      {failed ? <p className="hint">{failed}</p> : text === null ? <p className="hint">Loading…</p>
-        : <pre className="mono runoutput-text">{text}</pre>}
+      {failed ? <p className="hint">{failed}</p> : out === null ? <p className="hint">Loading…</p> : <>
+        {f && (
+          <div className="tracefindings">
+            <div><strong>Agents, in order:</strong> {f.agents.join(" → ") || "none recorded"}</div>
+            <div><strong>Complete source given to every agent:</strong> {f.every_agent_had_source ? "yes"
+              : <span className="badge stop">no — missing for {f.missing_source.join(", ")}</span>}</div>
+            <div><strong>Check rounds:</strong> {f.check_rounds}{f.revised_between_checks === null ? "" : f.revised_between_checks
+              ? " · each failed check was followed by a revision" : <span className="badge stop"> a re-check without a revision</span>}</div>
+          </div>
+        )}
+        {(out.trace ?? []).map((t, i) => (
+          <details key={i} className="handoff">
+            <summary><span className="mono">{i + 1}. {t.subagent}</span> · given {t.prompt_chars.toLocaleString()} characters
+              {t.source_complete ? " (complete source)" : " (source NOT complete)"} · returned {t.result_chars.toLocaleString()}{t.is_error ? " · error" : ""}</summary>
+            <h4>Given</h4><pre className="mono runoutput-text">{t.prompt}</pre>
+            <h4>Returned</h4><pre className="mono runoutput-text">{t.result ?? "(no answer recorded)"}</pre>
+          </details>
+        ))}
+        <h4>Final answer</h4>
+        <pre className="mono runoutput-text">{out.output ?? ""}</pre>
+      </>}
     </details>
   );
 }

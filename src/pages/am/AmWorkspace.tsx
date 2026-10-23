@@ -9,6 +9,7 @@ import { ChangeView } from "./ChangeView";
 import { AsBuiltWorkbench, ProcessWorkbench, TechnicalWorkbench } from "./Workbenches";
 import { legacyNavigate, openChange, useNavTarget } from "./legacyNav";
 import { NotFoundPage } from "../NotFound";
+import { rememberReturn } from "../../services/workLink";
 
 /** Role-gated workspace. Legacy URLs remain usable inside their new parent sections. */
 const GROUPS: { label: string; items: { to: string; label: string; stage?: string }[] }[] = [
@@ -58,6 +59,11 @@ export function AmWorkspace() {
   }
   else if (path === "/am/process") page = <ProcessWorkbench />;
   else if (match("/am/architecture-review", path) && query.get("view") === "design") page = <TechnicalWorkbench design />;
+  // A link to one story's review opens that change's solution review directly.
+  else if (match("/am/architecture-review", path) && query.get("story")) {
+    rememberReturn(query.get("story")!, "Architecture Review", "/am/architecture-review");
+    page = <Redirect to={`/am/changes/${encodeURIComponent(query.get("story")!)}/solution#decision`} />;
+  }
   else if (match("/am/architecture-review", path)) page = <ArchitectureReview {...target} onNavigate={legacyNavigate} />;
   // One delivery queue: the former Delivery Queue and Technical Work lists redirect to it,
   // and a story's technical work opens on its own Delivery tab.

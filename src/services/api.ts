@@ -85,6 +85,7 @@ export const API_ENDPOINTS = {
   retriggerArchitectureReview: "POST /changes/{id}/architecture-review",
 
   approveExactChange: "POST /changes/{id}/approve-change",
+  confirmResolvedWithoutChange: "POST /changes/{id}/resolve-without-change",
   rejectExactChange: "POST /changes/{id}/reject-change",
   recordApplied: "POST /changes/{id}/delivery/applied",
   runDeliveryTest: "POST /changes/{id}/delivery/run-test",
@@ -227,6 +228,8 @@ export interface ChangeFactoryApi {
    * the same decision as approving the specific write it becomes.
    */
   approveExactChange(id: string, input: DecisionInput): Promise<Change>;
+  /** The Application Manager confirms the Architect's "Resolve without Change". */
+  confirmResolvedWithoutChange(id: string, input: DecisionInput): Promise<Change>;
   /** Rejects that same exact operation instead — the other half of Section 6.5's Gate 2 decision, already real on the backend (mcp_server's reject_change). */
   rejectExactChange(id: string, input: DecisionInput): Promise<Change>;
 

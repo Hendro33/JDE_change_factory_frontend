@@ -57,7 +57,7 @@ function canOwn(owner: NextAction["owner"], has: (...r: CompanyRole[]) => boolea
  * performs the real, governed action.
  */
 /** inApp: shown in the application view, where the decision and the delivery steps are on its own tabs. */
-export function NextActionCard({ ctx, inApp = false }: { ctx: StoryCtx; inApp?: boolean }) {
+export function NextActionCard({ ctx, inApp = false, listedKinds }: { ctx: StoryCtx; inApp?: boolean; listedKinds?: string[] | "all" }) {
   const { change, reload } = ctx;
   const info = useSessionInfo();
   const lc = change.lifecycle;
@@ -129,7 +129,7 @@ export function NextActionCard({ ctx, inApp = false }: { ctx: StoryCtx; inApp?: 
         <div className="nextcard-kicker">Waiting for: {withAm ? "Application Management" : na.ownerLabel || "someone else"}</div>
         <div className="nextcard-summary">{withAm ? `The approved story is with the Application Manager (${lc.phaseLabel}).` : na.summary}</div>
         <div className="nextcard-note">You can follow progress here; nothing is needed from you.</div>
-        {!withAm && <WhatNeedsToHappen lifecycle={lc} changeId={change.id} skipPrimary title="Also open" limit={3} />}
+        {!withAm && <WhatNeedsToHappen lifecycle={lc} changeId={change.id} skipPrimary title="Also open" limit={3} listedKinds={listedKinds} />}
       </section>
     );
   }
@@ -199,7 +199,7 @@ export function NextActionCard({ ctx, inApp = false }: { ctx: StoryCtx; inApp?: 
       {lc.openItems.length > 0 && lc.health !== "waiting_decision" && (
         <ul className="nextcard-items">{lc.openItems.map((i) => <li key={i}>{i}</li>)}</ul>
       )}
-      <WhatNeedsToHappen lifecycle={lc} changeId={change.id} skipPrimary title="Also open" limit={3} />
+      <WhatNeedsToHappen lifecycle={lc} changeId={change.id} skipPrimary title="Also open" limit={3} listedKinds={listedKinds} />
       {(controls || rerunnable) && (
         <div className="btnrow nextcard-actions">
           {controls}
@@ -240,6 +240,7 @@ const GATES: Record<string, { screen: string; path?: string; tab?: "solution" | 
   approve_exact_change: { screen: "Architecture Review", path: "/am/architecture-review", tab: "solution", anchor: "decision" },
   approve_design: { screen: "Architecture Review", path: "/am/architecture-review", tab: "solution", anchor: "decision" },
   authorise_handoff: { screen: "Architecture Review", path: "/am/architecture-review", tab: "solution", anchor: "decision" },
+  confirm_no_change: { screen: "Architecture Review", path: "/am/architecture-review", tab: "solution", anchor: "decision" },
   approve_package: { screen: "Delivery", tab: "delivery", anchor: "work" },
   start_technical_prepare: { screen: "Delivery", tab: "delivery", anchor: "work" },
   start_technical_repair: { screen: "Delivery", tab: "delivery", anchor: "work" },
