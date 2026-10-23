@@ -1,5 +1,5 @@
-import { ExecutionPanel } from "../../components/ExecutionPanel";
-import { DesignEvidencePanel } from "../../components/DesignEvidencePanel";
+import { Link } from "../../router";
+import { changePath } from "./useStory";
 import { CAPABILITY_STATUS_LABEL, CapabilityStatusBadge } from "../../components/ui";
 import { Details, EmptyState, Section, formatDateTime, useSessionInfo } from "../../components/design";
 import { TechnicalWorkPanel } from "../TechnicalPanel";
@@ -33,7 +33,7 @@ export function TechnicalTab({ ctx }: { ctx: StoryCtx }) {
         <Section title="Architect decision">
           <dl className="facts">
             <dt>Route</dt><dd>{decision.recommendedRoute}</dd>
-            <dt>Model-stated confidence</dt><dd>{Math.round(decision.confidence * 100)}% <span className="muted">(the Architect's own figure; not shown to business readers)</span></dd>
+            <dt>Model-stated confidence</dt><dd>{Math.round(decision.confidence * 100)}% <span className="muted explain">(the Architect's own figure; not shown to business readers)</span></dd>
             <dt>Objects affected</dt><dd className="mono">{decision.objectsAffected.join(", ") || "none"}</dd>
             <dt>Decided</dt><dd>{formatDateTime(decision.decidedAt)}</dd>
             {spec && <><dt>MCP operations</dt><dd className="mono">{spec.requiredMcpOperations.join(", ") || "none"}</dd>
@@ -43,13 +43,11 @@ export function TechnicalTab({ ctx }: { ctx: StoryCtx }) {
       ) : <EmptyState title="No design yet">The Architect has not produced a design for this story.</EmptyState>}
 
       {ctx.run && ctx.run.history.length > 0 && (
-        <Section title="Design evidence baseline">
-          <DesignEvidencePanel changeId={change.id} designCount={ctx.run.history.length} />
-        </Section>
+        <p className="muted">The evidence behind this design (readings, documents, gaps) is on the <Link to={changePath(change.id, "evidence")}>Evidence</Link> tab.</p>
       )}
 
       {ec && (
-        <Section title="Exact change and delivery">
+        <Section title="Exact change">
           <ExactChangeFacts ec={ec} testLabel="Test orchestration" />
           <dl className="facts">
             {ec.capabilityId && <><dt>Capability</dt><dd><span className="mono">{ec.capabilityId}</span> {ec.capabilityStatus && <CapabilityStatusBadge status={ec.capabilityStatus} />}</dd></>}
@@ -62,7 +60,7 @@ export function TechnicalTab({ ctx }: { ctx: StoryCtx }) {
               delivered, even when approved, until the catalogue entry itself is changed.
             </div>
           )}
-          <ExecutionPanel changeId={change.id} exactChange={ec} approvalStatus={change.changeApproval?.status} onChanged={ctx.reload} />
+          <p className="muted">Applying, recording and testing it: <Link to={changePath(change.id, "delivery")}>Delivery</Link> tab.</p>
         </Section>
       )}
 
@@ -72,10 +70,10 @@ export function TechnicalTab({ ctx }: { ctx: StoryCtx }) {
         </Section>
       )}
 
-      <Details summary="Raw lifecycle (for support)" tone="technical">
+      {info.has("admin") && <Details summary="Raw lifecycle (for support)" tone="technical">
         <pre className="mono" style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>{JSON.stringify({ state: change.state, domainReviewStage: change.domainReviewStage,
           architectureReviewStage: change.architectureReviewStage, processingStage: change.processingStage, lifecycle: change.lifecycle }, null, 2)}</pre>
-      </Details>
+      </Details>}
     </div>
   );
 }

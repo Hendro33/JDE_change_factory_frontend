@@ -8,7 +8,7 @@ import { Link } from "../router";
 
 /** Read-only presentation: no inferred scores, permissions, routes or lifecycle states. */
 export function ReviewFlow({ steps }: { steps: string[] }) {
-  return <ol className="vr-flow" aria-label="Review guide">{steps.map((step, i) => <li key={step}><span className="vr-stepno">{String(i + 1).padStart(2, "0")}</span><span>{step}</span></li>)}</ol>;
+  return <ol className="vr-flow explain" aria-label="Review guide">{steps.map((step, i) => <li key={step}><span className="vr-stepno">{String(i + 1).padStart(2, "0")}</span><span>{step}</span></li>)}</ol>;
 }
 
 export function ReviewDetail({ title, children, open = false }: { title: string; children: ReactNode; open?: boolean }) {

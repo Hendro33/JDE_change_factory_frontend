@@ -161,14 +161,8 @@ export function MyWorkPage() {
         </div>
 
         <aside className="mywork-side">
-          <Link className="statcard" to="/stories">
-            <span className="stat-value">{work.inProgressCount}</span>
-            <span className="stat-label">stories in progress</span>
-          </Link>
-          <Link className="statcard" to="/stories?phase=done">
-            <span className="stat-value">{work.completedThisMonth.length}</span>
-            <span className="stat-label">delivered in the last month</span>
-          </Link>
+          {/* Counts are Insights' job; one line links there (step 3: no card stacks). */}
+          <p className="muted side-counts"><Link to="/stories">{work.inProgressCount} in progress</Link> · <Link to="/stories?phase=done">{work.completedThisMonth.length} delivered this month</Link></p>
           <Link className="btn wide" to="/stories/new">New request</Link>
           {recent.length > 0 && (
             <Section title="Recently viewed" quiet>
@@ -176,11 +170,8 @@ export function MyWorkPage() {
             </Section>
           )}
           {info.has("admin") && problems.length > 0 && (
-            <Section title="For administrators" quiet>
-              <ul className="quietlist">{problems.map((i) => (
-                <li key={i.name}><Link to="/admin/connections">{i.name}</Link><span className="muted"> — not connected</span></li>
-              ))}</ul>
-            </Section>
+            <p className="muted side-counts"><Link to="/admin/connections">{problems.length} connection{problems.length === 1 ? "" : "s"} not set up</Link>
+              <span className="explain"> ({problems.map((i) => i.name).join(", ")})</span></p>
           )}
         </aside>
       </div>

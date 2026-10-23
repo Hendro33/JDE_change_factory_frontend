@@ -1075,3 +1075,31 @@ body:not(.help-on) :is(.explain, .pageheader .lede, .pagehead .sub, .section-des
 .flowstrip a.zero { color: var(--muted); }
 .flowstrip a.zero strong { color: var(--muted); font-weight: 600; }
 .qrow-domain { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Step 3b: the change record as one-line rows */
+.recordlist { gap: 0 !important; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.recpart { border-bottom: 1px solid var(--line); }
+.recpart:last-child { border-bottom: 0; }
+.recpart > summary { display: grid; grid-template-columns: 200px minmax(0,1fr); gap: 12px; align-items: baseline; padding: 12px 16px; cursor: pointer; list-style: none; }
+.recpart > summary::-webkit-details-marker { display: none; }
+.recpart > summary::before { content: "›"; position: absolute; margin-left: -10px; color: var(--muted); transition: transform .15s; }
+.recpart[open] > summary::before { transform: rotate(90deg); }
+.recpart > summary:focus-visible { outline: none; box-shadow: var(--focus); }
+.recpart-title { font-weight: 700; }
+.recpart-sum { color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recpart-body { padding: 0 16px 16px; }
+.recpart-body > .panel { border: 0; padding: 0; box-shadow: none; background: none; }
+.recpart-body > .panel > h2:first-child { display: none; }
+@media (max-width: 640px) { .recpart > summary { grid-template-columns: 1fr; gap: 2px; } }
+.side-counts { font-size: 14px; margin: 0 0 12px; }
+/* Step 3b: business domains as rows, not cards */
+.domaingrid { display: flex !important; flex-direction: column; gap: 0 !important; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.domaingrid .domaincard { display: grid !important; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 16px; row-gap: 2px;
+  padding: 12px 16px !important; border: 0 !important; border-bottom: 1px solid var(--line) !important; border-radius: 0 !important; box-shadow: none !important; min-height: 0 !important; background: none; }
+.domaingrid .domaincard:last-child { border-bottom: 0 !important; }
+.domaingrid .domaincard:hover { background: var(--wash); }
+.domaingrid .domaincard-name { grid-column: 1; grid-row: 1; }
+.domaingrid .domaincard-desc { grid-column: 1; grid-row: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0 !important; }
+.domaingrid .domaincard-stats { grid-column: 2; grid-row: 1 / span 2; align-self: center; margin: 0 !important; }
+.domaingrid .domaincard-owner { grid-column: 3; grid-row: 1 / span 2; align-self: center; margin: 0 !important; }
+@media (max-width: 640px) { .domaingrid .domaincard { grid-template-columns: 1fr; } .domaingrid .domaincard > * { grid-column: 1 !important; grid-row: auto !important; } }

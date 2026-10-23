@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../../services/api";
 import { ownersOf } from "../BusinessDomains";
 import { ExecutionPanel } from "../../components/ExecutionPanel";
@@ -145,19 +145,17 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
       </div>}
 
       <div className="detailgrid">
-        <div className="stack">
-          <section className="panel">
-            <h2>Original request</h2>
+        <div className="stack recordlist">
+          <RecordPart title="Original request" summary={`${change.source}${change.sourceReference ? ` · ${change.sourceReference}` : ""}`}>
             <Provenance kind="plain" label="As submitted by the requester">
               <div style={{ fontSize: 13.5 }}>{change.originalRequest}</div>
             </Provenance>
-          </section>
+          </RecordPart>
 
-          <RequestDocuments requestId={change.id} />
+          <RecordPart title="Documents"><RequestDocuments requestId={change.id} /></RecordPart>
 
           {domainReview && (
-            <section className="panel">
-              <h2>Business domain</h2>
+            <RecordPart title="Business domain" summary={`${assignedDomain?.name ?? "not placed"} · ${DOMAIN_STAGE_LABEL[domainReview.stage] ?? domainReview.stage}`}>
               <dl className="facts">
                 <dt>Domain</dt>
                 <dd>
@@ -188,17 +186,16 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
                   )}
                 </div>
               )}
-              <div className="apinote">
+              <div className="apinote explain">
                 Domain Owner approval means the business requirement / User Story is
                 approved. Application Manager approval means the work is authorised for
                 Jade to deliver, admitted to the Delivery Queue — the two are always separate.
               </div>
-            </section>
+            </RecordPart>
           )}
 
           {change.userStory && (
-            <section className="panel">
-              <h2>User story</h2>
+            <RecordPart title="User story" summary={`${change.userStory.acceptanceCriteria.length} acceptance criteria`}>
               <Provenance kind="ai" label="Written by Jade — reviewed and approved by a person below">
                 <p style={{ margin: "0 0 10px", fontSize: 14.5, fontWeight: 700 }}>{change.userStory.statement}</p>
                 <p style={{ margin: 0, fontSize: 13.5 }}>{change.userStory.businessContext}</p>
@@ -214,12 +211,11 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
                   </tbody>
                 </table>
               )}
-            </section>
+            </RecordPart>
           )}
 
           {change.storyApproval && (
-            <section className="panel">
-              <h2>Business approval</h2>
+            <RecordPart title="Business approval" summary={`${change.storyApproval.status === "approved" ? "Approved" : "Rejected"} by ${change.storyApproval.approvedBy}`}>
               <Provenance
                 kind={change.storyApproval.status === "approved" ? "human" : "plain"}
                 label={`${change.storyApproval.status === "approved" ? "Approved" : "Rejected"} by ${change.storyApproval.approvedBy} · ${new Date(change.storyApproval.approvedAt!).toLocaleString("en-GB")}`}
@@ -228,12 +224,11 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
                   {change.storyApproval.note || <span className="notstated">no reason recorded</span>}
                 </div>
               </Provenance>
-            </section>
+            </RecordPart>
           )}
 
           {change.architectDecision && (
-            <section className="panel">
-              <h2>Architect decision</h2>
+            <RecordPart title="Architect decision" summary={change.architectDecision.recommendedRoute}>
               <Provenance kind="ai" label={`Recommended route: ${change.architectDecision.recommendedRoute} · confidence ${Math.round(change.architectDecision.confidence * 100)}%`}>
                 <p style={{ margin: "0 0 10px", fontSize: 13.5 }}>
                   {change.architectDecision.existingFunctionalityFound}
@@ -263,15 +258,13 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
                   : "Nothing identified"}</dd>
                 <dt>Rollback</dt><dd>{change.architectDecision.rollbackStrategy}</dd>
               </dl>
-            </section>
+            </RecordPart>
           )}
 
           {ec && (
-            <section className="panel">
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                <h2 style={{ margin: 0 }}>The exact change</h2>
-                {ec.capabilityStatus && <CapabilityStatusBadge status={ec.capabilityStatus} />}
-              </div>
+            <RecordPart title="The exact change" summary={<>{change.changeApproval ? `${change.changeApproval.status} by ${change.changeApproval.approvedBy}` : "not approved yet"}
+              {" · "}{applied || ec.execution?.writeState === "applied" ? "applied in DEV" : "not applied"}
+              {ec.capabilityStatus && <> <CapabilityStatusBadge status={ec.capabilityStatus} /></>}</>}>
               <Provenance
                 kind={applied || ec.execution?.writeState === "applied" ? "executed" : "proposed"}
                 label={applied || ec.execution?.writeState === "applied"
@@ -335,12 +328,11 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
                 </div>
               )}
               <ExecutionPanel changeId={change.id} exactChange={ec} approvalStatus={change.changeApproval?.status} onChanged={reload} />
-            </section>
+            </RecordPart>
           )}
 
           {change.testSpecification && (
-            <section className="panel">
-              <h2>Test</h2>
+            <RecordPart title="Test" summary={change.testResult && change.testResult.outcome !== "not run" ? `${change.testResult.outcome === "pass" ? "passed" : "failed"}` : "not run yet"}>
               <dl className="facts">
                 <dt>Mode</dt><dd>{change.testSpecification.mode}</dd>
                 {change.testSpecification.orchestrationName && (
@@ -359,21 +351,19 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
               ) : (
                 <div className="empty" style={{ padding: 20, marginTop: 12 }}>Not run yet.</div>
               )}
-            </section>
+            </RecordPart>
           )}
 
           {change.humanValidation && (
-            <section className="panel">
-              <h2>Human validation</h2>
+            <RecordPart title="Human validation" summary={`by ${change.humanValidation.validatedBy}`}>
               <Provenance kind="human" label={`Validated by ${change.humanValidation.validatedBy} · ${new Date(change.humanValidation.validatedAt).toLocaleString("en-GB")}`}>
                 <div style={{ fontSize: 13.5 }}>{change.humanValidation.note}</div>
               </Provenance>
-            </section>
+            </RecordPart>
           )}
 
           {change.closure && (
-            <section className="panel">
-              <h2>Closure</h2>
+            <RecordPart title="Closure" summary={change.closure.requesterConfirmation}>
               <dl className="facts">
                 <dt>What changed</dt><dd>{change.closure.whatChanged}</dd>
                 <dt>Told the requester</dt><dd>{change.closure.businessFacingResult}</dd>
@@ -381,11 +371,10 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
                 <dt>Source system</dt><dd>{change.closure.sourceUpdateStatus}</dd>
                 <dt>Requester says</dt><dd><strong>{change.closure.requesterConfirmation}</strong></dd>
               </dl>
-            </section>
+            </RecordPart>
           )}
 
-          <section className="panel">
-            <h2>Evidence <span className="qualifier">— append-only, hash-chained</span></h2>
+          <RecordPart title="Evidence log" summary={`${change.evidence.length} entr${change.evidence.length === 1 ? "y" : "ies"}, append-only, hash-chained`}>
             <table className="data">
               <thead><tr><th>#</th><th>Stage</th><th>What happened</th><th>By</th><th>When</th></tr></thead>
               <tbody>
@@ -400,7 +389,7 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
                 ))}
               </tbody>
             </table>
-          </section>
+          </RecordPart>
         </div>
 
         <aside className="panel">
@@ -458,5 +447,15 @@ export function ChangeDetail({ changeId, onBack, embedded = false }: { changeId:
         />
       )}
     </>
+  );
+}
+
+/** One part of the change record: a single line until opened (step 3: no card stacks). */
+function RecordPart({ title, summary, children }: { title: string; summary?: ReactNode; children: ReactNode }) {
+  return (
+    <details className="recpart">
+      <summary><span className="recpart-title">{title}</span>{summary ? <span className="recpart-sum">{summary}</span> : null}</summary>
+      <div className="recpart-body">{children}</div>
+    </details>
   );
 }

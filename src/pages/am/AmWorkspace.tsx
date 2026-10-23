@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { ValidationWorkspace } from "../validation/Validation";
 import { Link, match, navigate, useLocation } from "../../router";
 import { EmptyState, useSessionInfo } from "../../components/design";
 import { Dashboard } from "./Dashboard";
@@ -19,7 +18,6 @@ const GROUPS: { label: string; items: { to: string; label: string; stage?: strin
   ] },
   { label: "Delivery", items: [
     { to: "/am/delivery", label: "Delivery" },
-    { to: "/am/validation", label: "Validation & release" },
     { to: "/am/as-built", label: "As-Built" },
   ] },
 ];
@@ -50,7 +48,8 @@ export function AmWorkspace() {
   let m: Record<string, string> | null;
   let page: JSX.Element;
   if (path === "/am") page = <Dashboard onOpenChange={openChange} onNavigate={legacyNavigate} />;
-  else if (match("/am/validation", path)) page = <ValidationWorkspace releaseOnly />;
+  // One Validation area: the release handoff is a tab of Validation.
+  else if (match("/am/validation", path)) page = <Redirect to="/validation?tab=release" />;
   else if (match("/am/backlog-review", path)) page = <ApprovalBacklog {...target} />;
   else if ((path === "/am/process" || (path === "/am/architecture-review" && query.get("view") === "design")) && query.get("story")) {
     // The old Process & Maps and Technical design tabs: the process and the design decision now sit

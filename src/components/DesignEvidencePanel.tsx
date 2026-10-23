@@ -59,7 +59,7 @@ export function DesignEvidencePanel({ changeId, designCount, compact = false }: 
                 <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>{current.reassessment.map((r, i) => <li key={i}>{r.kind.replace(/_/g, " ")}: {r.detail}</li>)}</ul>
               </div>
             )}
-            {!compact && <div className="hint" style={{ marginTop: 4 }}>{m.scope_statement}</div>}
+            {!compact && <div className="hint explain" style={{ marginTop: 4 }}>{m.scope_statement}</div>}
             {current.trigger === "refresh" && m.refresh_note && (
               <div className="callout" style={{ marginTop: 6 }}><strong>Refreshed evidence</strong>{m.refresh_note}</div>
             )}
@@ -164,8 +164,8 @@ export function DesignEvidencePanel({ changeId, designCount, compact = false }: 
               )}
             </div>
           )}
-          {compact ? <details className="vr-detail"><summary>Evidence scope & limitations</summary><p className="hint">{m.scope_statement}</p>{m.evidence_notes?.map((n) => <p key={n} className="hint">{n}</p>)}</details> : m.evidence_notes?.map((n) => <p key={n} className="hint">{n}</p>)}
-          <p className="hint">This baseline does not authorise any change. Execution re-checks approval, scope and the live environment on its own.</p>
+          {compact ? <details className="vr-detail"><summary>Evidence scope & limitations</summary><p className="hint">{m.scope_statement}</p>{m.evidence_notes?.map((n) => <p key={n} className="hint">{n}</p>)}</details> : m.evidence_notes?.map((n) => <p key={n} className="hint explain">{n}</p>)}
+          <p className="hint explain">This baseline does not authorise any change. Execution re-checks approval, scope and the live environment on its own.</p>
         </div>
       )}
     </section>

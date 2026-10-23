@@ -177,7 +177,9 @@ export function ValidationWorkspace({
   const tasksOnly = useLocation().path === "/validation/tasks";
   const permitted =
     !tasksOnly && info.has("test_manager", "product_manager", "admin");
-  const [tab, setTab] = useState(releaseOnly ? "release" : "dashboard");
+  // One Validation area (step 3): the release handoff is a tab of it; ?tab= opens a section directly.
+  const initialTab = useLocation().query.get("tab");
+  const [tab, setTab] = useState(releaseOnly ? "release" : initialTab || "dashboard");
   const [data, setData] = useState<D | null>(null),
     [sources, setSources] = useState<D[]>([]),
     [members, setMembers] = useState<D[]>([]);
@@ -677,7 +679,7 @@ export function ValidationWorkspace({
           >
             Export audit trail
           </button>
-          <Link to="/am/validation">Application Manager release handoff</Link>
+          <button className="linkbtn" onClick={() => setTab("release")}>Release handoff</button>
         </div>
       </>
     );
@@ -685,16 +687,16 @@ export function ValidationWorkspace({
   return (
     <div className="validation">
       <PageHeader
-        title={releaseOnly ? "Validation & release handoff" : "Validation"}
+        title="Validation"
         subtitle={
           releaseOnly
             ? "Confirm deployments and make release decisions using reviewed test evidence."
             : "Plan tests, collect evidence and provide a clear testing conclusion."
         }
       />
-      {permitted && !releaseOnly && (
+      {permitted && (
         <nav className="v-nav" aria-label="Validation sections">
-          {["dashboard", "library", "plans", "runs", "defects", "agents"].map(
+          {["dashboard", "library", "plans", "runs", "defects", "agents", ...(info.has("product_manager", "admin") ? ["release"] : [])].map(
             (t) => (
               <button
                 className="btn"
@@ -715,6 +717,7 @@ export function ValidationWorkspace({
                     runs: "Runs & UAT",
                     defects: "Defects",
                     agents: "Agents",
+                    release: "Release handoff",
                   }[t]
                 }
               </button>
@@ -2212,10 +2215,9 @@ function ReleasePanel({
   return (
     <>
       <p>
-        <Link to="/validation">Open Validation dashboard</Link> ·{" "}
-        <Link to="/am/changes?stage=release">Existing release / CNC work</Link>
+        <Link to="/am/delivery?stage=release">Changes ready for release</Link>
       </p>
-      <p>
+      <p className="explain">
         Deployment confirmations record a build already implemented in the
         target environment. These controls do not deploy software.
       </p>

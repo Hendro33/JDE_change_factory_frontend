@@ -22,7 +22,7 @@ def finish_setup(b):
     page = new_page(b)
     login(page, "setup")
     check("a fresh installation starts with one ordinary customer and no stories",
-          "0\nstories in progress" in page.inner_text("main"))
+          "0 in progress" in page.inner_text("main"))
     fill(page, "Your email", "owner@consultiq.example")
     fill(page, "Your name", "Hendro Owner")
     fill(page, "Choose a password", pw("owner"))
