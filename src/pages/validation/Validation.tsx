@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { PageHeader, useSessionInfo } from "../../components/design";
 import { Link, useLocation } from "../../router";
+import { api } from "../../services/api";
 import {
   validationRequest as req,
   validationEvidence,
@@ -11,6 +12,30 @@ import {
   type RecordData as D,
 } from "../../services/validationApi";
 import "./Validation.css";
+
+/**
+ * The three outcomes kept apart (register H1): verified in DEV, accepted by the
+ * business, handed over for release -- the same outcome steps every story shows.
+ */
+function OutcomeSplit() {
+  const [rows, setRows] = useState<{ key: string; label: string; n: number; to: string }[] | null>(null);
+  useEffect(() => {
+    api.listChanges().then((all) => {
+      const cards = all.map((c) => c.lifecycle?.outcomeCard).filter((c): c is NonNullable<typeof c> => !!c);
+      setRows([
+        { key: "dev", label: "Verified in DEV, waiting for the business", n: cards.filter((c) => c.devVerified.done && !c.businessAccepted.done).length, to: "/stories?phase=validation" },
+        { key: "acc", label: "Accepted, waiting for the release hand-over", n: cards.filter((c) => c.businessAccepted.done && !c.released.done).length, to: "/am/changes?stage=asbuilt" },
+        { key: "rel", label: "Handed over for release", n: cards.filter((c) => c.released.done).length, to: "/stories?phase=done" },
+      ]);
+    }).catch(() => setRows(null));
+  }, []);
+  if (!rows) return null;
+  return (
+    <dl className="figstrip" aria-label="Outcomes">
+      {rows.map((r) => <div key={r.key} className="fig"><dd className="fig-value">{r.n}</dd><dt className="fig-label"><Link to={r.to}>{r.label}</Link></dt></div>)}
+    </dl>
+  );
+}
 
 export const Status = ({ value }: { value: string }) => (
   <span className={"v-status " + value}>{value.replace(/_/g, " ")}</span>
@@ -607,6 +632,7 @@ export function ValidationWorkspace({
             Clear filters
           </button>
         </details>
+        <OutcomeSplit />
         <div className="v-metrics">
           {[
             ["Plans", visibleSummaries.length],

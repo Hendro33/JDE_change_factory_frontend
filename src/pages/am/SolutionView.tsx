@@ -99,6 +99,11 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
           title="Ask JADE about this solution"
           turns={ctx.run?.conversation ?? []}
           onAsk={async (question) => { ctx.setRun(await api.askAboutSolution(change.id, { question })); }}
+          renderProposeQuestionActions={(t) => info.has("product_manager", "admin") ? (
+            <button className="btn small" disabled={busy} onClick={async () => {
+              ctx.setRun(await api.applySolutionProposal(change.id, t.turnId)); ctx.reload();
+            }}>Send the question</button>
+          ) : null}
           renderRecommendReanalysisActions={() => info.has("product_manager", "admin") ? (
             <button className="btn primary" disabled={busy || architectAtWork} onClick={rerun}>Run the Architect again</button>
           ) : null}
@@ -152,11 +157,8 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
                 <tbody>{decision.alternativesConsidered.map((a, i) => <tr key={i}><td>{a.approach}</td><td>{a.whyNot}</td></tr>)}</tbody></table></>
           )}
           <StoryRatingsPanel key={change.id} change={change} mode="technical" onChanged={ctx.reload} />
-        </Details>
-      )}
-
-      {decision && (
-        <Details summary="Technical detail — objects, steps, risk, validation" id="technical-detail">
+          {/* One supporting-detail section (register E16): the technical detail sits here too. */}
+          <h4 id="technical-detail">Technical detail: objects, steps, risk, validation</h4>
           <TechnicalDetail change={change} decision={decision} spec={spec} />
         </Details>
       )}

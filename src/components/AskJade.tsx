@@ -43,6 +43,7 @@ export function AskJadePanel({
   onAsk,
   renderAmendmentActions,
   renderRecommendReanalysisActions,
+  renderProposeQuestionActions,
   currentStory,
 }: {
   title: string;
@@ -57,6 +58,8 @@ export function AskJadePanel({
    * action here, the same way renderAmendmentActions supplies its own
    * governed next step for a proposed_amendment. */
   renderRecommendReanalysisActions?: (turn: ConversationTurn) => ReactNode;
+  /** Solution side: send the question the conversation proposes (register C11). */
+  renderProposeQuestionActions?: (turn: ConversationTurn) => ReactNode;
   /** The story as it is, so a proposed update shows what it would change. */
   currentStory?: UserStory;
 }) {
@@ -112,6 +115,14 @@ export function AskJadePanel({
                   <p style={{ margin: "4px 0 8px", fontSize: 13.5, fontWeight: 700 }}>{t.proposedUserStory.statement}</p>
                   <AmendmentPreview current={currentStory} proposed={t.proposedUserStory} />
                   {renderAmendmentActions?.(t)}
+                </div>
+              )}
+              {t.kind === "propose_question" && t.proposedQuestion && (
+                <div className="callout" style={{ marginTop: 8 }}>
+                  <strong>JADE proposes asking the Domain Owner</strong>
+                  <p style={{ margin: "4px 0 8px" }}>{t.proposedQuestion}</p>
+                  {t.appliedAt ? <span className="hint">Sent by {t.appliedBy}; it is now an open question on the story.</span>
+                    : renderProposeQuestionActions?.(t)}
                 </div>
               )}
               {t.kind === "recommend_reanalysis" && (

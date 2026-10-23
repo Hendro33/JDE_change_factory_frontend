@@ -755,8 +755,12 @@ export interface ConversationTurn {
   askedBy: string;
   question: string;
   answer: string;
-  kind: "explanation" | "proposed_amendment" | "recommend_reanalysis";
+  kind: "explanation" | "proposed_amendment" | "recommend_reanalysis" | "propose_question";
   proposedUserStory?: UserStory;
+  /** A question for the business the solution conversation proposes (register C11). */
+  proposedQuestion?: string | null;
+  appliedBy?: string | null;
+  appliedAt?: string | null;
   askedAt: string;
 }
 
@@ -1015,6 +1019,8 @@ export interface OutcomeCard {
   released: OutcomeStep;
   notAccepted?: OutcomeStep | null;
   whatToDoNow: string;
+  /** Each acceptance criterion with how far it is verified (register C12). */
+  criteria?: { text: string; state: string; verified: boolean }[];
   jiraKey: string;
   jiraUrl: string;
 }

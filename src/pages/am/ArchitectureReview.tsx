@@ -5,7 +5,7 @@ import { JadeWorking } from "../../components/design";
 import { ChangeGrid, FilterBar, useChangeListControls, type GridColumn } from "../../components/WorkQueue";
 import { Loading, PriorityBadge } from "../../components/ui";
 import type { Navigate, NavTarget } from "../../types/nav";
-import { navigate, setQueryParam } from "../../router";
+import { navigate, setQueryParam, useLocation } from "../../router";
 import { rememberReturn } from "../../services/workLink";
 import { inAmStage } from "./workflow";
 import { changePath } from "../stories/useStory";
@@ -20,6 +20,9 @@ import { changePath } from "../stories/useStory";
  */
 export function ArchitectureReview({ navFilter, navToken }: Partial<NavTarget> & { onNavigate?: Navigate } = {}) {
   const [changes, setChanges] = useState<Change[] | null>(null);
+  const { query } = useLocation();
+  // The list is the queue "waiting for my authorisation" (register K8); the rest is one chip away.
+  const view = (query.get("view") as "mine" | "all" | "earlier" | null) ?? "mine";
 
   const waitingOn = (c: Change) => {
     const lc = c.lifecycle;
@@ -56,7 +59,13 @@ export function ArchitectureReview({ navFilter, navToken }: Partial<NavTarget> &
     { key: "route", header: "Route", render: (c) => c.architectDecision?.recommendedRoute ?? <span className="notstated">not decided</span> },
     { key: "priority", header: "Priority", render: (c) => <PriorityBadge priority={c.priority} /> },
   ];
-  const { search, setSearch, sortKey, sortDir, onSortChange, filtered } = useChangeListControls(changes ?? [], columns, (c) => `${c.id} ${c.title}`, navFilter?.q ?? "");
+  const inArch = (c: Change) => ["solutioning", "solution_review"].includes(c.lifecycle?.phase ?? "");
+  const views = {
+    mine: (changes ?? []).filter((c) => inArch(c) && (yours(c) || c.lifecycle?.nextAction.owner === "product_manager")),
+    all: (changes ?? []).filter(inArch),
+    earlier: (changes ?? []).filter((c) => !inArch(c)),
+  };
+  const { search, setSearch, sortKey, sortDir, onSortChange, filtered } = useChangeListControls(views[view] ?? views.mine, columns, (c) => `${c.id} ${c.title}`, navFilter?.q ?? "");
   // The filter lives in the address, so returning from a change restores it.
   useEffect(() => { if ((navFilter?.q ?? "") !== search) setQueryParam("q", search); }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
   // A row opens the change's solution review directly (finding 1); its breadcrumb returns here.
@@ -78,11 +87,17 @@ export function ArchitectureReview({ navFilter, navToken }: Partial<NavTarget> &
         </div>
         <div className="meta">{mine} waiting for your authorisation{waiting ? ` · ${waiting} waiting for an answer` : ""}</div>
       </div>
+      <div className="filterchips" role="group" aria-label="Which changes">
+        {([["mine", "Waiting for my authorisation"], ["all", "All in architecture"], ["earlier", "Authorised or finished"]] as const).map(([k, label]) => (
+          <button key={k} className={`chip${view === k ? " on" : ""}`} aria-pressed={view === k} onClick={() => setQueryParam("view", k === "mine" ? "" : k)}>
+            {label} ({views[k].length})</button>
+        ))}
+      </div>
       {changes && changes.length > 0 && <FilterBar search={search} onSearchChange={setSearch} searchPlaceholder="Search by ID or title" selects={[]} />}
       {!changes ? <Loading what="changes under architecture review" /> : (
         <section className="panel" style={{ marginBottom: 16 }}>
           <ChangeGrid changes={sorted} columns={columns} onRowClick={open}
-            emptyMessage="Nothing here yet. A change arrives once Backlog Review has admitted it to architecture and the Architect has analysed it."
+            emptyMessage={view === "mine" ? "Nothing waits for your authorisation." : "Nothing here yet. A change arrives once Backlog Review has admitted it to architecture."}
             sortKey={sortKey} sortDir={sortDir} onSortChange={onSortChange} />
         </section>
       )}

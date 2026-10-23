@@ -6,7 +6,7 @@ import { ApprovalBacklog } from "./ApprovalBacklog";
 import { ArchitectureReview } from "./ArchitectureReview";
 import { Pipeline } from "./Pipeline";
 import { ChangeView } from "./ChangeView";
-import { AsBuiltWorkbench, ProcessWorkbench, TechnicalWorkbench } from "./Workbenches";
+import { AsBuiltWorkbench } from "./Workbenches";
 import { legacyNavigate, openChange, useNavTarget } from "./legacyNav";
 import { NotFoundPage } from "../NotFound";
 import { rememberReturn } from "../../services/workLink";
@@ -57,8 +57,10 @@ export function AmWorkspace() {
     // beside the solution in the change's application view.
     page = <Redirect to={`/am/changes/${encodeURIComponent(query.get("story")!)}#${path === "/am/process" ? "process" : "decision"}`} />;
   }
-  else if (path === "/am/process") page = <ProcessWorkbench />;
-  else if (match("/am/architecture-review", path) && query.get("view") === "design") page = <TechnicalWorkbench design />;
+  // The old Process & Maps and Technical design workbenches (register K9, K10): their work lives on
+  // each change (process beside the solution, technical design on its Technical tab).
+  else if (path === "/am/process" || (match("/am/architecture-review", path) && query.get("view") === "design"))
+    page = <Redirect to="/am/architecture-review?view=all" />;
   // A link to one story's review opens that change's solution review directly.
   else if (match("/am/architecture-review", path) && query.get("story")) {
     rememberReturn(query.get("story")!, "Architecture Review", "/am/architecture-review");

@@ -212,6 +212,8 @@ export interface ChangeFactoryApi {
   getMyWork(): Promise<MyWork>;
   /** The portfolio figures of the one figure strip (decision X1). */
   getFigures(): Promise<Figure[]>;
+  /** Send the question a solution conversation proposed (register C11). */
+  applySolutionProposal(changeId: string, turnId: string): Promise<ArchitectureReviewRun>;
   /** The one canonical list of Jade's agents. */
   listAgentInventory(): Promise<AgentInventoryEntry[]>;
   getChange(id: string): Promise<Change | undefined>;

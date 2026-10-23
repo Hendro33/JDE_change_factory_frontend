@@ -159,6 +159,8 @@ export function OutcomeCardView({ change, lifecycle, onChanged }: { change: Chan
       <div className="outcome-grid">
         {card.whatChanged.length > 0 && <div><h4>What changed</h4><ul>{card.whatChanged.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}
         {card.verified.length > 0 && <div><h4>What was verified</h4><ul>{card.verified.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}
+        {(card.criteria?.length ?? 0) > 0 && <div><h4>Does it do what was asked?</h4><ul className="criteria-check">{card.criteria!.map((c, i) => (
+          <li key={i}><span className={`status-word ${c.verified ? "ok" : ""}`}>{c.verified ? "✓" : "○"}</span> {c.text} <span className="muted">— {c.state}</span></li>))}</ul></div>}
       </div>
       {card.notAccepted && !card.businessAccepted.done && (
         <p className="outcome-refused"><strong>Not accepted</strong> by {card.notAccepted.by}: {card.notAccepted.detail}</p>
