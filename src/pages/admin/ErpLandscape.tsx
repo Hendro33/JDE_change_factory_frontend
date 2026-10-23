@@ -251,7 +251,7 @@ export function ErpLandscape() {
 
   useEffect(load, []);
 
-  /** Everything allowed, as for a trial on an isolated demo environment. Isolation stays a person's tick. */
+  /** Everything allowed, as for a trial on a demo environment. */
   function trialDefaults() {
     setAllowedKinds(FUNCTIONAL_KINDS.map((k) => k.id));
     setObjectTypesText(TECHNICAL_TYPES.map((t) => t.id).join("\n"));
@@ -411,9 +411,8 @@ export function ErpLandscape() {
                   <strong>DEV environment</strong>
                   <p style={{ margin: "4px 0 0" }}>
                     <span className="mono">{scope.environment?.devEnvironmentId || "—"}</span> / <span className="mono">{scope.environment?.devPathCode || "—"}</span>{" "}
-                    {scope.environment?.isolationConfirmed
-                      ? <span className="badge ok">isolation confirmed by {scope.environment.isolationConfirmedBy}</span>
-                      : <span className="badge warn">isolation not confirmed — nothing can be delivered</span>}
+                    {!(scope.environment?.devEnvironmentId && scope.environment?.devPathCode)
+                      && <span className="badge warn">name the DEV environment and path code — nothing can be delivered without them</span>}
                   </p>
                 </div>
                 <Details summary="Advanced: detailed allowlists, tests and technical rules" open={hasAdvanced}>
@@ -526,7 +525,6 @@ export function ErpLandscape() {
                     <dl className="facts">
                       <dt>Tools release</dt><dd>{scope.toolsRelease || <NotStatedInline />}</dd>
                       <dt>Data source</dt><dd>{scope.environment?.aisDataSourceName || <NotStatedInline />}</dd>
-                      <dt>Isolation evidence</dt><dd>{scope.environment?.isolationEvidence || <NotStatedInline />}</dd>
                       <dt>Never-touch categories</dt>
                       <dd>{scope.functionalAgent.neverTouchCategories.map((c) => categoryInfo(c)?.label ?? c).join(", ") || <span className="notstated">none</span>}
                         <span className="hint"> — applies to listed targets</span></dd>
@@ -595,12 +593,6 @@ export function ErpLandscape() {
                       <input id="devPathCode" type="text" value={environment.devPathCode} onChange={(e) => setEnvironment({ ...environment, devPathCode: e.target.value.toUpperCase() })} placeholder="PS920" />
                     </div>
                   </div>
-                  <label style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 400, margin: "8px 0" }}>
-                    <input type="checkbox" checked={environment.isolationConfirmed} onChange={(e) => setEnvironment({ ...environment, isolationConfirmed: e.target.checked })} />
-                    Changes here cannot affect another environment (for example a standalone trial instance)
-                  </label>
-                  <label htmlFor="isolationEvidence">How you know <span className="hint">(optional)</span></label>
-                  <input id="isolationEvidence" type="text" value={environment.isolationEvidence} onChange={(e) => setEnvironment({ ...environment, isolationEvidence: e.target.value })} placeholder="Standalone Oracle trial instance" />
                 </fieldset>
                 <Details summary="Advanced: detailed allowlists, tests and technical rules" open={hasAdvanced}>
                   <div className="stack">
@@ -738,7 +730,7 @@ function GateCoverage() {
             <li>The capability has a complete enforcement contract (only processing-option update does), and is validated or inside a current spike window</li>
             <li>The target is approved for this capability, through a mechanism this company allows</li>
             <li>The option's category is declared, not protected (pricing, tax, GL/AAI, security, payments, outbound integration) and not never-touch</li>
-            <li>DEV isolation is confirmed, and the JDE connection points at the bound DEV environment</li>
+            <li>The customer's DEV environment is named, and the JDE connection points at it</li>
             <li>The target is an approved version and option, the value is allowed, and the version is not XJDE/ZJDE</li>
             <li>No earlier step is in flight, already recorded, or of unknown outcome</li>
             <li>Only the approved value is recorded as applied: JADE reads it back live, or the person states the value they read in JDE with evidence</li>

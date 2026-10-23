@@ -389,8 +389,6 @@ export function JdeDiscoveryPanel({ onChanged }: { onChanged?: () => void } = {}
           </fieldset>
 
           <fieldset><legend>Customer confirmations</legend>
-            <label className="field">Routing and isolation evidence<textarea aria-label="Isolation evidence" value={form.isolationEvidence} onChange={(e) => set("isolationEvidence", e.target.value)} /></label>
-            <label style={{ display: "flex", gap: 6, fontWeight: 400 }}><input type="checkbox" aria-label="Routing and isolation confirmed" checked={form.routingIsolationConfirmed} onChange={(e) => set("routingIsolationConfirmed", e.target.checked)} />The customer/CNC has confirmed the route reaches only this environment and it is isolated</label>
             <label className="field">Privilege statement<textarea aria-label="Privilege statement" value={form.privilegeStatement} onChange={(e) => set("privilegeStatement", e.target.value)} /></label>
             <label style={{ display: "flex", gap: 6, fontWeight: 400 }}><input type="checkbox" aria-label="Privilege confirmed" checked={form.privilegeConfirmed} onChange={(e) => set("privilegeConfirmed", e.target.checked)} />The customer has confirmed the read user is narrowly privileged (read-only)</label>
             <label className="field">Runtime statement <span className="hint">(the CNC's statement of Tools release and path code)</span>

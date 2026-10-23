@@ -223,8 +223,6 @@ def governance(page):
     page.fill("#policyHours", "72")
     page.fill("#devEnvironmentId", "JDV920")
     page.fill("#devPathCode", "DV920")
-    page.locator("label:has-text('cannot affect another environment') input[type=checkbox]").check()
-    page.fill("#isolationEvidence", "CNC checked OCM for JDV920: business data maps to the DEV data source only (CNC-118)")
     page.click("summary:has-text('Advanced')")
     page.fill("#toolsRelease", "9.2.8.2")
     page.fill("#aisDataSourceName", "Business Data - DEV")
