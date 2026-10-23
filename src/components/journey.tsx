@@ -121,6 +121,13 @@ function summaryText(change: Change, card: OutcomeCard): string {
   return lines.join("\n");
 }
 
+const TECHNICAL_WORDS = /\b([PRFBN]\d{4,6}|[PRFBN]5[5-9]\w+|UDC|processing option|version [A-Z0-9]{4,}|AAI|UBE|business function|OMW|AIS|po:|data item)\b/i;
+
+/** The outcome's "what changed" lines a business reader needs; technical lines stay in the application view. */
+export function changedForBusiness(lines: string[]): string[] {
+  return lines.filter((l) => !TECHNICAL_WORDS.test(l));
+}
+
 export function OutcomeCardView({ change, lifecycle, onChanged }: { change: Change; lifecycle: Lifecycle; onChanged: (c: Change) => void }) {
   const info = useSessionInfo();
   const card = lifecycle.outcomeCard;
@@ -158,7 +165,8 @@ export function OutcomeCardView({ change, lifecycle, onChanged }: { change: Chan
         <OutcomeStepView label="Handed over for release" done={card.released.done} by={card.released.by} at={card.released.at} waiting={finished ? "Not recorded" : "After acceptance"} />
       </ol>
       <div className="outcome-grid">
-        {card.whatChanged.length > 0 && <div><h4>What changed</h4><ul>{card.whatChanged.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}
+        {/* Business words only (register M3): technical lines stay in the application view. */}
+        {changedForBusiness(card.whatChanged).length > 0 && <div><h4>What changed</h4><ul>{changedForBusiness(card.whatChanged).map((w, i) => <li key={i}>{w}</li>)}</ul></div>}
         {card.verified.length > 0 && <div><h4>What was verified</h4><ul>{card.verified.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}
         {(card.criteria?.length ?? 0) > 0 && <div><h4>Does it do what was asked?</h4><ul className="criteria-check">{card.criteria!.map((c, i) => (
           <li key={i}><span className={`status-word ${c.verified ? "ok" : ""}`}>{c.verified ? "✓" : "○"}</span> {c.text} <span className="muted">— {c.state}</span></li>))}</ul></div>}
