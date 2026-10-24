@@ -1455,3 +1455,11 @@ body { background: #fff; }
 @media (max-width: 700px) { .amspace .adminnav { max-width: 100%; overflow-x: auto; } .amspace { min-width: 0; } .admin-main { min-width: 0; } }
 @media (max-width: 960px) { .primarynav { min-width: 0; max-width: 100%; } .appbar-row { min-width: 0; max-width: 100vw; } }
 @media (max-width: 960px) { .admin.amspace { grid-template-columns: minmax(0, 1fr); } .home .stucklist li > span, .home .stucklist li > a { max-width: 100%; min-width: 0; } .home .stucklist li { min-width: 0; } }
+
+/* Both roles on My Work: the two work areas as tabs (repair brief P4) */
+.areaswitch { display: flex; gap: 4px; border-bottom: 1px solid var(--line-strong); margin: 18px 0 6px; }
+.areaswitch button { background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 14px; font: inherit; font-weight: 800; color: var(--muted); cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+.areaswitch button.on { color: var(--ink); border-bottom-color: var(--brand); }
+.qgroup { grid-template-columns: 44px minmax(0, 1fr) auto auto; }
+.qgroup-items { grid-column: 1 / -1; margin-top: 10px; }
+.qgroup-items .qrow { box-shadow: none !important; border: 1px solid var(--line) !important; }

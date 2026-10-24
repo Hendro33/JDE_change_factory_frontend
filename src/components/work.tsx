@@ -143,10 +143,14 @@ export function IssueList({ change, onChange, kinds, title = "Open points", empt
   );
 }
 
-function IssueRow({ issue, change, onChange, statedAbove }: { issue: Issue; change: Change; onChange: (c: Change) => void; statedAbove?: boolean }) {
+export function IssueRow({ issue, change, onChange, statedAbove, startOpen = false, hideTitle = false }: { issue: Issue; change: Change; onChange: (c: Change) => void; statedAbove?: boolean;
+  /** Repair brief P3: opened from the decision card, the answer form is shown at once. */
+  startOpen?: boolean;
+  /** On the decision card the question is the card's own heading: not repeated. */
+  hideTitle?: boolean }) {
   const info = useSessionInfo();
   const [answer, setAnswer] = useState("");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [done, setDone] = useState("");
@@ -174,7 +178,7 @@ function IssueRow({ issue, change, onChange, statedAbove }: { issue: Issue; chan
         {issue.blocks && !r && <Tag tone="stop">Blocks progress</Tag>}
       </div>
       {/* Already the next step at the top of the page: its actions stay here, its text is not repeated. */}
-      <div className="issue-title">{statedAbove && !r ? <span className="muted">The next step above</span> : issue.title}</div>
+      {!hideTitle && <div className="issue-title">{statedAbove && !r ? <span className="muted">The next step above</span> : issue.title}</div>}
       {issue.consequence && !statedAbove && <div className="issue-consequence">{issue.consequence}</div>}
       {(issue.options?.length ?? 0) > 1 && !r && !statedAbove && (
         <div className="issue-options"><strong>Options</strong>
@@ -183,7 +187,7 @@ function IssueRow({ issue, change, onChange, statedAbove }: { issue: Issue; chan
         </div>
       )}
       {issue.proposedAnswer && !r && <div className="issue-proposal"><strong>JADE recommends: </strong>{issue.proposedAnswer}</div>}
-      {issue.kind === "jade" && <div className="issue-note">{issue.returned ? "Returned to JADE: it reads this in DEV on the next run; nobody is asked." : "JADE handles this itself; nobody needs to act."}</div>}
+      {issue.kind === "jade" && <div className="issue-note">{issue.returned ? `JADE investigates this in DEV when the Architect runs again; nobody is asked.${issue.blocks ? " Until then it blocks authorisation." : ""}` : "JADE handles this itself; nobody needs to act."}</div>}
       {issue.source === "delivery_gate" && !statedAbove && <div className="issue-note">{issue.action} This clears by itself once the cause is fixed.</div>}
       {r && (
         <div className="issue-answer">

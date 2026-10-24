@@ -1068,6 +1068,8 @@ export interface MyWork {
   perDomain: DomainLine[];
   /** "Things need you": needs-you rows plus question rows. */
   attentionCount: number;
+  /** Stories needing each role area, as each section shows them (repair brief P4). */
+  areaCounts?: { business?: number; application?: number };
   /** The one figure strip (decision X1). */
   figures: Figure[];
   needsYou: Change[];

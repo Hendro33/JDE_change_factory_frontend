@@ -33,13 +33,20 @@ export function BusinessArchitecturePage({ domainId }: { domainId?: string }) {
       requests: mine.filter(isRequest).length, done: mine.filter((c) => c.lifecycle?.outcome === "delivered").length };
   };
   const unplaced = counts(null);
-  const active = info.domains.filter((d) => d.status !== "retired");
+  // Repair brief P4: the customer's own active domains first (work, an owner); the rest of the
+  // classification framework stays available as reference, folded away.
+  const all = info.domains.filter((d) => d.status !== "retired");
+  const weight = (d: typeof all[number]) => { const n = counts(d.id); return n.open + n.requests + n.done; };
+  const inUse = all.filter((d) => weight(d) > 0 || (d.assignedOwners ?? []).length > 0)
+    .sort((a, b) => weight(b) - weight(a) || a.name.localeCompare(b.name));
+  const reference = all.filter((d) => !inUse.includes(d));
+  const active = inUse;
 
   return (
     <div>
       <PageHeader title="Business Architecture" subtitle="Your organisation's ERP map: business domains, their processes, and the change happening in each." />
       <Section title="Business domains" actions={info.has("admin") ? <Link to="/admin/business-model">Manage domains</Link> : undefined}>
-        {active.length === 0 ? <EmptyState title="No business domains yet">An administrator sets them up under Administration › Business Model.</EmptyState> : (
+        {all.length === 0 ? <EmptyState title="No business domains yet">An administrator sets them up under Administration › Business Model.</EmptyState> : (
           <div className="domaingrid">
             {active.map((d) => {
               const n = counts(d.id);
@@ -60,6 +67,12 @@ export function BusinessArchitecturePage({ domainId }: { domainId?: string }) {
               </Link>
             )}
           </div>
+        )}
+        {reference.length > 0 && (
+          <details className="qmore">
+            <summary>{reference.length} more domain{reference.length === 1 ? "" : "s"} in the classification framework, with no work or owner yet</summary>
+            <ul className="quietlist">{reference.map((d) => <li key={d.id}><Link to={`/business/${encodeURIComponent(d.id)}`}>{d.name}</Link></li>)}</ul>
+          </details>
         )}
       </Section>
       <ProcessMap selected={node} changes={changes} />

@@ -64,7 +64,8 @@ export function Dashboard(_props: { onOpenChange: (id: string) => void; onNaviga
   if (error) return <ErrorState title="Application Management could not be loaded" error={error} />;
   if (!work) return <Loading what="Application Management" />;
   const firstName = info.session.displayName.split(/\s+/)[0];
-  const n = work.attentionCount;
+  // Repair brief P4: this page counts the Application Management work it shows, not every role's total.
+  const n = work.areaCounts?.application ?? work.attentionCount;
   return (
     <div className="cockpit home">
       <PageHeader eyebrow={`${greeting()}, ${firstName}`} title={n === 0 ? "Nothing needs you right now" : `${n} thing${n === 1 ? "" : "s"} need${n === 1 ? "s" : ""} you`} />

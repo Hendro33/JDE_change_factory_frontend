@@ -4,6 +4,7 @@ import type { Change, CompanyRole, FeedbackReasonCode, NextAction } from "../../
 import { ConfirmDialog } from "../../components/ui";
 import { ErrorState, JadeWorking, useSessionInfo } from "../../components/design";
 import { Link, storyPath, useLocation } from "../../router";
+import { IssueRow } from "../../components/work";
 import type { StoryCtx } from "./storyContext";
 import { WhatNeedsToHappen } from "../../components/work";
 import { JadeAtWorkLine } from "../../components/journey";
@@ -190,10 +191,19 @@ export function NextActionCard({ ctx, inApp = false, listedKinds }: { ctx: Story
       controls = <Link className="btn primary" to={workPath(change.id, info.appManagement ? "solution" : "changes", info.appManagement, "open-points")}>Answer the question</Link>;
       break;
     case "answer_issue":
-    case "decide_issue":
-      controls = <Link className="btn primary" to={workPath(change.id, na.tab === "story" || !info.appManagement ? "changes" : "solution", info.appManagement, "open-points")}>
-        {na.action === "decide_issue" ? "Decide" : "Answer the question"}</Link>;
+    case "decide_issue": {
+      // Repair brief P3: the decision opens right here -- question, recommendation, options and consequence
+      // together, with the answer field -- not a jump to another "Decide" further down the page.
+      const target = (lc?.issues ?? []).find((i) => !i.resolution && na.summary.includes(i.title.replace(/[ .?]+$/, "")))
+        ?? (lc?.issues ?? []).find((i) => !i.resolution && i.blocks && (i.kind === "business" || i.kind === "decision") && info.has(i.owner as never));
+      controls = target ? (
+        <ul className="issue-list nextcard-issue"><IssueRow issue={target} change={change} onChange={() => reload()} startOpen hideTitle={na.summary.includes(target.title.replace(/[ .?]+$/, ""))} /></ul>
+      ) : (
+        <Link className="btn primary" to={workPath(change.id, na.tab === "story" || !info.appManagement ? "changes" : "solution", info.appManagement, "open-points")}>
+          {na.action === "decide_issue" ? "Decide" : "Answer the question"}</Link>
+      );
       break;
+    }
     case "accept_outcome":
       // On the outcome page itself the acceptance button below is the one action (register L3).
       controls = onOutcomePage ? <a className="btn" href="#outcome">Go to the outcome below</a>

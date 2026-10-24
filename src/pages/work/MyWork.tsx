@@ -58,13 +58,47 @@ export function QueueRow({ c }: { c: Change }) {
   );
 }
 
-/** The queue of one role area: decisions and tasks, then the questions owned there (register C3). */
+/** Repair brief P4: one item per story -- its next genuine decision, with its individual questions inside. */
+type Unit = { id: string; row?: Change; questions: QuestionItem[] };
+function units(rows: Change[], questions: QuestionItem[]): Unit[] {
+  const out: Unit[] = [];
+  const byId = new Map<string, Unit>();
+  for (const c of rows) { const u = { id: c.id, row: c, questions: [] as QuestionItem[] }; out.push(u); byId.set(c.id, u); }
+  for (const q of questions) {
+    let u = byId.get(q.changeId);
+    if (!u) { u = { id: q.changeId, questions: [] }; out.push(u); byId.set(q.changeId, u); }
+    u.questions.push(q);
+  }
+  return out;
+}
+
+function StoryQuestions({ u, onChanged }: { u: Unit; onChanged: () => void }) {
+  // Several questions on one story: one item, the questions inside it (the first one open).
+  const info = useSessionInfo();
+  const [open, setOpen] = useState(false);
+  const first = u.questions[0];
+  return (
+    <li className="qrow k-question qgroup">
+      <IconTile name="question" />
+      <span className="qrow-main">
+        <Link className="qrow-title" to={u.row ? workLink(u.row, info) : storyPath(u.id, "changes", "open-points")}>{u.row ? storyTitle(u.row) : first.title}</Link>
+        <span className="qrow-sub">{u.questions.length} questions for you{u.row ? ` · ${oneLine(u.row.lifecycle?.nextAction.summary, 60)}` : ""}</span>
+      </span>
+      <span className="qrow-meta"><span className="qrow-phase">{first.phaseLabel}</span></span>
+      <button className="btn small" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? "Close" : "Answer"}</button>
+      {open && <ul className="queue qgroup-items">{u.questions.map((q) => <QuestionRow key={q.issue.id} q={q} onAnswered={onChanged} />)}</ul>}
+    </li>
+  );
+}
+
+/** The queue of one role area: one item per story (register C3; repair brief P4). */
 function AreaQueue({ rows, questions, newRequests, onChanged }: { rows: Change[]; questions: QuestionItem[]; newRequests: Change[]; onChanged: () => void }) {
   if (!rows.length && !questions.length && !newRequests.length) return <EmptyState title="Nothing waiting on you">When something needs your decision or answer, it appears here and in the bell.</EmptyState>;
   return (
     <ul className="queue">
-      {rows.map((c) => <QueueRow key={c.id} c={c} />)}
-      {questions.map((q) => <QuestionRow key={q.issue.id} q={q} onAnswered={onChanged} />)}
+      {units(rows, questions).map((u) => u.questions.length > 1 || (u.row && u.questions.length)
+        ? <StoryQuestions key={u.id} u={u} onChanged={onChanged} />
+        : u.row ? <QueueRow key={u.id} c={u.row} /> : <QuestionRow key={u.id} q={u.questions[0]} onAnswered={onChanged} />)}
       {newRequests.length > 0 && (
         <li className="qrow k-task">
           <IconTile name="requests" />
@@ -81,8 +115,6 @@ function AreaQueue({ rows, questions, newRequests, onChanged }: { rows: Change[]
 }
 
 const BUSINESS_OWNERS = new Set(["domain_owner"]);
-const businessCount = (work: MyWork) => work.needsYou.filter((c) => BUSINESS_OWNERS.has(c.lifecycle?.nextAction.owner ?? "")).length
-  + work.questions.filter((q) => BUSINESS_OWNERS.has(q.issue.owner)).length;
 
 /** The Domain Owner's home (register C1): Needs you, and Your requests. Nothing else. */
 export function DomainOwnerHome({ work, onChanged }: { work: MyWork; onChanged: () => void }) {
@@ -90,7 +122,7 @@ export function DomainOwnerHome({ work, onChanged }: { work: MyWork; onChanged: 
   const questions = work.questions.filter((q) => BUSINESS_OWNERS.has(q.issue.owner));
   return (
     <>
-      <h2 className="qhead">Needs you <span className="qcount">{rows.length + questions.length}</span></h2>
+      <h2 className="qhead">Needs you <span className="qcount">{units(rows, questions).length}</span></h2>
       <AreaQueue rows={rows} questions={questions} newRequests={[]} onChanged={onChanged} />
       <h2 className="qhead">Your requests <span className="qcount">{work.yourRequests.length}</span></h2>
       {work.yourRequests.length === 0 ? <p className="muted">No open requests in your domains.</p>
@@ -111,8 +143,10 @@ export function AppManagerHome({ work, onChanged, figures = true }: { work: MyWo
   return (
     <>
       {/* Five figures; delivery and lead time are in Insights (decision X1: a slim strip). */}
-      {figures && <FigureStrip figures={work.figures} label="Today" only={["needs_you", "oldest_mine", "blocked", "in_progress", "requests"]} />}
-      <h2 className="qhead">Your queue <span className="qcount">{rows.length + questions.length + (newRequests.length ? 1 : 0)}</span></h2>
+      {figures && <FigureStrip label="Today" only={["needs_you", "oldest_mine", "blocked", "in_progress", "requests"]}
+        figures={work.figures.map((f) => f.key === "needs_you" && work.areaCounts?.application != null
+          ? { ...f, value: work.areaCounts.application, display: String(work.areaCounts.application) } : f)} />}
+      <h2 className="qhead">Your queue <span className="qcount">{units(rows, questions).length + (newRequests.length ? 1 : 0)}</span></h2>
       <AreaQueue rows={rows} questions={questions} newRequests={newRequests} onChanged={onChanged} />
       {/* Stuck work that is not already in the queue above: each story is shown once (register M4). */}
       <h2 className="qhead">Stuck elsewhere <span className="qcount">{stuck.length}</span></h2>
@@ -129,6 +163,24 @@ export function AppManagerHome({ work, onChanged, figures = true }: { work: MyWo
           ))}</ul>
         </details>
       )}
+    </>
+  );
+}
+
+function BothRoles({ work, onChanged }: { work: MyWork; onChanged: () => void }) {
+  const b = work.areaCounts?.business ?? 0, a = work.areaCounts?.application ?? 0;
+  const [area, setArea] = useState<"business" | "application">(() => {
+    try { const v = localStorage.getItem("jade_home_area"); if (v === "business" || v === "application") return v; } catch { /* no storage */ }
+    return b > 0 ? "business" : "application";
+  });
+  const pick = (v: "business" | "application") => { setArea(v); try { localStorage.setItem("jade_home_area", v); } catch { /* no storage */ } };
+  return (
+    <>
+      <div className="areaswitch" role="tablist" aria-label="Your work areas">
+        <button role="tab" aria-selected={area === "business"} className={area === "business" ? "on" : ""} onClick={() => pick("business")}>Business <span className="qcount">{b}</span></button>
+        <button role="tab" aria-selected={area === "application"} className={area === "application" ? "on" : ""} onClick={() => pick("application")}>Application Management <span className="qcount">{a}</span></button>
+      </div>
+      {area === "business" ? <DomainOwnerHome work={work} onChanged={onChanged} /> : <AppManagerHome work={work} onChanged={onChanged} />}
     </>
   );
 }
@@ -183,12 +235,8 @@ export function MyWorkPage() {
         <p className="home-tests"><Link to="/admin/connections">{problems.length} connection{problems.length === 1 ? "" : "s"} not set up</Link></p>
       )}
       {isBusiness && isApp ? (
-        <div className="home-stack">
-          {businessCount(work) > 0 || work.yourRequests.length > 0
-            ? <section aria-label="Business"><h2 className="area-title">Business</h2><DomainOwnerHome work={work} onChanged={reload} /></section>
-            : <p className="area-quiet"><b>Business:</b> nothing waiting on you, no open requests in your domains.</p>}
-          <section aria-label="Application Management"><h2 className="area-title">Application Management</h2><AppManagerHome work={work} onChanged={reload} /></section>
-        </div>
+        // Repair brief P4: both work contexts one click away, instead of one stacked under the other.
+        <BothRoles work={work} onChanged={reload} />
       ) : isApp ? <AppManagerHome work={work} onChanged={reload} />
         : isBusiness ? <DomainOwnerHome work={work} onChanged={reload} />
         : <AreaQueue rows={work.needsYou} questions={work.questions} newRequests={[]} onChanged={reload} />}

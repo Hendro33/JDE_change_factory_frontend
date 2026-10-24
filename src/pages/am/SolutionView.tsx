@@ -94,19 +94,6 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
       )}
       {error !== null && <ErrorState error={error} title="Not started" />}
       <DecisionPanel ctx={ctx} showWaiting={standalone} />
-        <AskJadePanel
-          title="Ask JADE about this solution"
-          turns={ctx.run?.conversation ?? []}
-          onAsk={async (question) => { ctx.setRun(await api.askAboutSolution(change.id, { question })); }}
-          renderProposeQuestionActions={(t) => info.has("product_manager", "admin") ? (
-            <button className="btn small" disabled={busy} onClick={async () => {
-              ctx.setRun(await api.applySolutionProposal(change.id, t.turnId)); ctx.reload();
-            }}>Send the question</button>
-          ) : null}
-          renderRecommendReanalysisActions={() => info.has("product_manager", "admin") ? (
-            <button className="btn primary" disabled={busy || architectAtWork} onClick={rerun}>Run the Architect again</button>
-          ) : null}
-        />
 
       <section className="solution-main card">
         {route && (
@@ -135,6 +122,20 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
             <span className="gc-note">JADE's estimate</span></li>
         </ul>
       )}
+      {/* Repair brief P3: the design and its basis come first; the conversation follows it. */}
+        <AskJadePanel
+          title="Ask JADE about this solution"
+          turns={ctx.run?.conversation ?? []}
+          onAsk={async (question) => { ctx.setRun(await api.askAboutSolution(change.id, { question })); }}
+          renderProposeQuestionActions={(t) => info.has("product_manager", "admin") ? (
+            <button className="btn small" disabled={busy} onClick={async () => {
+              ctx.setRun(await api.applySolutionProposal(change.id, t.turnId)); ctx.reload();
+            }}>Send the question</button>
+          ) : null}
+          renderRecommendReanalysisActions={() => info.has("product_manager", "admin") ? (
+            <button className="btn primary" disabled={busy || architectAtWork} onClick={rerun}>Run the Architect again</button>
+          ) : null}
+        />
       {standalone && <WhatNeedsToHappen lifecycle={lc} changeId={change.id} skipPrimary title="Also open" limit={3} />}
       <IssueList change={change} onChange={() => ctx.reload()} skipNextAction={!DECISIONS.has(lc?.nextAction.action ?? "")}
         empty="No open points: nothing is waiting on anyone." />
