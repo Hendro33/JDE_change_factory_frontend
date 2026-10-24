@@ -191,7 +191,8 @@ export function MyWorkPage() {
         </div>
       ) : isApp ? <AppManagerHome work={work} onChanged={reload} />
         : isBusiness ? <DomainOwnerHome work={work} onChanged={reload} />
-        : <AreaQueue rows={work.needsYou} questions={work.questions} newRequests={[]} onChanged={reload} />}
+        : <><h2 className="qhead">Needs you <span className="qcount">{work.needsYou.length + work.questions.length}</span></h2>
+            <AreaQueue rows={work.needsYou} questions={work.questions} newRequests={[]} onChanged={reload} /></>}
       {/* Kept from the former side panel (register P1): a new request and the stories opened lately. */}
       <footer className="home-foot">
         <Link to="/stories/new">New request</Link>

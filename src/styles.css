@@ -47,7 +47,7 @@ html, body, #root { height: 100%; }
 h1 { font-size: 32px; } h2 { font-size: 24px; } h3 { font-size: 18px; } h4, h5, h6 { font-size: 15px; } small { font-size: 12.5px; }
 body {
   margin: 0;
-  font-family: 'Plus Jakarta Sans', Arial, Helvetica, sans-serif;
+  font-family: 'DM Sans Variable', 'DM Sans', Arial, Helvetica, sans-serif;
   font-size: 15px;
   line-height: 1.55;
   color: var(--ink);
@@ -1455,3 +1455,69 @@ body { background: #fff; }
 @media (max-width: 700px) { .amspace .adminnav { max-width: 100%; overflow-x: auto; } .amspace { min-width: 0; } .admin-main { min-width: 0; } }
 @media (max-width: 960px) { .primarynav { min-width: 0; max-width: 100%; } .appbar-row { min-width: 0; max-width: 100vw; } }
 @media (max-width: 960px) { .admin.amspace { grid-template-columns: minmax(0, 1fr); } .home .stucklist li > span, .home .stucklist li > a { max-width: 100%; min-width: 0; } .home .stucklist li { min-width: 0; } }
+
+
+/* ======================================================================
+   ONE STYLE FOR EVERY PAGE (24 Oct): the consultiq.nl tokens -- DM Sans,
+   yellow #FFD900, ink #1A1A1A, blue-grey secondary text, 12px corners --
+   and one set of primitives (page title, card, heading, table, button)
+   that every page uses, whatever older class it was built with.
+   ====================================================================== */
+:root {
+  --brand: #FFD900; --brand-dark: #E6C300; --brand-pale: #FFF7CC; --brand-ink: #1A1A1A;
+  --ink: #1A1A1A; --ink-soft: #3B4654; --muted: #57677A;
+  --line: #E3E8ED; --line-strong: #D2D9E0;
+  --radius: 12px; --radius-lg: 12px; --card-radius: 12px;
+  --card-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 4px 16px rgba(16, 24, 40, .06);
+}
+body, button, input, select, textarea { font-family: 'DM Sans Variable', 'DM Sans', Arial, Helvetica, sans-serif; }
+
+/* Page title: heavy and tight, with the short yellow bar -- on every page */
+.pageheader h1, .pagehead h1, .storyheader h1, .titlebar { font-size: 32px !important; font-weight: 800; letter-spacing: -0.035em; line-height: 1.12; }
+.pageheader h1::after, .pagehead h1::after, .titlebar::after { content: ""; display: block; width: 56px; height: 6px; border-radius: 3px; background: var(--brand); margin-top: 12px; }
+.pageheader, .pagehead { margin-bottom: 18px; }
+
+/* Cards: every panel, on every page, is the same white card */
+.panel, .workspace .panel, .mywork .panel, .cockpit .panel, .solutionview .panel, .deliveryview .panel, .evidenceview .panel {
+  background: #fff !important; border: 1px solid var(--line) !important; border-radius: var(--card-radius) !important;
+  box-shadow: var(--card-shadow) !important; padding: 22px 24px !important; margin: 0 0 16px;
+}
+.panel .panel { box-shadow: none !important; border: 0 !important; padding: 0 !important; margin: 0; }
+.storyheader, .nextcard, .outcome, .drawer, .emptystate, .card, .qrow, .figstrip, .reqlist, .stucklist.card, .domaincards li, .glancecards li, .solutionview .issue {
+  border-radius: var(--card-radius) !important;
+}
+
+/* Headings inside pages: one size per level */
+.panel > h2, .section-head h2, .vr-section-meta h2, .home .qhead, .solutionview .issues-title { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; }
+.panel h3, .issues-title { font-size: 18px; font-weight: 800; letter-spacing: -0.015em; }
+
+/* Tables: the same everywhere */
+table.data th { background: transparent; font-size: 12.5px; letter-spacing: .05em; color: var(--muted); border-bottom: 1px solid var(--line-strong); }
+table.data td { border-bottom: 1px solid var(--line); }
+
+/* Buttons: the three consultiq.nl styles */
+.btn { border-radius: 10px; font-weight: 700; border: 1.5px solid var(--ink); background: #fff; color: var(--ink); }
+.btn:hover { background: var(--ink); color: #fff; }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.btn.primary:hover { background: var(--brand-dark); border-color: var(--brand-dark); color: var(--brand-ink); }
+.btn.strong { background: var(--ink); border-color: var(--ink); color: #fff; }
+.btn.danger { border-color: var(--stop); color: var(--stop); }
+.btn.danger:hover { background: var(--stop); color: #fff; }
+.btn.quiet, .btn.link { border-color: transparent; }
+
+/* Tabs: underlined in yellow, as the site's navigation */
+.tabs a.on, .tabs button.on, .tabs [aria-selected="true"] { border-bottom-color: var(--brand) !important; color: var(--ink); }
+
+/* Validation's section buttons look like every other tab row */
+.v-nav { display: flex; gap: 4px; border-bottom: 1px solid var(--line-strong); margin: 0 0 24px; overflow-x: auto; }
+.v-nav .btn { border: 0 !important; border-bottom: 3px solid transparent !important; border-radius: 0 !important; background: transparent !important;
+  color: var(--muted) !important; font-weight: 700; padding: 10px 14px; box-shadow: none !important; }
+.v-nav .btn[aria-current="page"] { color: var(--ink) !important; border-bottom-color: var(--brand) !important; }
+.v-nav .btn:hover { color: var(--ink) !important; }
+/* The figure strip is the same white card on every page (Insights, Validation, homes) */
+.figstrip { background: #fff; border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow); padding: 20px 26px; gap: 8px 0; margin: 16px 0 18px; }
+.figstrip .fig { flex: 1; min-width: 0; padding: 0 18px; border-left: 1px solid var(--line); }
+.figstrip .fig:first-child { border-left: 0; padding-left: 0; }
+.figstrip .fig-value { font-size: 32px; letter-spacing: -0.04em; }
+.usefulness { background: #fff; border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow); padding: 22px 24px; }
+@media (max-width: 700px) { .figstrip { display: grid; grid-template-columns: 1fr 1fr; padding: 16px; gap: 14px; } .figstrip .fig { border-left: 0; padding: 0; } .figstrip .fig-value { font-size: 24px; } }
