@@ -66,7 +66,7 @@ export function TechnicalTab({ ctx }: { ctx: StoryCtx }) {
 
       {(route === "Technical Agent" || route === "Mixed") && (
         <Section title="Technical implementation">
-          <TechnicalWorkPanel storyId={change.id} roles={info.roles} onChanged={ctx.reload} />
+          <TechnicalWorkPanel storyId={change.id} roles={info.roles} onChanged={ctx.reload} approvalBlocker={change.lifecycle?.actionBlockers?.approve_design} />
         </Section>
       )}
 

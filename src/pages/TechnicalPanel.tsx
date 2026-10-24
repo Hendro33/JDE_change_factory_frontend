@@ -370,7 +370,9 @@ export function PackageCard({ storyId, p, roles, onChanged }: { storyId: string;
  * recorded delivery steps, and the human actions. Every control is a
  * governed, recorded action.
  */
-export function TechnicalWorkPanel({ storyId, roles, onChanged, designOnly = false }: { storyId: string; roles: CompanyRole[]; onChanged?: () => void; designOnly?: boolean }) {
+export function TechnicalWorkPanel({ storyId, roles, onChanged, designOnly = false, approvalBlocker }: { storyId: string; roles: CompanyRole[]; onChanged?: () => void; designOnly?: boolean;
+  /** Why the design cannot be approved now -- the same readiness rule as the decision card and the endpoint. */
+  approvalBlocker?: string }) {
   const [view, setView] = useState<TechnicalWorkView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -414,7 +416,9 @@ export function TechnicalWorkPanel({ storyId, roles, onChanged, designOnly = fal
             <dt>Target environment</dt><dd>{a.target_environment}</dd>
             <dt>Design approval</dt>
             <dd>{a.design_approval ? <>Approved by {a.design_approval.approved_by} ({new Date(a.design_approval.approved_at).toLocaleString("en-GB")}) for revision {a.design_approval.design_revision}</>
-              : canApprove && (a.route === "Technical Agent" || a.route === "Mixed") ? (
+              : canApprove && (a.route === "Technical Agent" || a.route === "Mixed") && approvalBlocker ? (
+                <span className="notstated">{approvalBlocker}</span>
+              ) : canApprove && (a.route === "Technical Agent" || a.route === "Mixed") ? (
                 <button className="btn primary" disabled={busy} onClick={() => act(() => technicalApi.approveDesign(view.story_id, a.design_revision, "approved from the Technical view"))}>Approve design revision {a.design_revision}</button>
               ) : <span className="notstated">not approved{a.route === "Clarification Required" ? " -- the Architect needs a business answer first" : ""}</span>}</dd>
           </dl>

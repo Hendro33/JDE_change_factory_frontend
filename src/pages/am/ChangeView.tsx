@@ -105,7 +105,7 @@ function DeliveryView({ ctx, technical }: { ctx: StoryCtx; technical: boolean })
       {technical ? (
         <>
           <Section title="Technical implementation">
-            <TechnicalWorkPanel storyId={ctx.change.id} roles={info.roles} onChanged={ctx.reload} />
+            <TechnicalWorkPanel storyId={ctx.change.id} roles={info.roles} onChanged={ctx.reload} approvalBlocker={ctx.change.lifecycle?.actionBlockers?.approve_design} />
           </Section>
           <Section id="release" title="Release and as-built record"
                    description="Finalising the as-built record hands the change over for release; promotion beyond DEV stays with CNC.">
