@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type { Change } from "../../types/domain";
-import { JadeWorking } from "../../components/design";
+import { EmptyState, JadeWorking, PageHeader } from "../../components/design";
+import { IconTile, iconFor } from "../../components/icons";
+import { oneLine } from "../../components/home";
 import { ChangeGrid, FilterBar, useChangeListControls, type GridColumn } from "../../components/WorkQueue";
 import { Loading, PriorityBadge } from "../../components/ui";
 import type { Navigate, NavTarget } from "../../types/nav";
@@ -85,28 +87,55 @@ export function ArchitectureReview({ navFilter, navToken }: Partial<NavTarget> &
   const readyCount = views.mine.filter(ready).length;
   const waiting = views.all.filter((c) => !!waitingOn(c)).length;
 
+  // The same pattern as the Application Management dashboard (Hendro, 24 Oct): title with the yellow
+  // bar, one figure strip, the views as tabs, each change one card with its next step in one line.
+  const statusLine = (c: Change) =>
+    working(c) ? "JADE is at work on it"
+      : c.lifecycle?.authorisation?.renewable ? c.lifecycle.authorisation.label
+      : c.changeApproval?.status === "approved" || c.lifecycle?.handoffAuthorised ? (c.lifecycle?.authorisation?.label ?? "Authorised")
+      : c.changeApproval?.status === "rejected" ? "Rejected"
+      : ready(c) ? "Ready to authorise"
+      : onMe(c) ? oneLine(c.lifecycle?.nextAction.summary)
+      : waitingOn(c) ? `Waiting for ${waitingOn(c)}`
+      : c.lifecycle?.phaseLabel ?? "";
   return (
-    <div className="vr-pilot">
-      <div className="pagehead">
-        <div>
-          <h1 className="titlebar">Architecture Review</h1>
-          <div className="sub">JADE's proposed solutions, and the decisions they need from you.</div>
-        </div>
-        <div className="meta">{views.mine.length} waiting on you, {readyCount} of them ready to authorise{waiting ? ` · ${waiting} waiting on someone else` : ""}</div>
-      </div>
-      <div className="filterchips" role="group" aria-label="Which changes">
+    <div className="home archreview">
+      <PageHeader title="Architecture Review" subtitle="JADE's proposed solutions, and the decisions they need from you." />
+      <dl className="figstrip" aria-label="Architecture Review">
+        <div className="fig"><dd className="fig-value">{views.mine.length}</dd><dt className="fig-label">Waiting on you</dt></div>
+        <div className="fig"><dd className="fig-value">{readyCount}</dd><dt className="fig-label">Ready to authorise</dt></div>
+        <div className="fig"><dd className="fig-value">{waiting}</dd><dt className="fig-label">Waiting on someone else</dt></div>
+        <div className="fig"><dd className="fig-value">{views.all.filter(working).length}</dd><dt className="fig-label">JADE at work</dt></div>
+      </dl>
+      <div className="areaswitch" role="tablist" aria-label="Which changes">
         {([["mine", "Waiting on me"], ["all", "All in architecture"], ["earlier", "Authorised or finished"]] as const).map(([k, label]) => (
-          <button key={k} className={`chip${view === k ? " on" : ""}`} aria-pressed={view === k} onClick={() => setQueryParam("view", k === "mine" ? "" : k)}>
-            {label} ({views[k].length})</button>
+          <button key={k} role="tab" aria-selected={view === k} className={view === k ? "on" : ""} onClick={() => setQueryParam("view", k === "mine" ? "" : k)}>
+            {label} <span className="qcount">{views[k].length}</span></button>
         ))}
       </div>
-      {changes && changes.length > 0 && <FilterBar search={search} onSearchChange={setSearch} searchPlaceholder="Search by ID or title" selects={[]} />}
-      {!changes ? <Loading what="changes under architecture review" /> : (
-        <section className="panel" style={{ marginBottom: 16 }}>
-          <ChangeGrid changes={sorted} columns={columns} onRowClick={open}
-            emptyMessage={view === "mine" ? "Nothing waits on you." : "Nothing here yet. A change arrives once Backlog Review has admitted it to architecture."}
-            sortKey={sortKey} sortDir={sortDir} onSortChange={onSortChange} />
-        </section>
+      {changes && changes.length > 0 && (
+        <div className="listsearch"><label className="sr-only" htmlFor="ar-search">Search</label>
+          <input id="ar-search" type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by ID or title" /></div>
+      )}
+      {!changes ? <Loading what="changes under architecture review" /> : sorted.length === 0 ? (
+        <EmptyState title={view === "mine" ? "Nothing waits on you" : "Nothing here yet"}>
+          {view === "mine" ? "When a solution needs your decision, it appears here." : "A change arrives once Backlog Review has admitted it to architecture."}
+        </EmptyState>
+      ) : (
+        <ul className="queue">{sorted.map((c) => (
+          <li key={c.id} className="qrow">
+            <IconTile name={working(c) ? "run" : ready(c) ? "decision" : iconFor(c.lifecycle?.nextAction.action, c.lifecycle?.nextAction.kind)} />
+            <span className="qrow-main">
+              <button className="qrow-title linkish" onClick={() => open(c.id)}>{c.title}</button>
+              <span className="qrow-sub">{statusLine(c)}</span>
+            </span>
+            <span className="qrow-meta">
+              <span className="qrow-phase">{c.architectDecision?.recommendedRoute ?? "Route not decided"}</span>
+              {["high", "urgent", "critical"].includes(String(c.priority ?? "").toLowerCase()) && <span className="chip hot">{String(c.priority)}</span>}
+            </span>
+            <button className="btn small" onClick={() => open(c.id)}>{ready(c) ? "Review and authorise" : "Open"}</button>
+          </li>
+        ))}</ul>
       )}
     </div>
   );

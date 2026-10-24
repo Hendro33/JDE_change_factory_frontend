@@ -1,4 +1,6 @@
-import { HealthIndicator, PhaseLabel } from "../../components/design";
+import { EmptyState, HealthIndicator, PageHeader, PhaseLabel } from "../../components/design";
+import { IconTile, iconFor } from "../../components/icons";
+import { oneLine } from "../../components/home";
 import { navigate, setQueryParam } from "../../router";
 import { inAmStage, type AmStage } from "./workflow";
 import { useEffect, useState } from "react";
@@ -67,39 +69,53 @@ export function Pipeline({ onOpenChange: _open, navFilter, navToken }: { onOpenC
     scoped, columns, (c) => `${c.id} ${c.title}`
   );
 
+  // The same pattern as the Application Management dashboard (Hendro, 24 Oct): title with the yellow bar,
+  // the stages as tabs, one card per change with its next step in one line. Queue order is kept.
+  const ordered = sortKey ? filtered : [...filtered].sort((a, b) => (queue.get(a.id) ?? 9999) - (queue.get(b.id) ?? 9999));
+  const go = (id: string) => navigate(`/am/changes/${encodeURIComponent(id)}/delivery`);
   return (
-    <div className="vr-pilot">
-      <div className="pagetitle">
-        <h1>Delivery</h1>
-        <span className="qcount">{scoped.length}</span>
-      </div>
-
+    <div className="home delivery">
+      <PageHeader title="Delivery" subtitle="Approved work, from the change in DEV to the release hand-over." />
       {!changes ? <Loading what="the delivery queue" /> : (
-        <div className="stack">
-          <div className="filterchips" role="group" aria-label="Stage">
+        <>
+          <div className="areaswitch" role="tablist" aria-label="Stage">
             {CHIPS.map((ch) => {
               const on = !navFilter?.queue && preset === ch.key;
               return (
-                <button key={ch.key} className={`chip${on ? " on" : ""}`} aria-pressed={on}
+                <button key={ch.key} role="tab" aria-selected={on} className={on ? "on" : ""}
                   onClick={() => navigate(ch.key === "all" ? "/am/delivery" : `/am/delivery?stage=${ch.key}`)}>
-                  {ch.label} <span className="muted">{changes.filter((c) => inPreset(c, ch.key)).length}</span>
+                  {ch.label} <span className="qcount">{changes.filter((c) => inPreset(c, ch.key)).length}</span>
                 </button>
               );
             })}
-            <label className="sr-only" htmlFor="pipelinesearch">Search</label>
-            <input id="pipelinesearch" className="chipsearch" type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ID or title" />
+          </div>
+          <div className="listsearch"><label className="sr-only" htmlFor="pipelinesearch">Search</label>
+            <input id="pipelinesearch" type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by ID or title" />
             {navFilter?.queue && <button className="linkbtn" onClick={() => setQueryParam("queue", "")}>Clear filter</button>}
           </div>
-          <ChangeGrid
-            changes={filtered}
-            columns={columns}
-            onRowClick={(id) => navigate(`/am/changes/${encodeURIComponent(id)}/delivery`)}
-            emptyMessage="Nothing here. Stories appear once the Application Manager approves them on Backlog Review."
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSortChange={onSortChange}
-          />
-        </div>
+          {ordered.length === 0 ? (
+            <EmptyState title="Nothing here">Stories appear once the Application Manager approves them on Backlog Review.</EmptyState>
+          ) : (
+            <ul className="queue">{ordered.map((c) => {
+              const na = c.lifecycle?.nextAction;
+              return (
+                <li key={c.id} className="qrow" data-id={c.id}>
+                  <IconTile name={iconFor(na?.action, na?.kind)} />
+                  <span className="qrow-main">
+                    <button className="qrow-title linkish" onClick={() => go(c.id)}>{c.title}</button>
+                    <span className="qrow-sub" title={na?.summary}>{oneLine(na?.summary) || c.lifecycle?.phaseLabel}</span>
+                  </span>
+                  <span className="qrow-meta">
+                    {queue.get(c.id) != null && <span className="chip">#{queue.get(c.id)}</span>}
+                    <span className="qrow-phase">{c.lifecycle?.phaseLabel}{c.lifecycle?.health === "blocked" ? " · Blocked" : ""}</span>
+                    {["high", "urgent", "critical"].includes(String(c.priority ?? "").toLowerCase()) && <span className="chip hot">{String(c.priority)}</span>}
+                  </span>
+                  <button className="btn small" onClick={() => go(c.id)}>Open</button>
+                </li>
+              );
+            })}</ul>
+          )}
+        </>
       )}
     </div>
   );

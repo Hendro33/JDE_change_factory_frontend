@@ -1480,8 +1480,8 @@ body { background: #fff; }
 body, button, input, select, textarea { font-family: 'DM Sans Variable', 'DM Sans', Arial, Helvetica, sans-serif; }
 
 /* Page title: heavy and tight, with the short yellow bar -- on every page */
-.pageheader h1, .pagehead h1, .storyheader h1, .titlebar { font-size: 32px !important; font-weight: 800; letter-spacing: -0.035em; line-height: 1.12; }
-.pageheader h1::after, .pagehead h1::after, .titlebar::after { content: ""; display: block; width: 56px; height: 6px; border-radius: 3px; background: var(--brand); margin-top: 12px; }
+.pageheader h1, .pagehead h1, .pagetitle h1, .storyheader h1, .titlebar { font-size: 32px !important; font-weight: 800; letter-spacing: -0.035em; line-height: 1.12; }
+.pageheader h1::after, .pagehead h1::after, .pagetitle h1::after, .titlebar::after { content: ""; display: block; width: 56px; height: 6px; border-radius: 3px; background: var(--brand); margin-top: 12px; }
 .pageheader, .pagehead { margin-bottom: 18px; }
 
 /* Cards: every panel, on every page, is the same white card */
@@ -1528,3 +1528,14 @@ table.data td { border-bottom: 1px solid var(--line); }
 .figstrip .fig-value { font-size: 32px; letter-spacing: -0.04em; }
 .usefulness { background: #fff; border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow); padding: 22px 24px; }
 @media (max-width: 700px) { .figstrip { display: grid; grid-template-columns: 1fr 1fr; padding: 16px; gap: 14px; } .figstrip .fig { border-left: 0; padding: 0; } .figstrip .fig-value { font-size: 24px; } }
+
+/* Filter chips read as tabs on every page, like the role tabs (one style, 24 Oct) */
+.filterchips { gap: 4px; border-bottom: 1px solid var(--line-strong); margin: 0 0 16px; flex-wrap: nowrap; overflow-x: auto; }
+.filterchips .chip { height: auto; background: none !important; border: 0 !important; border-bottom: 3px solid transparent !important; border-radius: 0 !important;
+  color: var(--muted); font-weight: 800; padding: 10px 14px; min-height: 0; }
+.filterchips .chip.on { color: var(--ink); border-bottom-color: var(--brand) !important; }
+.listsearch { margin: 4px 0 14px; } .listsearch input { width: min(420px, 100%); border: 1px solid var(--line-strong); border-radius: 10px; padding: 10px 12px; font: inherit; }
+button.qrow-title.linkish { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; font: inherit; font-size: 18px; font-weight: 800; letter-spacing: -0.015em; color: var(--ink); }
+button.qrow-title.linkish:hover { text-decoration: underline; }
+
+.pagetitle { align-items: flex-start; margin-bottom: 14px; } .pagetitle .qcount { margin-top: 12px; }
