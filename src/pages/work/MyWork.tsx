@@ -2,7 +2,7 @@ import { validationRequest } from "../../services/validationApi";
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 import type { Change, IntegrationStatus, MyWork, QuestionItem } from "../../types/domain";
-import { DomainLines, FigureStrip, QuestionRow, RequestLine, StuckList } from "../../components/home";
+import { DomainLines, FigureStrip, QuestionRow, RequestLine, StuckList, oneLine } from "../../components/home";
 import {
   EmptyState, ErrorState, ImpactIndicator, JadeWorking, Loading, PageHeader,
   storyTitle, useAsync, useSessionInfo,
@@ -44,9 +44,9 @@ export function QueueRow({ c }: { c: Change }) {
       <span className="sr-only">{na.kind === "decision" ? "Decision" : "To do"}</span>
       <span className="qrow-main">
         <Link className="qrow-title" to={to}>{storyTitle(c)}</Link>
-        <span className="qrow-sub">{na.summary}</span>
+        <span className="qrow-sub" title={na.summary}>{oneLine(na.summary)}</span>
       </span>
-      <span className="qrow-meta"><span>{c.lifecycle!.phaseLabel}{waitingLabel(c) ? ` · ${waitingLabel(c)}` : ""}</span><span className="muted qrow-domain">{info.domainName(c.businessDomainId) ?? "No domain"}</span><ImpactIndicator change={c} /></span>
+      <span className="qrow-meta"><span>{c.lifecycle!.phaseLabel}{waitingLabel(c) ? ` · ${waitingLabel(c)}` : ""}</span><ImpactIndicator change={c} /></span>
       {/* Lists carry no yellow: the one yellow action is the decision itself, on its screen (register L3). */}
       <Link className="btn small" to={to}>{ACTION_VERB[na.action ?? ""] ?? "Open"}</Link>
     </li>
@@ -65,7 +65,7 @@ function AreaQueue({ rows, questions, newRequests, onChanged }: { rows: Change[]
           <span className="kindtile" data-kind="task" aria-hidden="true">○</span>
           <span className="qrow-main">
             <Link className="qrow-title" to="/stories?phase=understand">{newRequests.length} new request{newRequests.length === 1 ? "" : "s"} to analyse</Link>
-            <span className="qrow-sub">{newRequests.slice(0, 3).map((c) => storyTitle(c)).join(" · ")}{newRequests.length > 3 ? " …" : ""}</span>
+            <span className="qrow-sub">{oneLine(newRequests.slice(0, 3).map((c) => storyTitle(c)).join(" · "))}</span>
           </span>
           <span className="qrow-meta"><span>Understand</span></span>
           <Link className="btn small" to="/stories?phase=understand">Open requests</Link>
@@ -76,6 +76,8 @@ function AreaQueue({ rows, questions, newRequests, onChanged }: { rows: Change[]
 }
 
 const BUSINESS_OWNERS = new Set(["domain_owner"]);
+const businessCount = (work: MyWork) => work.needsYou.filter((c) => BUSINESS_OWNERS.has(c.lifecycle?.nextAction.owner ?? "")).length
+  + work.questions.filter((q) => BUSINESS_OWNERS.has(q.issue.owner)).length;
 
 /** The Domain Owner's home (register C1): Needs you, and Your requests. Nothing else. */
 export function DomainOwnerHome({ work, onChanged }: { work: MyWork; onChanged: () => void }) {
@@ -99,13 +101,17 @@ export function AppManagerHome({ work, onChanged, figures = true }: { work: MyWo
   const newRequests = all.filter((c) => c.lifecycle?.nextAction.action === "start_analysis");
   const rows = all.filter((c) => !newRequests.includes(c));
   const questions = work.questions.filter((q) => ours(q.issue.owner));
+  const inQueue = new Set(all.map((c) => c.id));
+  const stuck = work.stuck.filter((s) => !inQueue.has(s.change.id));
   return (
     <>
-      {figures && <FigureStrip figures={work.figures} label="Today" />}
+      {/* Five figures; delivery and lead time are in Insights (decision X1: a slim strip). */}
+      {figures && <FigureStrip figures={work.figures} label="Today" only={["needs_you", "oldest_mine", "blocked", "in_progress", "requests"]} />}
       <h2 className="qhead">Your queue <span className="qcount">{rows.length + questions.length + (newRequests.length ? 1 : 0)}</span></h2>
       <AreaQueue rows={rows} questions={questions} newRequests={newRequests} onChanged={onChanged} />
-      <h2 className="qhead">Stuck <span className="qcount">{work.stuck.length}</span></h2>
-      <StuckList items={work.stuck} />
+      {/* Stuck work that is not already in the queue above: each story is shown once (register M4). */}
+      <h2 className="qhead">Stuck elsewhere <span className="qcount">{stuck.length}</span></h2>
+      <StuckList items={stuck} />
       {work.perDomain.length > 0 && <>
         <h2 className="qhead">By business domain</h2>
         <DomainLines lines={work.perDomain} />
@@ -172,8 +178,10 @@ export function MyWorkPage() {
         <p className="home-tests"><Link to="/admin/connections">{problems.length} connection{problems.length === 1 ? "" : "s"} not set up</Link></p>
       )}
       {isBusiness && isApp ? (
-        <div className="home-areas">
-          <section aria-label="Business"><h2 className="area-title">Business</h2><DomainOwnerHome work={work} onChanged={reload} /></section>
+        <div className="home-stack">
+          {businessCount(work) > 0 || work.yourRequests.length > 0
+            ? <section aria-label="Business"><h2 className="area-title">Business</h2><DomainOwnerHome work={work} onChanged={reload} /></section>
+            : <p className="area-quiet"><b>Business:</b> nothing waiting on you, no open requests in your domains.</p>}
           <section aria-label="Application Management"><h2 className="area-title">Application Management</h2><AppManagerHome work={work} onChanged={reload} /></section>
         </div>
       ) : isApp ? <AppManagerHome work={work} onChanged={reload} />

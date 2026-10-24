@@ -14,6 +14,22 @@ import { ErrorState, storyTitle, useSessionInfo } from "./design";
  */
 
 /** One slim figure strip, the same component on every page. */
+/**
+ * One short line for a list row: the first sentence, without bracketed asides,
+ * at most `max` characters. The full text stays on the change itself and in the
+ * row's tooltip -- lists never carry an agent's paragraph.
+ */
+export function oneLine(text: string | null | undefined, max = 90): string {
+  let t = (text ?? "").replace(/\s+/g, " ");
+  for (let i = 0; i < 5 && /\([^()]*\)/.test(t); i++) t = t.replace(/\s*\([^()]*\)/g, "");
+  t = t.replace(/[()]/g, "").trim();
+  const end = t.search(/[.;](\s|$)/);
+  if (end > 0) t = t.slice(0, end);
+  const colon = t.lastIndexOf(": ", max);
+  if (t.length > max && colon > 20) t = t.slice(0, colon);
+  return t.length > max ? `${t.slice(0, max - 1).replace(/\s+\S*$/, "")}…` : t;
+}
+
 export function FigureStrip({ figures, label = "Figures", only, tones = {} }: {
   figures: Figure[]; label?: string; only?: string[];
   /** A figure above the customer's saved alert levels (Administration › Organisation). */
@@ -106,15 +122,22 @@ export function RequestLine({ c }: { c: Change }) {
   );
 }
 
-export function StuckList({ items }: { items: StuckItem[] }) {
+export function StuckList({ items, shown = 5 }: { items: StuckItem[]; shown?: number }) {
   if (!items.length) return <p className="muted">Nothing is stuck.</p>;
+  const line = (s: StuckItem) => (
+    <li key={s.change.id}>
+      <Link to={changePath(s.change.id)}>{storyTitle(s.change)}</Link>
+      <span className="muted" title={s.reason}>{oneLine(s.reason, 70)}</span>
+    </li>
+  );
   return (
-    <ul className="stucklist">{items.map((s) => (
-      <li key={s.change.id}>
-        <Link to={changePath(s.change.id)}>{storyTitle(s.change)}</Link>
-        <span className="muted">{s.reason}</span>
-      </li>
-    ))}</ul>
+    <>
+      <ul className="stucklist">{items.slice(0, shown).map(line)}</ul>
+      {items.length > shown && (
+        <details className="qmore"><summary>{items.length - shown} more</summary>
+          <ul className="stucklist">{items.slice(shown).map(line)}</ul></details>
+      )}
+    </>
   );
 }
 
