@@ -1,5 +1,5 @@
 import { ReviewDetail } from "../../components/visualReview";
-import { FigureStrip } from "../../components/home";
+import { IconTile } from "../../components/icons";
 import { ApprovedWorkFlow } from "../am/Dashboard";
 import { INSIGHT_PERIODS, inInsightPeriod, type InsightPeriod } from "../../services/insightPeriod";
 import { useEffect, useState } from "react";
@@ -12,6 +12,10 @@ import {
 import { Link, navigate, setQueryParam, useLocation, storyPath } from "../../router";
 import { DEFAULT_DASHBOARD_THRESHOLDS, toneForValue } from "../../services/dashboardThresholds";
 import { isRequest } from "../stories/Stories";
+
+/** Health label -> the User Stories filter key, so each tile opens exactly the stories it counts. */
+const HEALTH_KEY: Record<string, string> = { "In progress": "in_progress", "Waiting for decision": "waiting_decision", "Waiting": "waiting",
+  "Blocked": "blocked", "Needs attention": "failed" };
 
 /** Routes that deliver a change; "Resolve without Change" and "Clarification Required" are outcomes, not routes. */
 const DELIVERY_ROUTES = ["Functional Agent", "Technical Agent", "Mixed", "Human Implementation"];
@@ -67,26 +71,82 @@ export function ReportsPage() {
   const inDelivery = queued.filter((e) => ["delivery", "validation", "release"].includes(byId.get(e.changeId)?.lifecycle?.phase ?? ""));
   const inArchitecture = queued.filter((e) => ["solutioning", "solution_review"].includes(byId.get(e.changeId)?.lifecycle?.phase ?? "")).length;
 
+  // Trial (Hendro, 24 Oct): Insights in the consultiq.nl style -- coloured stat tiles, a charcoal band for
+  // "Is JADE useful?", cards that lift on hover with larger icon tiles. Charts that add little insight are
+  // folded under "More breakdowns" (kept, not removed).
+  const f = (k: string) => figures?.find((x) => x.key === k);
+  const blockedTone = toneForValue(Number(f("blocked")?.value ?? 0), thresholds ?? DEFAULT_DASHBOARD_THRESHOLDS);
+  const tiles: { key: string; tone: string; to: string }[] = [
+    { key: "lead_time", tone: "yellow", to: `/stories?period=${period}&phase=done&done=1` },
+    { key: "delivered", tone: "white", to: "/stories?phase=done&done=1" },
+    { key: "blocked", tone: "black", to: "/stories?health=stuck" },
+    { key: "in_progress", tone: "pale", to: "/stories" },
+  ];
+  const openHealth = health;
   return (
-    <div className="reports vr-pilot">
-      <PageHeader title="Insights" subtitle="Demand, flow and delivery for this customer." />
-      <div className="toolbar"><label htmlFor="insight-period">Period</label><select id="insight-period" value={period} onChange={(e) => setQueryParam("period", e.target.value)}>
-        {INSIGHT_PERIODS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-      </select></div>
-      <ReviewDetail title="How to read these insights"><p className="muted">Stories created in the selected period (7, 30 or 365 days, or lifetime), shown at their current lifecycle status. This is a story cohort, not a count of events during that period.</p></ReviewDetail>
+    <div className="reports insights">
+      <PageHeader title="Insights" subtitle="How demand flows through JADE, and whether JADE is useful."
+        actions={<div className="toolbar"><label htmlFor="insight-period">Period</label><select id="insight-period" value={period} onChange={(e) => setQueryParam("period", e.target.value)}>
+          {INSIGHT_PERIODS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+        </select></div>} />
 
-      {/* The same figure strip as My Work and the AM home: current portfolio, same numbers (decision X1, register M6). */}
-      {figures && <FigureStrip figures={figures} label="Now"
-        tones={{ blocked: toneForValue(Number(figures.find((f) => f.key === "blocked")?.value ?? 0), thresholds ?? DEFAULT_DASHBOARD_THRESHOLDS) || undefined }} />}
-      {useful && (
-        <Section title="Is JADE useful?" description="Measured from recorded events: work JADE completed, not text it produced.">
-          <dl className="usefulness">{useful.map((u) => (
-            <div key={u.key} title={u.definition}><dt>{u.label}</dt><dd className="fig-value">{u.value}</dd><dd className="muted">{u.detail}</dd></div>
-          ))}</dl>
-        </Section>
+      {figures && (
+        <section className="statgrid" aria-label="Now">
+          {tiles.map((t) => { const x = f(t.key); return x ? (
+            <Link key={t.key} to={t.to} className={`stattile ${t.tone}${t.key === "blocked" && blockedTone ? ` ${blockedTone}` : ""}`} title={x.definition}>
+              <span className="stattile-value">{x.display}</span>
+              <span className="stattile-label">{x.label}</span>
+            </Link>) : null; })}
+          {f("requests") && <p className="statnote"><Link to="/stories?phase=understand">{f("requests")!.display} incoming request{f("requests")!.display === "1" ? "" : "s"}</Link> not yet a story.</p>}
+        </section>
       )}
-      {info.appManagement && <Section title="Where approved work stands" description="Approved stories by stage, now. Each stage opens its queue."><ApprovedWorkFlow changes={allChanges} /></Section>}
 
+      {useful && (
+        <section className="darkband" aria-label="Is JADE useful?">
+          <h2>Is JADE useful?</h2>
+          <p className="darkband-lede">Measured from recorded events: work JADE completed, not text it produced.</p>
+          <ul className="darkcards">{useful.map((u) => (
+            <li key={u.key} className="darkcard" title={u.definition}>
+              <span className="darkcard-value">{u.value}</span>
+              <span className="darkcard-label">{u.label}</span>
+              <span className="darkcard-detail">{u.detail}</span>
+            </li>
+          ))}</ul>
+        </section>
+      )}
+
+      {info.appManagement && <Section title="Where approved work stands" description="Approved stories by stage, now. Each stage opens its queue."><div className="flowcard"><ApprovedWorkFlow changes={allChanges} /></div></Section>}
+
+      <Section title="Health of open work" description="Open stories only; delivered and closed work is an outcome, not a health state.">
+        {openHealth.length === 0 ? <EmptyState title="No open work" /> : (
+          <ul className="healthtiles">{openHealth.map((h) => (
+            <li key={h.stage}><Link className="hovercard" to={`/stories?health=${HEALTH_KEY[h.stage] ?? ""}`}>
+              <span className="healthtile-value">{h.count}</span><span className="healthtile-label">{h.stage}</span></Link></li>
+          ))}</ul>
+        )}
+      </Section>
+
+      <Section title="Demand by business domain" description="Stories in this period, per domain. Open a domain to see its stories.">
+        {metrics.businessDomainBreakdown.length === 0 ? <EmptyState title="No domain data yet" /> : (
+          <ul className="insightcards">{metrics.businessDomainBreakdown.map((d) => (
+            <li key={d.domainId ?? "none"}><Link className="hovercard" to={`/stories?done=1&period=${period}&domain=${encodeURIComponent(d.domainId ?? "none")}`}>
+              <IconTile name="domain" size="lg" /><span className="ic-value">{d.count}</span><span className="ic-label">{d.domainName}</span></Link></li>
+          ))}</ul>
+        )}
+      </Section>
+
+      <Section title="Quality and governance">
+        <ul className="insightcards">
+          <li><div className="hovercard"><IconTile name="target" size="lg" /><span className="ic-value">{perf.firstTimeSuccessRate}%</span><span className="ic-label">passed JADE's quality check without a revision</span></div></li>
+          <li><div className="hovercard"><IconTile name="users" size="lg" /><span className="ic-value">{perf.humanApprovals}</span><span className="ic-label">human approvals recorded ({perf.humanRejections} rejected)</span></div></li>
+          <li><div className="hovercard"><IconTile name="activity" size="lg" /><span className="ic-value">{perf.changeVolume}</span><span className="ic-label">requests and stories in total</span></div></li>
+          <li><div className="hovercard"><IconTile name="clock" size="lg" /><span className="ic-value">{perf.deliveredCount ? `${perf.averageCycleTimeDays} d` : "—"}</span><span className="ic-label">average cycle time, request to as-built record ({perf.deliveredCount} delivered)</span></div></li>
+        </ul>
+      </Section>
+
+      <details className="morebreakdowns">
+        <summary>More breakdowns: phases, expected benefit and impact, delivery routes, change types and the delivery queue</summary>
+        <ReviewDetail title="How to read these insights"><p className="muted">Stories created in the selected period (7, 30 or 365 days, or lifetime), shown at their current lifecycle status. This is a story cohort, not a count of events during that period.</p></ReviewDetail>
       <div className="reportgrid">
         <Section title="Requests and stories by lifecycle phase" description="Click a phase to see its stories.">
           <Bars label="Stories and requests by phase" rows={phases.map((p) => ({ label: p.stage === "Understand" ? "Requests (not a story yet)" : p.stage, count: p.count }))}
@@ -120,16 +180,7 @@ export function ReportsPage() {
       </div>
 
       <Section title="Change types"><Bars label="Change types" rows={metrics.changeTypes.map((t) => ({label: t.type, count: t.count}))} /></Section>
-      <Section title="Quality and governance">
-        <div className="statrow">
-          <div className="statcard plain"><span className="stat-value">{perf.firstTimeSuccessRate}%</span><span className="stat-label">stories that passed JADE's quality check without a revision</span></div>
-          <div className="statcard plain"><span className="stat-value">{perf.humanApprovals}</span><span className="stat-label">human approvals recorded ({perf.humanRejections} rejected)</span></div>
-          <div className="statcard plain"><span className="stat-value">{perf.changeVolume}</span><span className="stat-label">requests and stories in total</span></div>
-          <div className="statcard plain"><span className="stat-value">{perf.deliveredCount ? `${perf.averageCycleTimeDays} days` : "no data"}</span>
-            <span className="stat-label">average cycle time, request received to as-built record finalised ({perf.deliveredCount} delivered in this period)</span></div>
-        </div>
-      </Section>
-
+      <Section title="Change types"><Bars label="Change types" rows={metrics.changeTypes.map((t) => ({label: t.type, count: t.count}))} /></Section>
       {info.appManagement && <Section title="Delivery queue" description="Approved changes in delivery, validation or release, in queue order. Stories authorised but still in architecture are counted below the table."
         actions={<Link to="/am/delivery">Open Delivery</Link>}>
         {inDelivery.length === 0 ? <EmptyState title="Nothing in delivery yet" /> : (
@@ -151,6 +202,8 @@ export function ReportsPage() {
         )}
         {inArchitecture > 0 && <p className="vr-note">{inArchitecture} authorised stor{inArchitecture === 1 ? "y is" : "ies are"} still in architecture (solutioning or solution review): <Link to="/am/architecture-review">Architecture Review</Link>.</p>}
       </Section>}
+
+      </details>
 
       {info.has("admin") && (
         <p className="muted">AI usage, agent health and run history are under <Link to="/admin/operations">Administration › Operations</Link>.</p>

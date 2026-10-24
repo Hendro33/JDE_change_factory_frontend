@@ -36,7 +36,8 @@ import { AcceptInvitation } from "./pages/auth/AcceptInvitation";
 const PRIMARY_NAV: { to: string; label: string; short?: string; section: string; show?: (info: SessionInfo) => boolean }[] = [
   { to: "/work", label: "My Work", section: "work" },
   { to: "/stories", label: "Business Demand", short: "Demand", section: "stories" },
-  { to: "/business", label: "Business Architecture", short: "Architecture", section: "business" },
+  // Business Architecture is reference and set-up, not daily work (Hendro, 24 Oct): out of the top menu. The page
+  // stays at /business, reached from every story's domain name and from Administration › Business Model.
   { to: "/am", label: "Application Management", short: "App Management", section: "am", show: (i) => i.appManagement },
   { to: "/validation", label: "Validation", section: "validation", show: (i) => i.has("test_manager", "product_manager", "admin") },
   { to: "/reports", label: "Insights", section: "reports" },

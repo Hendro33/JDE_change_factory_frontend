@@ -1542,7 +1542,10 @@ button.qrow-title.linkish:hover { text-decoration: underline; }
 
 /* Top menu (24 Oct): the short labels at every width, so the last item never drops off the bar (the bar is
    capped at 1440px wide); below 1200px the menu moves to its own row. */
-.navfull { display: none !important; } .navshort { display: inline !important; }
+.navfull { display: inline !important; } .navshort { display: none !important; }
+@media (max-width: 1439px) { .navfull { display: none !important; } .navshort { display: inline !important; } }
+.primarynav a { font-size: 16px; font-weight: 700; padding: 9px 10px; }
+.primarynav a.on::after { left: 10px; right: 10px; }
 @media (max-width: 1200px) {
   .appbar { position: static; }
   .appbar-row { flex-wrap: wrap; padding: 10px 16px; }
@@ -1572,3 +1575,51 @@ button.qrow-title.linkish:hover { text-decoration: underline; }
 .bacard-figs { display: flex; gap: 14px; flex-wrap: wrap; font-size: 15px; color: var(--ink-soft); }
 .bacard-figs b { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; color: var(--ink); margin-right: 4px; }
 .bacard-owner { font-size: 12.5px; color: var(--muted); }
+
+/* ======================================================================
+   Insights trial (24 Oct): the consultiq.nl "wow" -- coloured stat tiles,
+   a charcoal band, cards that lift with a yellow edge on hover, larger icons.
+   ====================================================================== */
+.insights .toolbar { display: flex; align-items: center; gap: 10px; }
+.insights .toolbar select { border: 1.5px solid var(--ink); border-radius: 10px; padding: 8px 12px; font: inherit; font-weight: 700; background: #fff; }
+.statgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 8px 0 10px; }
+.stattile { display: grid; gap: 8px; align-content: end; min-height: 150px; padding: 24px 26px; border-radius: 18px; text-decoration: none;
+  box-shadow: 0 10px 30px rgba(16, 24, 40, .10); transition: transform .18s ease, box-shadow .18s ease; color: var(--ink); }
+.stattile:hover { transform: translateY(-4px); box-shadow: 0 18px 40px rgba(16, 24, 40, .16); }
+.stattile-value { font-size: 32px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
+.stattile-label { font-size: 15px; font-weight: 700; line-height: 1.35; }
+.stattile.yellow { background: var(--brand); }
+.stattile.white { background: #fff; border: 1px solid var(--line); } .stattile.white .stattile-value { color: #E6B800; }
+.stattile.black { background: #1A1A1A; color: #fff; } .stattile.black .stattile-value { color: var(--brand); }
+.stattile.pale { background: var(--brand-pale); }
+.statnote { grid-column: 1 / -1; margin: 2px 0 0; color: var(--muted); }
+
+.darkband { background: #1A1A1A; color: #fff; border-radius: 22px; padding: 34px 34px 30px; margin: 30px 0; }
+.darkband h2 { margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.035em; color: #fff; }
+.darkband h2::after { content: ""; display: block; width: 56px; height: 6px; border-radius: 3px; background: var(--brand); margin-top: 12px; }
+.darkband-lede { color: #C9CED6; margin: 14px 0 22px; }
+.darkcards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+.darkcard { display: grid; gap: 6px; align-content: start; padding: 20px; border-radius: 16px; background: #262626; border: 1px solid #333;
+  border-bottom: 3px solid transparent; transition: transform .18s ease, border-color .18s ease; }
+.darkcard:hover { transform: translateY(-3px); border-bottom-color: var(--brand); }
+.darkcard-value { font-size: 32px; font-weight: 800; letter-spacing: -0.04em; color: var(--brand); line-height: 1; }
+.darkcard-label { font-weight: 800; font-size: 15px; color: #fff; }
+.darkcard-detail { font-size: 12.5px; color: #AEB4BD; line-height: 1.5; }
+
+.hovercard { display: grid; gap: 10px; justify-items: start; align-content: start; height: 100%; padding: 22px 24px; background: #fff;
+  border: 1px solid var(--line); border-bottom: 3px solid transparent; border-radius: 16px; box-shadow: var(--card-shadow);
+  color: var(--ink); text-decoration: none; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+a.hovercard:hover, .hovercard:hover { transform: translateY(-4px); box-shadow: 0 16px 36px rgba(16, 24, 40, .12); border-bottom-color: var(--brand); }
+.insightcards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+.ic-value { font-size: 32px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; margin-top: 4px; }
+.ic-label { font-size: 15px; font-weight: 700; color: var(--ink-soft); line-height: 1.35; }
+.healthtiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.healthtile-value { font-size: 32px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
+.healthtile-label { font-size: 15px; font-weight: 700; color: var(--ink-soft); }
+.flowcard { background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--card-shadow); padding: 16px 18px; }
+.flowcard .flow { border: 0; box-shadow: none; }
+.morebreakdowns { margin: 30px 0 10px; }
+.morebreakdowns > summary { font-weight: 800; cursor: pointer; padding: 14px 18px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--card-shadow); }
+.morebreakdowns[open] > summary { margin-bottom: 18px; }
+.insights .icontile.lg { width: 60px; height: 60px; border-radius: 16px; }
+@media (max-width: 900px) { .statgrid { grid-template-columns: 1fr 1fr; } .stattile { min-height: 120px; } .stattile-value { font-size: 36px; } .darkband { padding: 24px 20px; } }
