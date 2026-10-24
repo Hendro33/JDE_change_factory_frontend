@@ -70,8 +70,14 @@ function RoleAndDomainPicker({
 function DeliveryNote({ email, emailSent, detail, link, what }: {
   email: string; emailSent: boolean; detail?: string; link?: string | null; what: string;
 }) {
+  // Test phase (24 Oct): the Administrator always gets the link too, so a test user can be set up without a mailbox.
   if (emailSent) {
-    return <div className="callout" role="status">The {what} was e-mailed to {email}.</div>;
+    return (
+      <div className="callout" role="status" style={{ wordBreak: "break-all" }}>
+        The {what} was e-mailed to {email}.{link && <> You can also give it to them yourself -- it is personal and works once:{" "}
+          <span className="mono">{link}</span></>}
+      </div>
+    );
   }
   return (
     <div className="callout" role="status" style={{ wordBreak: "break-all" }}>
