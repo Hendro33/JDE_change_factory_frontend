@@ -27,9 +27,9 @@ import { Link, storyPath } from "../router";
 /* ------------------------------------------------------------------ */
 
 const STATE_WORD: Record<WorkState, string> = {
-  todo: "To do", in_progress: "In progress", done: "Done", failed: "Needs attention", blocked: "Waiting", not_needed: "Not needed",
+  todo: "To do", in_progress: "In progress", done: "Done", failed: "Needs attention", blocked: "Waiting", not_needed: "Not needed", not_recorded: "Not recorded",
 };
-const STATE_ICON: Record<WorkState, string> = { todo: "○", in_progress: "◐", done: "✓", failed: "!", blocked: "■", not_needed: "–" };
+const STATE_ICON: Record<WorkState, string> = { todo: "○", in_progress: "◐", done: "✓", failed: "!", blocked: "■", not_needed: "–", not_recorded: "–" };
 const OWNER_WORD: Record<WorkOwnerKind, string> = {
   agent: "JADE agent", person: "Person", implementer: "Named implementer", cnc: "CNC", business: "Business", release: "Release",
   jade: "JADE",

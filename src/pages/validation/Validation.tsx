@@ -21,11 +21,12 @@ function OutcomeSplit() {
   const [rows, setRows] = useState<{ key: string; label: string; n: number; to: string }[] | null>(null);
   useEffect(() => {
     api.listChanges().then((all) => {
-      const cards = all.map((c) => c.lifecycle?.outcomeCard).filter((c): c is NonNullable<typeof c> => !!c);
+      // Repair brief P2: each count is exactly the list its link opens.
+      const lcs = all.map((c) => c.lifecycle).filter((l): l is NonNullable<typeof l> => !!l);
       setRows([
-        { key: "dev", label: "Verified in DEV, waiting for the business", n: cards.filter((c) => c.devVerified.done && !c.businessAccepted.done).length, to: "/stories?phase=validation" },
-        { key: "acc", label: "Accepted, waiting for the release hand-over", n: cards.filter((c) => c.businessAccepted.done && !c.released.done).length, to: "/am/changes?stage=asbuilt" },
-        { key: "rel", label: "Handed over for release", n: cards.filter((c) => c.released.done).length, to: "/stories?phase=done" },
+        { key: "dev", label: "Verified in DEV, waiting for the business to accept", n: lcs.filter((l) => l.nextAction.action === "accept_outcome").length, to: "/stories?next=accept_outcome" },
+        { key: "acc", label: "Accepted, waiting for the release hand-over", n: lcs.filter((l) => l.phase === "release").length, to: "/stories?phase=release" },
+        { key: "rel", label: "Handed over for release", n: lcs.filter((l) => !!l.outcomeCard?.released.done).length, to: "/stories?released=1" },
       ]);
     }).catch(() => setRows(null));
   }, []);

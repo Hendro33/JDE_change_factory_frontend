@@ -24,13 +24,18 @@ export function ArchitectureReview({ navFilter, navToken }: Partial<NavTarget> &
   // The list is the queue "waiting for my authorisation" (register K8); the rest is one chip away.
   const view = (query.get("view") as "mine" | "all" | "earlier" | null) ?? "mine";
 
-  const waitingOn = (c: Change) => {
-    const lc = c.lifecycle;
-    if (!lc || lc.phase !== "solution_review" || c.changeApproval?.status === "approved") return "";
-    return lc.health === "blocked" ? lc.nextAction.ownerLabel || "an answer" : "";
-  };
+  // Repair brief P2: one meaning per word, used by the chips, the counts and the status column alike.
+  // "Waiting on me": the change's next action is the Application Manager's. "Ready to authorise": that
+  // action is an approval, and the readiness rule allows it now (lifecycle.allowedActions).
+  const APPROVALS = ["approve_exact_change", "approve_design", "authorise_handoff", "confirm_no_change"];
+  const onMe = (c: Change) => c.lifecycle?.nextAction.owner === "product_manager";
+  const ready = (c: Change) => onMe(c) && APPROVALS.includes(c.lifecycle?.nextAction.action ?? "")
+    && (c.lifecycle?.allowedActions ?? []).includes(c.lifecycle!.nextAction.action!);
   const working = (c: Change) => c.lifecycle?.nextAction.owner === "jade";
-  const yours = (c: Change) => ["approve_exact_change", "approve_design", "authorise_handoff", "confirm_no_change"].includes(c.lifecycle?.nextAction.action ?? "");
+  const waitingOn = (c: Change) => {
+    const na = c.lifecycle?.nextAction;
+    return na && !onMe(c) && na.owner !== "jade" && na.owner !== "none" ? (na.ownerLabel || "someone") : "";
+  };
 
   const load = () => api.listChanges().then((all) => {
     const queue = all.filter((c) => inAmStage(c, "architecture") || c.architectDecision || c.exactChange);
@@ -49,19 +54,21 @@ export function ArchitectureReview({ navFilter, navToken }: Partial<NavTarget> &
   const columns: GridColumn[] = [
     { key: "title", header: "Change", render: (c) => <><div>{c.title}</div><div className="mono muted">{c.id}</div></>, sortValue: (c) => c.title },
     { key: "status", header: "Status", render: (c) =>
-      working(c) ? <JadeWorking>Architect at work</JadeWorking>
+      working(c) ? <JadeWorking>JADE at work</JadeWorking>
         : c.lifecycle?.authorisation?.renewable ? <span className="tag stop">■ {c.lifecycle.authorisation.label}</span>
         : c.changeApproval?.status === "approved" || c.lifecycle?.handoffAuthorised ? <span className="tag ok">✓ {c.lifecycle?.authorisation?.label ?? "Authorised"}</span>
         : c.changeApproval?.status === "rejected" ? <span className="tag stop">✕ Rejected</span>
+        : ready(c) ? <span className="tag brand">◆ Ready to authorise</span>
+        : onMe(c) && c.lifecycle?.health === "blocked" ? <span className="tag stop">■ Blocked: your action</span>
+        : onMe(c) ? <span className="tag">Your action</span>
         : waitingOn(c) ? <span className="tag stop">■ Waiting for {waitingOn(c)}</span>
-        : yours(c) ? <span className="tag brand">◆ Your decision</span>
         : <span className="tag">{c.lifecycle?.phaseLabel ?? "—"}</span> },
     { key: "route", header: "Route", render: (c) => c.architectDecision?.recommendedRoute ?? <span className="notstated">not decided</span> },
     { key: "priority", header: "Priority", render: (c) => <PriorityBadge priority={c.priority} /> },
   ];
   const inArch = (c: Change) => ["solutioning", "solution_review"].includes(c.lifecycle?.phase ?? "");
   const views = {
-    mine: (changes ?? []).filter((c) => inArch(c) && (yours(c) || c.lifecycle?.nextAction.owner === "product_manager")),
+    mine: (changes ?? []).filter((c) => inArch(c) && onMe(c)),
     all: (changes ?? []).filter(inArch),
     earlier: (changes ?? []).filter((c) => !inArch(c)),
   };
@@ -73,10 +80,10 @@ export function ArchitectureReview({ navFilter, navToken }: Partial<NavTarget> &
     rememberReturn(id, "Architecture Review", `/am/architecture-review${search ? `?q=${encodeURIComponent(search)}` : ""}`);
     navigate(changePath(id, "solution"));
   };
-  const rank = (c: Change) => (yours(c) && !waitingOn(c) ? 0 : waitingOn(c) ? 1 : working(c) ? 2 : 3);
+  const rank = (c: Change) => (ready(c) ? 0 : onMe(c) ? 1 : waitingOn(c) ? 2 : working(c) ? 3 : 4);
   const sorted = sortKey ? filtered : [...filtered].sort((a, b) => rank(a) - rank(b));
-  const mine = (changes ?? []).filter((c) => yours(c) && !waitingOn(c)).length;
-  const waiting = (changes ?? []).filter((c) => !!waitingOn(c)).length;
+  const readyCount = views.mine.filter(ready).length;
+  const waiting = views.all.filter((c) => !!waitingOn(c)).length;
 
   return (
     <div className="vr-pilot">
@@ -85,10 +92,10 @@ export function ArchitectureReview({ navFilter, navToken }: Partial<NavTarget> &
           <h1 className="titlebar">Architecture Review</h1>
           <div className="sub">JADE's proposed solutions, and the decisions they need from you.</div>
         </div>
-        <div className="meta">{mine} waiting for your authorisation{waiting ? ` · ${waiting} waiting for an answer` : ""}</div>
+        <div className="meta">{views.mine.length} waiting on you, {readyCount} of them ready to authorise{waiting ? ` · ${waiting} waiting on someone else` : ""}</div>
       </div>
       <div className="filterchips" role="group" aria-label="Which changes">
-        {([["mine", "Waiting for my authorisation"], ["all", "All in architecture"], ["earlier", "Authorised or finished"]] as const).map(([k, label]) => (
+        {([["mine", "Waiting on me"], ["all", "All in architecture"], ["earlier", "Authorised or finished"]] as const).map(([k, label]) => (
           <button key={k} className={`chip${view === k ? " on" : ""}`} aria-pressed={view === k} onClick={() => setQueryParam("view", k === "mine" ? "" : k)}>
             {label} ({views[k].length})</button>
         ))}
@@ -97,7 +104,7 @@ export function ArchitectureReview({ navFilter, navToken }: Partial<NavTarget> &
       {!changes ? <Loading what="changes under architecture review" /> : (
         <section className="panel" style={{ marginBottom: 16 }}>
           <ChangeGrid changes={sorted} columns={columns} onRowClick={open}
-            emptyMessage={view === "mine" ? "Nothing waits for your authorisation." : "Nothing here yet. A change arrives once Backlog Review has admitted it to architecture."}
+            emptyMessage={view === "mine" ? "Nothing waits on you." : "Nothing here yet. A change arrives once Backlog Review has admitted it to architecture."}
             sortKey={sortKey} sortDir={sortDir} onSortChange={onSortChange} />
         </section>
       )}

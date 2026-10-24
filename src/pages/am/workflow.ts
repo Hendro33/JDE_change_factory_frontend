@@ -13,8 +13,8 @@ export const AM_STAGES = [
 export type AmStage = typeof AM_STAGES[number]["key"];
 
 /** Presentation only. The canonical phase, health and next action remain authoritative.
- * Ready for release is a readiness view of delivered stories, not proof of production promotion.
- * It intentionally overlaps Completed: JADE does not track external production deployment.
+ * Repair brief P2: "Ready for release" is the release phase (the business accepted; the as-built record and the
+ * release hand-over are still to do). "Completed" is done. The two never contain the same story.
  */
 export function inAmStage(c: Change, stage: AmStage): boolean {
   const lc = c.lifecycle;
@@ -29,7 +29,7 @@ export function inAmStage(c: Change, stage: AmStage): boolean {
     case "delivery": return lc.phase === "delivery" && !approved;
     case "validation": return lc.phase === "validation";
     case "asbuilt": return lc.nextAction.action === "finalise_asbuilt";
-    case "release": return lc.outcome === "delivered";
+    case "release": return lc.phase === "release";
     case "completed": return lc.phase === "done" && lc.outcome !== "rejected";
   }
 }

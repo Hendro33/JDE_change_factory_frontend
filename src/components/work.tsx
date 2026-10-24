@@ -92,6 +92,14 @@ function WorkLineRow({ line, changeId, controls }: { line: WorkLine; changeId: s
 /* Issues                                                               */
 /* ------------------------------------------------------------------ */
 
+/** Repair brief P2: one labelled count of open points, the same wherever it is shown -- what needs people
+ * and what JADE investigates itself are counted apart, never mixed into one unexplained number. */
+export function openLabel(open: Issue[]): string {
+  const jade = open.filter((i) => i.kind === "jade").length;
+  const people = open.length - jade;
+  return [people ? `${people} for people` : "", jade ? `${jade} for JADE to investigate` : ""].filter(Boolean).join(" · ") || "none open";
+}
+
 export function IssueList({ change, onChange, kinds, title = "Open points", empty, id = "open-points", skipNextAction }: {
   change: Change;
   onChange: (c: Change) => void;
@@ -114,7 +122,7 @@ export function IssueList({ change, onChange, kinds, title = "Open points", empt
   if (all.length === 0) return empty ? <section className="issues" id={id}><h3 className="issues-title">{title}</h3><p className="muted">{empty}</p></section> : null;
   return (
     <section className="issues" id={id} aria-label={title}>
-      <h3 className="issues-title">{title}{open.length > 0 && <span className="issues-count">{open.length} open</span>}</h3>
+      <h3 className="issues-title">{title}{open.length > 0 && <span className="issues-count">{openLabel(open)}</span>}</h3>
       {sorted.length === 0 && <p className="muted">Every open point is answered or resolved.</p>}
       <ul className="issue-list">
         {sorted.map((i) => <IssueRow key={i.id} issue={i} change={change} onChange={onChange} statedAbove={isNextAction(i)} />)}

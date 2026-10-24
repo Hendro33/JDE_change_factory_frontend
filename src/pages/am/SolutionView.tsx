@@ -8,7 +8,7 @@ import type { Change, FeedbackReasonCode } from "../../types/domain";
 import { AskJadePanel } from "../../components/AskJade";
 import { ConfirmDialog } from "../../components/ui";
 import { Details, EmptyState, ErrorState, formatDateTime, useSessionInfo } from "../../components/design";
-import { IssueList, ResultSummary, WhatNeedsToHappen } from "../../components/work";
+import { IssueList, ResultSummary, WhatNeedsToHappen, openLabel } from "../../components/work";
 import { JadeAtWorkLine, ProcessSwimlane } from "../../components/journey";
 import { IntegrityPanel, SolutionArchitectureMap } from "../../components/visualReview";
 import { StoryRatingsPanel } from "../../components/StoryRatings";
@@ -65,8 +65,8 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
   const route = decision ? ROUTE_LABEL[decision.recommendedRoute] ?? { title: decision.recommendedRoute, summary: "" } : undefined;
   const manifest = evidence?.manifest;
   // Counted as listed below: an expired authorisation is the decision above, not an open point.
-  const openPoints = (lc?.issues ?? []).filter((i) => !i.resolution && i.kind !== "jade"
-    && !(lc?.authorisation?.renewable && i.source === "delivery_gate" && i.actionId === "approve_exact_change")).length;
+  const openList = (lc?.issues ?? []).filter((i) => !i.resolution
+    && !(lc?.authorisation?.renewable && i.source === "delivery_gate" && i.actionId === "approve_exact_change"));
   // Re-running is the Application Manager's call (review 23 Oct evening): the
   // button sits at the top and says how many answers came in since the design.
   const architectAtWork = lc?.nextAction.owner === "jade" && lc?.automation?.state !== "scheduled";
@@ -75,7 +75,7 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
   const newAnswers = (lc?.issues ?? []).filter((i) => i.resolution?.answer && i.resolution.at > decidedAt).length;
   const stillOpen = (lc?.issues ?? []).filter((i) => !i.resolution && i.kind !== "jade" && i.source !== "delivery_gate").length;
   const basis = evidence ? `Based on ${manifest?.observations.length ?? 0} reading${manifest?.observations.length === 1 ? "" : "s"} of the JD Edwards environment on ${formatDateTime(evidence.createdAt)}`
-    + `${manifest?.documents.length ? `, ${manifest.documents.length} document${manifest.documents.length > 1 ? "s" : ""}` : ""}; ${openPoints} open point${openPoints === 1 ? "" : "s"}.` : "";
+    + `${manifest?.documents.length ? `, ${manifest.documents.length} document${manifest.documents.length > 1 ? "s" : ""}` : ""}; open points: ${openLabel(openList)}.` : "";
 
   return (
     <div className="solutionview">

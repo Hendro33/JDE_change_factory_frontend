@@ -37,9 +37,9 @@ test("functional approved writes stay queued until execution starts", () => {
 test("failed validation cannot be counted as release-ready", () => {
   assert.deepEqual(queues(story("validation", "start_technical_prepare", {health: "failed"})), ["validation"]);
 });
-test("unfinished as-built is distinct from completed JADE delivery", () => {
-  assert.deepEqual(queues(story("release", "finalise_asbuilt")), ["asbuilt"]);
-  assert.deepEqual(queues(story("done", null, {outcome: "delivered"})), ["release", "completed"]);
+test("unfinished as-built is distinct from completed JADE delivery (repair brief P2: ready for release is never completed)", () => {
+  assert.deepEqual(queues(story("release", "finalise_asbuilt")), ["asbuilt", "release"]);
+  assert.deepEqual(queues(story("done", null, {outcome: "delivered"})), ["completed"]);
   assert.deepEqual(queues(story("done", null, {outcome: "rejected"})), []);
   assert.deepEqual(queues(story("done", null, {outcome: "resolved_without_change"})), ["completed"]);
 });

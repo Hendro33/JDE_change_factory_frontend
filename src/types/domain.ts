@@ -991,7 +991,7 @@ export interface AutomationPlan {
 }
 
 export type WorkOwnerKind = "agent" | "person" | "implementer" | "cnc" | "business" | "release" | "jade";
-export type WorkState = "todo" | "in_progress" | "done" | "failed" | "blocked" | "not_needed";
+export type WorkState = "todo" | "in_progress" | "done" | "failed" | "blocked" | "not_needed" | "not_recorded";
 
 export interface WorkItem {
   id: string;

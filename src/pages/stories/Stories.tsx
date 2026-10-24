@@ -62,6 +62,9 @@ export function StoriesPage() {
   const view = query.get("view") === "board" ? "board" : "list";
   const period = INSIGHT_PERIODS.find((p) => p.key === query.get("period"));
   const showDone = query.get("done") === "1";
+  // Exact-membership filters for links from counts (repair brief P2): a count and its list use one definition.
+  const next = query.get("next") ?? "";
+  const released = query.get("released") === "1";
 
   const rows = useMemo(() => {
     const all = data ?? [];
@@ -69,7 +72,7 @@ export function StoriesPage() {
     return all.filter((c) => {
       if (period && !inInsightPeriod(c.createdAt, period.key)) return false;
       const lc = c.lifecycle;
-      if (!showDone && !phase && lc?.phase === "done") return false;
+      if (!showDone && !phase && !released && lc?.phase === "done") return false;
       // A request is not a user story until JADE has prepared one (finding 2): the
       // User Stories list leaves requests to Requests; the end-to-end board shows both.
       if (!phase && view === "list" && isRequest(c)) return false;
@@ -79,16 +82,18 @@ export function StoriesPage() {
       if (priority && c.priority !== priority) return false;
       if (changeType && c.changeType !== changeType) return false;
       if (owner && lc?.nextAction.owner !== owner) return false;
+      if (next && lc?.nextAction.action !== next) return false;
+      if (released && !lc?.outcomeCard?.released.done) return false;
       if (health === "attention" && !(lc && lc.nextAction.owner !== "jade" && lc.nextAction.kind !== "none")) return false;
       if (health === "stuck" && lc?.health !== "blocked" && lc?.health !== "failed") return false;
       if (health && health !== "attention" && health !== "stuck" && lc?.health !== health) return false;
       return true;
     });
-  }, [data, q, phase, domain, health, owner, priority, changeType, showDone, info, period, view]);
+  }, [data, q, phase, domain, health, owner, priority, changeType, showDone, info, period, view, next, released]);
   const requestCount = (data ?? []).filter(isRequest).length;
 
   const doneCount = (data ?? []).filter((c) => c.lifecycle?.phase === "done").length;
-  const filtered = !!(q || phase || domain || health || owner || priority || changeType);
+  const filtered = !!(q || phase || domain || health || owner || priority || changeType || next || released);
 
   const selectable = canEdit && phase === "understand" && view === "list";
   const withdrawable = (c: Change) => c.lifecycle?.phase === "understand" && !c.userStory
@@ -132,8 +137,10 @@ export function StoriesPage() {
   return (
     <div>
       <DemandNav />
-      <PageHeader title={phase === "understand" ? "Requests" : "User Stories"}
-        subtitle={phase === "understand" ? "New requests, before JADE has turned them into user stories." : "Every business need JADE is working on, from request to delivered outcome."}
+      <PageHeader title={phase === "understand" ? "Requests" : view === "board" && !phase ? "All demand" : "User Stories"}
+        subtitle={phase === "understand" ? "New requests, before JADE has turned them into user stories."
+          : view === "board" && !phase ? "The end-to-end board: requests and user stories, from request to delivered outcome."
+          : "User stories JADE is working on. New requests are under Requests."}
         actions={<>
           {/* Requests are retrieved, not user stories (Hendro, 23 Oct): only on Requests, and source-neutral. */}
           {phase === "understand" && jira && jira.state !== "unavailable" && (
