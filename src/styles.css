@@ -1539,3 +1539,36 @@ button.qrow-title.linkish { background: none; border: 0; padding: 0; text-align:
 button.qrow-title.linkish:hover { text-decoration: underline; }
 
 .pagetitle { align-items: flex-start; margin-bottom: 14px; } .pagetitle .qcount { margin-top: 12px; }
+
+/* Top menu (24 Oct): the short labels at every width, so the last item never drops off the bar (the bar is
+   capped at 1440px wide); below 1200px the menu moves to its own row. */
+.navfull { display: none !important; } .navshort { display: inline !important; }
+@media (max-width: 1200px) {
+  .appbar { position: static; }
+  .appbar-row { flex-wrap: wrap; padding: 10px 16px; }
+  .primarynav { order: 3; flex-basis: 100%; overflow-x: auto; flex-wrap: nowrap; }
+  .primarynav a.on::after { bottom: -6px; }
+  .appbar-tools { margin-left: auto; }
+}
+
+/* The business process fold-out in the same style as the rest (24 Oct) */
+.processpanel { gap: 14px; }
+.processpanel .callout { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--brand); border-radius: var(--card-radius); box-shadow: var(--card-shadow); padding: 14px 18px; }
+.processpanel .notstated { font-style: normal; color: var(--muted); }
+.processpanel #process-maps { background: #fff; border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow); padding: 4px 22px 18px; }
+.processpanel .drawer { background: #fff !important; border: 1px solid var(--line) !important; border-radius: var(--card-radius) !important; box-shadow: var(--card-shadow); }
+.processpanel .drawer > summary { padding: 14px 18px !important; font-weight: 800; }
+.processpanel .drawer-body { padding: 0 18px 16px !important; }
+.processpanel details:not(.drawer) > summary { font-weight: 700; cursor: pointer; padding: 8px 0; }
+.processpanel .minihead { color: var(--muted); }
+.processpanel .badge { border-radius: 13px; }
+
+/* Business Architecture: each domain a card with its icon tile and figures, as on consultiq.nl (24 Oct) */
+.bagrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+.bacard { display: grid; gap: 10px; align-content: start; padding: 20px 22px; background: #fff; border: 1px solid var(--line);
+  border-radius: var(--card-radius); box-shadow: var(--card-shadow); color: var(--ink); text-decoration: none; transition: box-shadow .15s, transform .15s; }
+.bacard:hover { box-shadow: 0 2px 4px rgba(16, 24, 40, .05), 0 12px 28px rgba(16, 24, 40, .10); transform: translateY(-1px); }
+.bacard-name { font-size: 18px; font-weight: 800; letter-spacing: -0.015em; line-height: 1.25; }
+.bacard-figs { display: flex; gap: 14px; flex-wrap: wrap; font-size: 15px; color: var(--ink-soft); }
+.bacard-figs b { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; color: var(--ink); margin-right: 4px; }
+.bacard-owner { font-size: 12.5px; color: var(--muted); }

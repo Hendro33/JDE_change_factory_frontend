@@ -1,3 +1,4 @@
+import { IconTile } from "../../components/icons";
 import { isRequest } from "../stories/Stories";
 import { KnowledgePage } from "../knowledge/Knowledge";
 import { useEffect, useMemo, useState } from "react";
@@ -47,23 +48,27 @@ export function BusinessArchitecturePage({ domainId }: { domainId?: string }) {
       <PageHeader title="Business Architecture" subtitle="Your organisation's ERP map: business domains, their processes, and the change happening in each." />
       <Section title="Business domains" actions={info.has("admin") ? <Link to="/admin/business-model">Manage domains</Link> : undefined}>
         {all.length === 0 ? <EmptyState title="No business domains yet">An administrator sets them up under Administration › Business Model.</EmptyState> : (
-          <div className="domaingrid">
+          <div className="bagrid">
             {active.map((d) => {
               const n = counts(d.id);
               return (
-                <Link key={d.id} to={`/business/${encodeURIComponent(d.id)}`} className="domaincard">
-                  <span className="domaincard-name">{d.name}</span>
-                  {d.description && <span className="domaincard-desc">{d.description}</span>}
-                  <span className="domaincard-stats"><strong>{n.open}</strong> active stor{n.open === 1 ? "y" : "ies"} · {n.done} delivered{n.requests ? ` · ${n.requests} request${n.requests === 1 ? "" : "s"}` : ""}</span>
-                  <span className="domaincard-owner">{(d.assignedOwners ?? []).length ? `Owner: ${d.assignedOwners!.join(", ")}` : "No Domain Owner assigned"}</span>
+                <Link key={d.id} to={`/business/${encodeURIComponent(d.id)}`} className="bacard">
+                  <IconTile name="domain" />
+                  <span className="bacard-name">{d.name}</span>
+                  <span className="bacard-figs">
+                    <span><b>{n.open}</b> active</span><span><b>{n.done}</b> delivered</span>{n.requests > 0 && <span><b>{n.requests}</b> new</span>}
+                  </span>
+                  <span className="bacard-owner">{(d.assignedOwners ?? []).length ? d.assignedOwners!.join(", ") : "No Domain Owner yet"}</span>
                   {d.status === "proposed" && <Tag tone="warn">Proposed</Tag>}
                 </Link>
               );
             })}
             {(unplaced.open > 0 || unplaced.requests > 0) && (
-              <Link to="/stories?domain=none" className="domaincard muted-card">
-                <span className="domaincard-name">Not placed yet</span>
-                <span className="domaincard-stats"><strong>{unplaced.open}</strong> stor{unplaced.open === 1 ? "y" : "ies"} waiting to be placed in a domain{unplaced.requests ? ` · ${unplaced.requests} incoming request${unplaced.requests === 1 ? "" : "s"}` : ""}</span>
+              <Link to="/stories?domain=none" className="bacard">
+                <IconTile name="requests" />
+                <span className="bacard-name">Not placed yet</span>
+                <span className="bacard-figs"><span><b>{unplaced.open}</b> to place</span>{unplaced.requests > 0 && <span><b>{unplaced.requests}</b> new</span>}</span>
+                <span className="bacard-owner">Waiting to be placed in a domain</span>
               </Link>
             )}
           </div>

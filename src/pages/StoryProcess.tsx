@@ -169,7 +169,7 @@ export function StoryRefinement({ storyId, onChanged }: { storyId: string; onCha
       <p className="hint">JADE only proposes. Select findings, check the change to the approved story, and apply it as a new story revision.
         Applying one sends the solution back for reassessment and pauses existing approvals.</p>
       {v.findings.length === 0 ? <p className="notstated">No findings yet.</p> : (
-        <table className="grid" style={{ fontSize: 12.5 }}>
+        <table className="data">
           <thead><tr><th></th><th>Finding</th><th>Kind</th><th>From</th><th>Status</th><th></th></tr></thead>
           <tbody>{v.findings.map((f) => (
             <tr key={f.finding_id}>
@@ -266,7 +266,7 @@ export function MapEditor({ view, kind, nodes, onSaved }: { view: StoryProcessVi
           <summary>Edit this map (structured editor)</summary>
           <label>Title <input aria-label="Map title" value={content.title} onChange={(e) => set({ ...content, title: e.target.value })} /></label>
           <div style={{ overflowX: "auto" }}>
-          <table className="grid" style={{ fontSize: 12.5 }}>
+          <table className="data">
             <thead><tr><th>Id</th><th>Step</th><th>Type</th><th>Actor</th><th>System</th><th>Controls (;)</th><th>Process</th><th>Stories (,)</th><th>Basis</th><th>Confirmed by / how</th><th></th></tr></thead>
             <tbody>{content.steps.map((s, i) => (
               <tr key={i}>
@@ -295,7 +295,7 @@ export function MapEditor({ view, kind, nodes, onSaved }: { view: StoryProcessVi
           </div>
           <button className="btn small" onClick={() => set({ ...content, steps: [...content.steps, blankStep(content.steps.length + 1)] })}>Add step</button>
           <h4>Connections</h4>
-          <table className="grid" style={{ fontSize: 12.5 }}><tbody>
+          <table className="data"><tbody>
             {content.connections.map((c, i) => (
               <tr key={i}>
                 <td><select aria-label={`Connection ${i + 1} from`} value={c.from} onChange={(e) => set({ ...content, connections: content.connections.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)) })}>
@@ -318,7 +318,7 @@ export function MapEditor({ view, kind, nodes, onSaved }: { view: StoryProcessVi
       )}
       {current && (
         <details><summary>Steps and controls ({content.steps.length})</summary>
-          <table className="grid" style={{ fontSize: 12.5 }}>
+          <table className="data">
             <thead><tr><th>Step</th><th>Actor</th><th>System</th><th>Controls</th><th>Process</th><th>Stories</th><th>Basis</th></tr></thead>
             <tbody>{content.steps.map((s) => (
               <tr key={s.id}><td><span className="mono">{s.id}</span> {s.label} <span className="hint">({s.type})</span></td><td>{s.actor}</td><td>{s.system}</td>
@@ -358,7 +358,7 @@ export function StoryProcessPanel({ storyId, onChanged }: { storyId: string; onC
   const openFindings = (view.runs[0]?.result.missing_requirements?.length ?? 0) + (view.runs[0]?.result.missing_controls?.length ?? 0)
     + (view.runs[0]?.result.missing_acceptance_criteria?.length ?? 0);
   return (
-    <div className="stack">
+    <div className="stack processpanel">
       {view.mapping?.status === "confirmed" ? (
         <div>
           <div className="minihead">Confirmed processes</div>
@@ -368,9 +368,10 @@ export function StoryProcessPanel({ storyId, onChanged }: { storyId: string; onC
         <p>No process mapping applies: {view.mapping.no_mapping_reason}</p>
       ) : view.framework ? <p className="muted">The affected processes have not been confirmed yet.</p> : null}
       <div id="process-maps">
-        <div className="btnrow">
-          <button className={`chip${kind === "to_be" ? " on" : ""}`} aria-pressed={kind === "to_be"} onClick={() => setKind("to_be")}>To-be ({view.maps.to_be.versions.length})</button>
-          <button className={`chip${kind === "as_is" ? " on" : ""}`} aria-pressed={kind === "as_is"} onClick={() => setKind("as_is")}>As-is ({view.maps.as_is.versions.length})</button>
+        {/* The same tabs as every other page (24 Oct). */}
+        <div className="areaswitch" role="tablist" aria-label="Process map">
+          <button role="tab" aria-selected={kind === "to_be"} className={kind === "to_be" ? "on" : ""} onClick={() => setKind("to_be")}>Proposed (to-be) <span className="qcount">{view.maps.to_be.versions.length}</span></button>
+          <button role="tab" aria-selected={kind === "as_is"} className={kind === "as_is" ? "on" : ""} onClick={() => setKind("as_is")}>Current (as-is) <span className="qcount">{view.maps.as_is.versions.length}</span></button>
         </div>
         {notice && <div className="callout" style={{ borderColor: "var(--ok)" }}>{notice}</div>}
         <MapEditor key={kind} view={view} kind={kind} nodes={nodes} onSaved={(m) => { setNotice(m); changed(); }} />
