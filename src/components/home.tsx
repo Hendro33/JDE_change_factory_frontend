@@ -5,6 +5,7 @@ import { Link, storyPath } from "../router";
 import { changePath } from "../pages/stories/useStory";
 import { waitingLabel } from "../services/metrics";
 import { ErrorState, storyTitle, useSessionInfo } from "./design";
+import { IconTile } from "./icons";
 
 /**
  * The role homes (register C1, C3, K7, K15) and the one figure strip
@@ -69,12 +70,11 @@ export function QuestionRow({ q, onAnswered }: { q: QuestionItem; onAnswered: ()
     : storyPath(q.changeId, "changes", "open-points");
   return (
     <li className="qrow k-question">
-      <span className="kindtile" data-kind={decision ? "decision" : "question"} aria-hidden="true">{decision ? "◆" : "?"}</span>
+      <IconTile name={decision ? "decision" : "question"} />
       <span className="qrow-main">
         <span className="qrow-q">{i.title}</span>
-        <span className="qrow-sub"><Link to={storyLink}>{q.title}</Link> <span className="mono muted">{q.changeId}</span>
-          {i.consequence ? <> · {i.consequence}</> : null}</span>
-        {i.proposedAnswer && <span className="qrow-proposal"><strong>JADE proposes:</strong> {i.proposedAnswer}</span>}
+        <span className="qrow-sub"><Link to={storyLink}>{q.title}</Link></span>
+        {i.proposedAnswer && <span className="qrow-proposal" title={i.proposedAnswer}><strong>JADE proposes:</strong> {oneLine(i.proposedAnswer, 110)}</span>}
         {(i.options?.length ?? 0) > 1 && !open && (
           <span className="qrow-options">{i.options!.map((o) => (
             <button key={o} className="btn small outline" disabled={busy} onClick={() => send(o)}>{o}</button>
@@ -94,7 +94,7 @@ export function QuestionRow({ q, onAnswered }: { q: QuestionItem; onAnswered: ()
         )}
         {error !== null && <ErrorState error={error} title="Not recorded" />}
       </span>
-      <span className="qrow-meta"><span>{q.phaseLabel}</span><span className="muted">{i.ownerLabel}</span></span>
+      <span className="qrow-meta"><span className="qrow-phase">{q.phaseLabel}</span></span>
       {!open && (
         <span className="qrow-actions">
           {i.proposedAnswer && <button className="btn small outline" disabled={busy} onClick={() => send(i.proposedAnswer)}>Accept proposal</button>}
@@ -132,7 +132,7 @@ export function StuckList({ items, shown = 5 }: { items: StuckItem[]; shown?: nu
   );
   return (
     <>
-      <ul className="stucklist">{items.slice(0, shown).map(line)}</ul>
+      <ul className="stucklist card">{items.slice(0, shown).map(line)}</ul>
       {items.length > shown && (
         <details className="qmore"><summary>{items.length - shown} more</summary>
           <ul className="stucklist">{items.slice(shown).map(line)}</ul></details>
@@ -144,17 +144,16 @@ export function StuckList({ items, shown = 5 }: { items: StuckItem[]; shown?: nu
 export function DomainLines({ lines }: { lines: DomainLine[] }) {
   if (!lines.length) return null;
   return (
-    <table className="data domainlines">
-      <caption className="sr-only">Work in flight per business domain</caption>
-      <thead><tr><th scope="col">Business domain</th><th scope="col">In flight</th><th scope="col">Oldest waiting</th><th scope="col">Waiting on</th></tr></thead>
-      <tbody>{lines.map((d) => (
-        <tr key={d.domainId ?? "none"}>
-          <td>{d.domainId ? <Link to={`/am/changes?domain=${encodeURIComponent(d.domainId)}`}>{d.name}</Link> : d.name}</td>
-          <td>{d.inFlight}</td>
-          <td>{d.oldestWaitingDays == null ? "—" : `${d.oldestWaitingDays} d`}</td>
-          <td className="muted">{Object.entries(d.waitingOn).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(" · ")}</td>
-        </tr>
-      ))}</tbody>
-    </table>
+    <ul className="domaincards" aria-label="Work in flight per business domain">{lines.map((d) => {
+      const waiting = Object.entries(d.waitingOn).sort((a, b) => b[1] - a[1])[0];
+      return (
+        <li key={d.domainId ?? "none"} className="card">
+          <IconTile name="domain" size="sm" />
+          <span className="dc-name">{d.domainId ? <Link to={`/am/changes?domain=${encodeURIComponent(d.domainId)}`}>{d.name}</Link> : d.name}</span>
+          <span className="dc-figs"><b>{d.inFlight}</b> in flight{d.oldestWaitingDays != null && <> · oldest <b>{d.oldestWaitingDays} d</b></>}</span>
+          {waiting && <span className="dc-wait">Mostly waiting on {waiting[0]}</span>}
+        </li>
+      );
+    })}</ul>
   );
 }

@@ -11,6 +11,7 @@ import { Link, storyPath } from "../../router";
 import { workLink } from "../../services/workLink";
 import { waitingLabel } from "../../services/metrics";
 import { recentStories } from "../../services/recent";
+import { IconTile, iconFor } from "../../components/icons";
 
 /** The verb on each item's button: what the person will actually do. */
 export const ACTION_VERB: Record<string, string> = {
@@ -40,14 +41,18 @@ export function QueueRow({ c }: { c: Change }) {
   const to = workLink(c, info);
   return (
     <li className={`qrow k-${na.kind}`}>
-      <span className="kindtile" data-kind={na.kind === "decision" ? "decision" : "task"} aria-hidden="true">{na.kind === "decision" ? "◆" : "○"}</span>
+      <IconTile name={iconFor(na.action, na.kind)} />
       <span className="sr-only">{na.kind === "decision" ? "Decision" : "To do"}</span>
       <span className="qrow-main">
         <Link className="qrow-title" to={to}>{storyTitle(c)}</Link>
         <span className="qrow-sub" title={na.summary}>{oneLine(na.summary)}</span>
       </span>
-      <span className="qrow-meta"><span>{c.lifecycle!.phaseLabel}{waitingLabel(c) ? ` · ${waitingLabel(c)}` : ""}</span><ImpactIndicator change={c} /></span>
-      {/* Lists carry no yellow: the one yellow action is the decision itself, on its screen (register L3). */}
+      <span className="qrow-meta">
+        <span className="qrow-phase">{c.lifecycle!.phaseLabel}</span>
+        {waitingLabel(c) && <span className="chip">{waitingLabel(c)}</span>}
+        {["high", "urgent", "critical"].includes(String(c.priority ?? "").toLowerCase()) && <span className="chip hot">{String(c.priority).toLowerCase() === "high" ? "High" : "Urgent"}</span>}
+      </span>
+      {/* Lists carry no yellow button: the one yellow action is the decision itself, on its screen (register L3). */}
       <Link className="btn small" to={to}>{ACTION_VERB[na.action ?? ""] ?? "Open"}</Link>
     </li>
   );
@@ -62,12 +67,12 @@ function AreaQueue({ rows, questions, newRequests, onChanged }: { rows: Change[]
       {questions.map((q) => <QuestionRow key={q.issue.id} q={q} onAnswered={onChanged} />)}
       {newRequests.length > 0 && (
         <li className="qrow k-task">
-          <span className="kindtile" data-kind="task" aria-hidden="true">○</span>
+          <IconTile name="requests" />
           <span className="qrow-main">
             <Link className="qrow-title" to="/stories?phase=understand">{newRequests.length} new request{newRequests.length === 1 ? "" : "s"} to analyse</Link>
             <span className="qrow-sub">{oneLine(newRequests.slice(0, 3).map((c) => storyTitle(c)).join(" · "))}</span>
           </span>
-          <span className="qrow-meta"><span>Understand</span></span>
+          <span className="qrow-meta"><span className="qrow-phase">Understand</span></span>
           <Link className="btn small" to="/stories?phase=understand">Open requests</Link>
         </li>
       )}
