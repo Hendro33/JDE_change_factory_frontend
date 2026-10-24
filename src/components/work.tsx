@@ -265,7 +265,6 @@ export function ResultSummary({ change, title = "JADE's conclusion", hideConclus
           <ul>{r.uncertainty.map((u, i) => <li key={i}>{u}</li>)}</ul>
         </div>
       )}
-      {r?.derived && <p className="hint">Summarised by JADE from an earlier design. Running the Architect again gives the conclusion in its own words.</p>}
     </section>
   );
 }

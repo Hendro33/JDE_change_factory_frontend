@@ -78,7 +78,7 @@ export function ChangeView({ changeId, tab }: { changeId: string; tab?: string }
 
       {/* On the Solution tab a pending decision is the decision card itself; elsewhere the next step leads. */}
       {!(active === "solution" && ["approve_exact_change", "approve_design", "authorise_handoff", "confirm_no_change"].includes(lc?.nextAction.action ?? "")
-        && info.has("product_manager", "admin")) && <NextActionCard ctx={ctx!} inApp listedKinds={active === "solution" ? "all" : undefined} />}
+        && info.has("product_manager", "admin")) && lc?.nextAction.owner !== "jade" && <NextActionCard ctx={ctx!} inApp listedKinds={active === "solution" ? "all" : undefined} />}
 
       <Tabs label="Change sections" active={active} hrefFor={(k) => changePath(change.id, k as WorkspaceTab)} tabs={TABS} />
 

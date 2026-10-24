@@ -1427,3 +1427,31 @@ body { background: #fff; }
   .adminnav .adminnav-group { display: contents; }
   .adminnav a { white-space: nowrap; }
 }
+
+/* The change view in the consultiq.nl style: the header and the solution as white cards,
+   who/risk/effort as three small cards, each open point its own card. */
+.view-application .storyheader, .view-business .storyheader { border: 1px solid #EEEEEE; border-radius: var(--card-radius); box-shadow: var(--card-shadow); }
+.view-application .titlebar, .view-business .titlebar { font-size: 32px; font-weight: 800; letter-spacing: -0.035em; }
+.solution-main.card { padding: 24px 26px; margin: 18px 0 14px; }
+.route-head { display: flex; gap: 16px; align-items: center; margin-bottom: 14px; }
+.route-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.route-head .route-title { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.03em; }
+.glancecards { list-style: none; margin: 0 0 18px; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.glancecards li { padding: 18px 20px; display: grid; gap: 4px; align-content: start; }
+.gc-label { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-top: 8px; }
+.gc-value { font-size: 18px; font-weight: 800; letter-spacing: -0.015em; }
+.gc-note { font-size: 12.5px; color: var(--muted); }
+.rerunbar.card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; margin: 14px 0; background: #fff; }
+.solutionview .issues { margin-top: 8px; }
+.solutionview .issues-title { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; margin: 26px 0 12px; text-transform: none; color: var(--ink); }
+.solutionview .issue-list { display: grid; gap: 12px; }
+.solutionview .issue { background: #fff; border: 1px solid #EEEEEE; border-left: 4px solid #EEEEEE; border-radius: var(--card-radius); box-shadow: var(--card-shadow); padding: 16px 20px; }
+.solutionview .issue.blocks { border-left-color: var(--stop); }
+.solutionview .issue.resolved { border-left-color: var(--jade); }
+.solutionview .issue-title { font-size: 18px; font-weight: 800; letter-spacing: -0.015em; }
+.workspace .tabs { margin-top: 22px; }
+@media (max-width: 760px) { .glancecards { grid-template-columns: 1fr; } .route-head { flex-wrap: wrap; } }
+.solutionview .issues + * , .solutionview > details:first-of-type { margin-top: 22px; }
+@media (max-width: 700px) { .amspace .adminnav { max-width: 100%; overflow-x: auto; } .amspace { min-width: 0; } .admin-main { min-width: 0; } }
+@media (max-width: 960px) { .primarynav { min-width: 0; max-width: 100%; } .appbar-row { min-width: 0; max-width: 100vw; } }
+@media (max-width: 960px) { .admin.amspace { grid-template-columns: minmax(0, 1fr); } .home .stucklist li > span, .home .stucklist li > a { max-width: 100%; min-width: 0; } .home .stucklist li { min-width: 0; } }

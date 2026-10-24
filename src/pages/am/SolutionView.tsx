@@ -17,6 +17,7 @@ import { StoryProcessPanel } from "../StoryProcess";
 import { ROUTE_LABEL, cleanAgentText, type StoryCtx } from "../stories/storyContext";
 import { Link } from "../../router";
 import { changePath } from "../stories/useStory";
+import { IconTile } from "../../components/icons";
 
 const DECISIONS = new Set(["approve_exact_change", "approve_design", "authorise_handoff", "confirm_no_change"]);
 
@@ -80,16 +81,14 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
     <div className="solutionview">
       {/* The next-step line above already says JADE is at work; said once. */}
       {standalone && <JadeAtWorkLine lifecycle={lc} />}
-      {canRerun && (
-        <div className={`rerunbar${newAnswers > 0 ? " ready" : ""}`} role="region" aria-label="Run the Architect again">
+      {/* The rerun asks for attention only when answers came in since the design; otherwise it is a quiet button on the solution. */}
+      {canRerun && newAnswers > 0 && (
+        <div className="rerunbar ready card" role="region" aria-label="Run the Architect again">
           <div className="rerunbar-text">
-            {newAnswers > 0 ? (
-              <><strong>{newAnswers} answer{newAnswers === 1 ? "" : "s"} recorded since this design</strong>
-                <span>{stillOpen > 0 ? `${stillOpen} open point${stillOpen === 1 ? " is" : "s are"} still unanswered. ` : "All open points are answered. "}
-                  Run the Architect again when you are ready; it uses every answer.</span></>
-            ) : <span>Earlier designs and the conversation are kept when the Architect runs again.</span>}
+            <strong>{newAnswers} answer{newAnswers === 1 ? "" : "s"} since this design</strong>
+            <span>{stillOpen > 0 ? `${stillOpen} still open.` : "Nothing else is open."}</span>
           </div>
-          <button className={`btn${newAnswers > 0 ? " primary" : ""}`} disabled={busy || architectAtWork} onClick={rerun}>
+          <button className="btn primary" disabled={busy || architectAtWork} onClick={rerun}>
             {architectAtWork ? "The Architect is at work…" : busy ? "Starting…" : "Run the Architect again"}</button>
         </div>
       )}
@@ -109,27 +108,36 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
           ) : null}
         />
 
-      <section className="panel solution-main">
-        {route && <div className="route-line"><span className="route-title">{route.title}</span><span className="muted"> · {route.summary}</span></div>}
-        <ResultSummary change={change} hideConclusion={DECISIONS.has(lc?.nextAction.action ?? "") && info.has("product_manager", "admin")} />
-        {/* What changes, who builds it, the risk and what is open: one screen (finding 4). */}
-        {decision && (
-          <dl className="glance">
-            <dt>Who builds it</dt>
-            <dd>{route?.title}{spec?.humanActionsRequired.length ? ` · people: ${spec.humanActionsRequired.length} step${spec.humanActionsRequired.length === 1 ? "" : "s"} outside JADE` : ""}</dd>
-            <dt>Risk</dt>
-            <dd>{decision.dependenciesAndConflicts.length
-              ? `${decision.dependenciesAndConflicts.length} dependenc${decision.dependenciesAndConflicts.length === 1 ? "y or conflict" : "ies or conflicts"} named`
-              : "No dependencies or conflicts named"}{decision.rollbackStrategy ? " · rollback described" : " · no rollback described"}</dd>
-            <dt>Effort</dt>
-            <dd>{change.complexitySignal === "Unknown" ? "Not estimated" : `${change.complexitySignal} (JADE's estimate)`}</dd>
-          </dl>
+      <section className="solution-main card">
+        {route && (
+          <div className="route-head">
+            <IconTile name="delivery" size="lg" />
+            <div className="route-text"><h2 className="route-title">{route.title}</h2><span className="muted">{route.summary}</span></div>
+            {canRerun && newAnswers === 0 && (
+              <button className="btn small" disabled={busy || architectAtWork} onClick={rerun}>
+                {architectAtWork ? "At work…" : busy ? "Starting…" : "Run the Architect again"}</button>
+            )}
+          </div>
         )}
-        {basis && <p className="designbasis">{basis} <Link to={changePath(change.id, "evidence")}>Design basis</Link></p>}
-        {standalone && <WhatNeedsToHappen lifecycle={lc} changeId={change.id} skipPrimary title="Also open" limit={3} />}
-        <IssueList change={change} onChange={() => ctx.reload()} skipNextAction={!DECISIONS.has(lc?.nextAction.action ?? "")}
-          empty="No open points: nothing is waiting on anyone." />
+        <ResultSummary change={change} hideConclusion={DECISIONS.has(lc?.nextAction.action ?? "") && info.has("product_manager", "admin")} />
       </section>
+      {/* Who builds it, the risk and the effort: three small cards, as on consultiq.nl. */}
+      {decision && (
+        <ul className="glancecards">
+          <li className="card"><IconTile name="run" size="sm" /><span className="gc-label">Who builds it</span>
+            <span className="gc-value">{route?.title}</span>
+            {spec?.humanActionsRequired.length ? <span className="gc-note">{spec.humanActionsRequired.length} step{spec.humanActionsRequired.length === 1 ? "" : "s"} by people</span> : null}</li>
+          <li className="card"><IconTile name="blocked" size="sm" /><span className="gc-label">Risk</span>
+            <span className="gc-value">{decision.dependenciesAndConflicts.length ? `${decision.dependenciesAndConflicts.length} dependenc${decision.dependenciesAndConflicts.length === 1 ? "y" : "ies"}` : "No dependencies"}</span>
+            <span className="gc-note">{decision.rollbackStrategy ? "Rollback described" : "No rollback described"}</span></li>
+          <li className="card"><IconTile name="test" size="sm" /><span className="gc-label">Effort</span>
+            <span className="gc-value">{change.complexitySignal === "Unknown" ? "Not estimated" : change.complexitySignal}</span>
+            <span className="gc-note">JADE's estimate</span></li>
+        </ul>
+      )}
+      {standalone && <WhatNeedsToHappen lifecycle={lc} changeId={change.id} skipPrimary title="Also open" limit={3} />}
+      <IssueList change={change} onChange={() => ctx.reload()} skipNextAction={!DECISIONS.has(lc?.nextAction.action ?? "")}
+        empty="No open points: nothing is waiting on anyone." />
 
       {ctx.process && (latestMap(ctx.process.maps.to_be.versions) || latestMap(ctx.process.maps.as_is.versions)) ? (
         <section className="panel">
@@ -146,6 +154,7 @@ export function SolutionView({ ctx, standalone = false }: { ctx: StoryCtx; stand
 
       {decision && (
         <Details summary="Why this solution" id="why">
+          {basis && <p className="designbasis">{basis} <Link to={changePath(change.id, "evidence")}>Design basis</Link></p>}
           <SolutionArchitectureMap change={change} decision={decision} spec={spec} domain={info.domainName(change.businessDomainId)} mapping={ctx.process?.mapping} />
           <IntegrityPanel decision={decision} />
           {cleanAgentText(decision.existingFunctionalityFound).text && (
