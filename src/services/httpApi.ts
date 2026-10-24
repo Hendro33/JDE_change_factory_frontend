@@ -805,6 +805,16 @@ export class HttpChangeFactoryApi implements ChangeFactoryApi {
     return request<InvitationOut>("/admin/users/invite", { method: "POST", customerId, body: input });
   }
 
+  async createUser(input: InviteInput & { displayName: string; password: string }): Promise<MembershipOut> {
+    const customerId = await this.activeCustomerId();
+    return request<MembershipOut>("/admin/users", { method: "POST", customerId, body: input });
+  }
+
+  async setUserPassword(membershipId: string, password: string): Promise<void> {
+    const customerId = await this.activeCustomerId();
+    await request<unknown>(`/admin/users/${encodeURIComponent(membershipId)}/password`, { method: "POST", customerId, body: { password } });
+  }
+
   async resendInvitation(invitationId: string): Promise<InvitationOut> {
     const customerId = await this.activeCustomerId();
     return request<InvitationOut>(`/admin/users/invitations/${encodeURIComponent(invitationId)}/resend`, {

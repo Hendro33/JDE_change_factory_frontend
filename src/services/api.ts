@@ -141,6 +141,8 @@ export const API_ENDPOINTS = {
 
   listCompanyUsers: "GET /admin/users",
   inviteUser: "POST /admin/users/invite",
+  createUser: "POST /admin/users",
+  setUserPassword: "POST /admin/users/{membershipId}/password",
   resendInvitation: "POST /admin/users/invitations/{id}/resend",
   revokeInvitation: "POST /admin/users/invitations/{id}/revoke",
   updateMembershipRoles: "PUT /admin/users/{membershipId}/roles",
@@ -472,6 +474,10 @@ export interface ChangeFactoryApi {
    */
   listCompanyUsers(): Promise<CompanyUsersOut>;
   inviteUser(input: InviteInput): Promise<InvitationOut>;
+  /** The Administrator creates a person with a password (no e-mail); an existing login is added with these roles. */
+  createUser(input: InviteInput & { displayName: string; password: string }): Promise<MembershipOut>;
+  /** The Administrator sets a new password; the person's open sessions end. */
+  setUserPassword(membershipId: string, password: string): Promise<void>;
   resendInvitation(invitationId: string): Promise<InvitationOut>;
   revokeInvitation(invitationId: string): Promise<InvitationOut>;
   updateMembershipRoles(membershipId: string, input: UpdateMembershipInput): Promise<MembershipOut>;

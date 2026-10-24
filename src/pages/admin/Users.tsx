@@ -88,44 +88,72 @@ function DeliveryNote({ email, emailSent, detail, link, what }: {
 }
 
 function InviteForm({ domains, onInvited }: { domains: BusinessDomain[]; onInvited: () => void }) {
+  // Two ways to add a person: create them with a password you give them (the usual way in a business
+  // application, no e-mail needed), or send an invitation link by e-mail.
+  const [mode, setMode] = useState<"password" | "invite">("password");
   const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [password, setPassword] = useState("");
   const [roles, setRoles] = useState<CompanyRole[]>([]);
   const [domainIds, setDomainIds] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<InvitationOut | null>(null);
+  const [created, setCreated] = useState<string | null>(null);
 
   async function submit() {
     setSending(true);
     setError(null);
     setSent(null);
+    setCreated(null);
     try {
-      const invitation = await api.inviteUser({ email: email.trim(), roles, domainIds });
-      setEmail("");
-      setRoles([]);
-      setDomainIds([]);
-      setSent(invitation);
+      if (mode === "password") {
+        const member = await api.createUser({ email: email.trim(), displayName: displayName.trim(), password, roles, domainIds });
+        setCreated(member.email);
+      } else {
+        setSent(await api.inviteUser({ email: email.trim(), roles, domainIds }));
+      }
+      setEmail(""); setDisplayName(""); setPassword(""); setRoles([]); setDomainIds([]);
       onInvited();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send the invitation.");
+      setError(e instanceof Error ? e.message : mode === "password" ? "Could not create the user." : "Could not send the invitation.");
     } finally {
       setSending(false);
     }
   }
 
+  const ready = !!email.trim() && roles.length > 0 && (mode === "invite" || password.length >= 8);
   return (
     <div className="stack">
+      <div className="segmented" role="radiogroup" aria-label="How to add this person">
+        <button type="button" role="radio" aria-checked={mode === "password"} className={mode === "password" ? "on" : ""} onClick={() => setMode("password")}>Create with a password</button>
+        <button type="button" role="radio" aria-checked={mode === "invite"} className={mode === "invite" ? "on" : ""} onClick={() => setMode("invite")}>Send an invitation</button>
+      </div>
       <div className="field">
-        <label htmlFor="inviteEmail">Email</label>
+        <label htmlFor="inviteEmail">Email (their login name)</label>
         <input id="inviteEmail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />
       </div>
+      {mode === "password" && (
+        <>
+          <div className="field">
+            <label htmlFor="newName">Name</label>
+            <input id="newName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="First and last name" />
+          </div>
+          <div className="field">
+            <label htmlFor="newPassword">Password (at least 8 characters)</label>
+            <input id="newPassword" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <div className="hint">If this person already has a login, they are added to this customer and keep their own password.</div>
+          </div>
+        </>
+      )}
       <RoleAndDomainPicker roles={roles} domainIds={domainIds} domains={domains} onChangeRoles={setRoles} onChangeDomainIds={setDomainIds} />
       {error && <div className="callout" style={{ borderColor: "var(--stop)" }}>{error}</div>}
+      {created && <div className="callout" role="status">{created} can sign in now with the password you chose.</div>}
       {sent && <DeliveryNote email={sent.email} emailSent={!!sent.emailSent} detail={sent.emailDetail}
                              link={sent.previewUrl} what="invitation" />}
       <div className="btnrow">
-        <button className="btn primary" disabled={sending || !email.trim() || roles.length === 0} onClick={submit}>
-          {sending ? "Sending…" : "Send invitation"}
+        <button className="btn primary" disabled={sending || !ready} onClick={submit}>
+          {sending ? "Saving…" : mode === "password" ? "Create user" : "Send invitation"}
         </button>
       </div>
     </div>
@@ -145,6 +173,21 @@ function MemberRow({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reset, setReset] = useState<PasswordResetLinkOut | null>(null);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pw, setPw] = useState("");
+  const [pwDone, setPwDone] = useState(false);
+
+  async function savePassword() {
+    setBusy(true); setError(null); setPwDone(false);
+    try {
+      await api.setUserPassword(member.membershipId, pw);
+      setPw(""); setPwOpen(false); setPwDone(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not set the password.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function issueResetLink() {
     setBusy(true);
@@ -203,6 +246,17 @@ function MemberRow({
         {error && <div className="hint" style={{ color: "var(--stop)" }}>{error}</div>}
         {reset && <DeliveryNote email={member.email} emailSent={reset.sent} detail={reset.detail}
                                 link={reset.previewUrl} what="password reset link" />}
+        {pwOpen && (
+          <div className="field" style={{ marginTop: 8 }}>
+            <label htmlFor={`pw-${member.membershipId}`}>New password for {member.email} (at least 8 characters)</label>
+            <input id={`pw-${member.membershipId}`} type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} />
+            <div className="btnrow" style={{ marginTop: 6 }}>
+              <button className="btn primary" disabled={busy || pw.length < 8} onClick={savePassword}>{busy ? "Saving…" : "Save password"}</button>
+              <button className="btn" disabled={busy} onClick={() => { setPwOpen(false); setPw(""); }}>Cancel</button>
+            </div>
+          </div>
+        )}
+        {pwDone && <div className="callout" role="status">Password set. Give it to {member.email}; they can sign in with it now.</div>}
       </td>
       <td>
         <div className="btnrow">
@@ -215,7 +269,10 @@ function MemberRow({
             <>
               <button className="btn" disabled={busy} onClick={() => setEditing(true)}>Edit roles</button>
               {member.status === "active" && (
-                <button className="btn" disabled={busy} onClick={issueResetLink}>Reset link</button>
+                <>
+                  <button className="btn" disabled={busy} onClick={() => { setPwOpen(true); setPwDone(false); }}>Set password</button>
+                  <button className="btn" disabled={busy} onClick={issueResetLink}>Reset link</button>
+                </>
               )}
               <button className="btn danger" disabled={busy} onClick={toggleStatus}>
                 {busy ? "…" : member.status === "active" ? "Deactivate" : "Reactivate"}
@@ -313,7 +370,7 @@ export function Users() {
         </div>
         {data && (
           <button className="btn primary" onClick={() => setInviting((v) => !v)}>
-            {inviting ? "Close" : "Invite user"}
+            {inviting ? "Close" : "Add user"}
           </button>
         )}
       </div>
@@ -336,7 +393,7 @@ export function Users() {
         <>
           {inviting && (
             <section className="panel" style={{ marginBottom: 16 }}>
-              <h2 style={{ marginTop: 0 }}>Invite a user</h2>
+              <h2 style={{ marginTop: 0 }}>Add a user</h2>
               <InviteForm domains={domains} onInvited={load} />
             </section>
           )}
