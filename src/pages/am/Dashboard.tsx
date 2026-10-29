@@ -7,6 +7,7 @@ import { Link } from "../../router";
 import { AM_STAGES, inAmStage, type AmStage } from "./workflow";
 import { isException } from "../../services/metrics";
 import { AppManagerHome, greeting } from "../work/MyWork";
+import { IconTile } from "../../components/icons";
 
 /**
  * The Application Manager's cockpit (design: "the Application Manager home,
@@ -16,13 +17,13 @@ import { AppManagerHome, greeting } from "../work/MyWork";
  * blocked work marked in words; then one compact queue. Every figure comes from
  * the canonical lifecycle and recorded event times; definitions sit behind "?".
  */
-const FLOW: { key: AmStage; label: string }[] = [
-  { key: "backlog", label: "Backlog review" },
-  { key: "architecture", label: "Architecture" },
-  { key: "approved", label: "Approved" },
-  { key: "delivery", label: "In delivery" },
-  { key: "validation", label: "Validation" },
-  { key: "asbuilt", label: "Release hand-over" },
+const FLOW: { key: AmStage; label: string; icon: string }[] = [
+  { key: "backlog", label: "Backlog review", icon: "story" },
+  { key: "architecture", label: "Architecture", icon: "decision" },
+  { key: "approved", label: "Approved", icon: "done" },
+  { key: "delivery", label: "In delivery", icon: "delivery" },
+  { key: "validation", label: "Validation", icon: "test" },
+  { key: "asbuilt", label: "Release hand-over", icon: "release" },
 ];
 // "Ready for release" overlaps with Completed (JADE does not record production
 // promotion), so it is not a stage of the flow; delivered work is a key figure.
@@ -33,22 +34,21 @@ export function ApprovedWorkFlow({ changes }: { changes: Change[] }) {
     const rows = changes.filter((c) => inAmStage(c, s.key));
     return { ...s, n: rows.length, blocked: rows.filter(isException).length, to: AM_STAGES.find((x) => x.key === s.key)!.to };
   });
-  const max = Math.max(1, ...stages.map((s) => s.n));
+  // Insights review 29 Oct: numbered stage tiles in the consultiq.nl style instead of a bar chart.
   return (
-    <section className="flow" aria-label="Where approved work stands">
-      <ol className="flow-bars">
-        {stages.map((s) => (
-          <li key={s.key}>
-            <Link to={s.to} className={`flow-col${s.n ? "" : " zero"}`} title={`${s.label}: ${s.n}${s.blocked ? `, ${s.blocked} blocked` : ""}`}>
-              <span className="flow-n">{s.n}</span>
-              <span className="flow-track" aria-hidden="true"><span className="flow-fill" style={{ height: `${(s.n / max) * 100}%` }} /></span>
-              <span className="flow-label">{s.label}</span>
-              <span className="flow-blocked">{s.blocked ? <><span aria-hidden="true">■</span> {s.blocked} blocked</> : " "}</span>
-            </Link>
-          </li>
-        ))}
-      </ol>
-    </section>
+    <ol className="stagetiles" aria-label="Where approved work stands">
+      {stages.map((s, i) => (
+        <li key={s.key}>
+          <Link to={s.to} className={`hovercard stagetile${s.n ? "" : " zero"}`} title={`${s.label}: ${s.n}${s.blocked ? `, ${s.blocked} blocked` : ""}`}>
+            <span className="stagetile-step">{String(i + 1).padStart(2, "0")}</span>
+            <IconTile name={s.icon} size="lg" />
+            <span className="ic-value">{s.n}</span>
+            <span className="ic-label">{s.label}</span>
+            {s.blocked ? <span className="stagetile-blocked">{s.blocked} blocked</span> : null}
+          </Link>
+        </li>
+      ))}
+    </ol>
   );
 }
 

@@ -115,14 +115,16 @@ export function ReportsPage() {
         </section>
       )}
 
-      {info.appManagement && <Section title="Where approved work stands" description="Approved stories by stage, now. Each stage opens its queue."><div className="flowcard"><ApprovedWorkFlow changes={allChanges} /></div></Section>}
-
-      <Section title="Health of open work" description="Open stories only; delivered and closed work is an outcome, not a health state.">
+      <Section title="Where work stands" description="Approved stories by stage, now, and the health of all open work. Each tile opens its stories.">
+        {info.appManagement && <ApprovedWorkFlow changes={allChanges} />}
         {openHealth.length === 0 ? <EmptyState title="No open work" /> : (
-          <ul className="healthtiles">{openHealth.map((h) => (
-            <li key={h.stage}><Link className="hovercard" to={`/stories?health=${HEALTH_KEY[h.stage] ?? ""}`}>
-              <span className="healthtile-value">{h.count}</span><span className="healthtile-label">{h.stage}</span></Link></li>
-          ))}</ul>
+          <ul className="healthline" aria-label="Health of open work">
+            <li className="healthline-title">Health of open work</li>
+            {openHealth.map((h) => (
+              <li key={h.stage}><Link className={`healthpill h-${HEALTH_KEY[h.stage] ?? ""}${h.count ? "" : " zero"}`} to={`/stories?health=${HEALTH_KEY[h.stage] ?? ""}`}>
+                <strong>{h.count}</strong> {h.stage}</Link></li>
+            ))}
+          </ul>
         )}
       </Section>
 
